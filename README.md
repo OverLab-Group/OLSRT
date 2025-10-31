@@ -1,6 +1,6 @@
 # OLSRT - OverLab Streams Runtime
 
-> Built in one language
+> Built in one language</br>
 > But usable everywhere
 
 ## What is OLSRT?
@@ -15,15 +15,15 @@ If your language can talk to C, it can talk to **OLSRT**.
 ## Why **OLSRT** is the best?
 The **OLSRT** core is written in such a way that no additional libraries or tools are needed.
 Just you and the incredible capailities of **OLSRT**, which allows you to:
-> Using Actors
-> Using Channels
-> Using Event Loop and Poller
-> Using HTTP
-> Using Parallel
-> Using Promise and Futures
-> Using Streams
-> Using Timers
-> Using WebSocket
+> Using Actors</br>
+> Using Channels</br>
+> Using Event Loop and Poller</br>
+> Using HTTP</br>
+> Using Parallel</br>
+> Using Promise and Futures</br>
+> Using Streams</br>
+> Using Timers</br>
+> Using WebSocket</br>
 Interesting enough to dive in?
 
 ## Status
