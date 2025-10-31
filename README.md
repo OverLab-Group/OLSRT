@@ -4,17 +4,17 @@
 > But usable everywhere
 
 ## What is OLSRT?
-**OLSRT** (**OverLab Streams Runtime**) is not just another runtime.
-It started a humble attempt to bring Node.js, Golang, and Erlang (WebSocket) power to PHP...
+**OLSRT** (**OverLab Streams Runtime**) is not just another runtime.<br/>
+It started a humble attempt to bring Node.js, Golang, and Erlang (WebSocket) power to PHP...<br/>
 but our old system, betrayed us, and we couldn't even get a proper build output.
 
-**So we decided to go bigger**.
-**OLSRT** is now a **universal runtime core** - designed for **all languages**.
+**So we decided to go bigger**.<br/>
+**OLSRT** is now a **universal runtime core** - designed for **all languages**.<br/>
 If your language can talk to C, it can talk to **OLSRT**.
 
 ## Why **OLSRT** is the best?
-The **OLSRT** core is written in such a way that no additional libraries or tools are needed.
-Just you and the incredible capailities of **OLSRT**, which allows you to:
+The **OLSRT** core is written in such a way that no additional libraries or tools are needed.<br/>
+Just you and the incredible capabilities of **OLSRT**, which allows you to:
 > Using Actors</br>
 > Using Channels</br>
 > Using Event Loop and Poller</br>
@@ -33,12 +33,12 @@ We'll be honest:
 -  No shiny binaries.
 -  Just raw code, ideas, and a vision.
 
-But that's why this repo exsists.
-Because **your contributions mean everything**.
+But that's why this repo exsists.<br/>
+Because **your contributions mean everything**.<br/>
 Even the smallest PR, a bugfix, or a test will make us *incredibly happy*.
 
 ## How to bind OLSRT to your language?
-**OLSRT** exposes a clean C API.
+**OLSRT** exposes a clean C API.<br/>
 Every modern language can connect via FFI:
 -  **PHP** -> Use PHP SDK, write an extension (e.g `php_olsrt.c`), write `config.w32/m4`, compile it, then enjoy
 -  **Python** -> `ctypes` / `cffi`
@@ -50,9 +50,9 @@ Every modern language can connect via FFI:
 -  **Rust** -> `bindgen` + Safe wrappers
 
 ## Contributing
-We are not a big team.
-We are just trying, failing, and trying more, again.
-If you join us, you won't just be a contributor.
+We are not a big team.<br/>
+We are just trying, failing, and trying more, again.<br/>
+If you join us, you won't just be a contributor.<br/>
 You'll be part of the story.
 
 ## License
