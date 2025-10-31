@@ -58,4 +58,5 @@ You'll be part of the story.
 ## License
 Apache 2.0 - free to use, modify, and share.
 
+Current milestone: Initial Core (v0.1)
 `By OverLab Group`
