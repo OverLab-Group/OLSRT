@@ -23,7 +23,8 @@ Just you and the incredible capailities of **OLSRT**, which allows you to:
 > Using Promise and Futures</br>
 > Using Streams</br>
 > Using Timers</br>
-> Using WebSocket</br>
+> Using WebSocket
+
 Interesting enough to dive in?
 
 ## Status
