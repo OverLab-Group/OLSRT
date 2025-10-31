@@ -1,12 +1,12 @@
-# OLSRT - OverLab Streams Runtime
-
-> Built in one language</br>
-> But usable everywhere
+![OLSRT Logo](assets/OLSRT.png)
 
 ## What is OLSRT?
 **OLSRT** (**OverLab Streams Runtime**) is not just another runtime.<br/>
 It started a humble attempt to bring Node.js, Golang, and Erlang (WebSocket) power to PHP...<br/>
 but our old system, betrayed us, and we couldn't even get a proper build output.
+
+> Built in one language</br>
+> But usable everywhere
 
 **So we decided to go bigger**.<br/>
 **OLSRT** is now a **universal runtime core** - designed for **all languages**.<br/>
