@@ -1,63 +1,153 @@
-![OLSRT Logo](assets/OLSRT.png)
+![OLSRT Logo](assets/olsrt.png)
 
-## What is OLSRT?
-**OLSRT** (**OverLab Streams Runtime**) is not just another runtime.<br/>
-**OLSRT** is an **universal runtime** - designed for **all languages**.<br/>
-If your language can talk to C, it can talk to **OLSRT**.
+# ⚡ OLSRT – OverLab Streams Runtime
+[![Made with C](https://img.shields.io/badge/Made%20with-C-blue.svg)](https://en.wikipedia.org/wiki/C_(programming_language))
+[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20BSD%20%7C%20macOS-8A2BE2.svg)](#build-status)
+[![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
+[![Build-System](https://img.shields.io/badge/Build-Make%20%7C%20CMake-orange.svg)](#build-olsrt-yourself)
+[![Status](https://img.shields.io/badge/Status-Production--ready%20(v1.0)-brightgreen.svg)](#status)
+[![Docs](https://img.shields.io/badge/Docs-In%20progress-yellow.svg)](#status)
+[![Contributions](https://img.shields.io/badge/Contributions-Welcome-success.svg)](#contributing)
+![GitHub Repo stars](https://img.shields.io/github/stars/OverLab-Group/OLSRT?style=social)
+![GitHub forks](https://img.shields.io/github/forks/OverLab-Group/OLSRT?style=social)
+![GitHub issues](https://img.shields.io/github/issues/OverLab-Group/OLSRT)
+![GitHub release](https://img.shields.io/github/v/release/OverLab-Group/OLSRT)
 
-## Why **OLSRT**?
-At the very begining, **OLSRT** was a weak runtime - even weaker that `libuv`, a library from GitHub's history.<br/>
-But that was the past!<br/>
+---
 
-Today, **OLSRT** has evolved into a **complete & production-ready runtime** with advanced capabilities. Powerful enough to be used in **enterprise-scale projects**.<br/>
+## 🤔 What is OLSRT?
+**OLSRT** (**OverLab Streams Runtime**) is not your average runtime.<br/>
+It’s a **universal engine** – designed to power **all languages**.<br/>
+If your language can talk to C, it can vibe with **OLSRT**. 🎉
 
-from humble experiments to a universal runtime, **OLSRT** now delivers:
-- Modern concurrency primitives (Actors, Async/Await, Coroutines, and Green Threads/Fibers)
-- Robust synchronization (Locks & Mutex, Semaphores, and Supervisors)
-- Reactive and Dataflow programming
-- Event Loop, Poller, and Deadlines
-- Streams, Futures, Promises, and Parallel execution
+---
 
-**Minimal. Hackable. Yet more powerful than Trends**
+## 💡 Why OLSRT?
+Once upon a time, **OLSRT** was a fragile experiment – weaker than `libuv`.  
+But that was yesterday. ⏳  
 
-## Status
-**Production-ready (V1.0)**<br/>
-Stable builds available<br/>
-SDK Bindings & Documentions in Progress
+Today, **OLSRT** is a **battle‑tested, production‑ready runtime** with serious muscle.  
+Strong enough for **enterprise workloads**, yet hackable enough for indie devs. 🏢💪🎸  
 
-## Build status
-- Linux: OK
-- Windows: COMING SOON
-- BSD: NO
+From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
+- ⚡ **Concurrency**: Actors, Async/Await, Coroutines, Fibers
+- 🔒 **Synchronization**: Locks, Mutexes, Semaphores, Supervisors
+- 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
+- ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
+- 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
 
-## Release Timeline
-OLSRT versions are not just numbers — each milestone has a name and a story:
+**Minimal. Hackable. Ruthless.**  
+More powerful than the hype, sharper than the trends. 🖤
+
+---
+
+## 📊 Status
+- **Production‑ready (v1.0)** ✅  
+- Stable builds available  
+- SDK Bindings & Documentation cooking 🍳  
+
+---
+
+## 🖥️ Build status
+- 🐧 Linux: ✅ Solid  
+- 🪟 Windows: 🔜 Coming soon  
+- 🐚 BSD: ❌ Not yet  
+- 🍎 macOS: 🔜 Planned  
+
+---
+
+## 🛠️ Build OLSRT Yourself
+Two ways to unleash the beast:
+
+- **Prebuilt binaries**: Grab the `.so` / `.dll` and drop it in your project.  
+- **Build from source**: Compile OLSRT yourself with **Make** (preferred) or **CMake**.
+
+---
+
+### 🚀 Build with **CMake**
+1. Clone with minimal history:
+   ```bash
+   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
+   ```
+   Or download without Git history:
+   ```bash
+   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
+   unzip main.zip
+   ```
+2. Enter the project directory:
+   ```bash
+   cd OLSRT
+   ```
+3. Create a build directory:
+   ```bash
+   mkdir build && cd build
+   ```
+4. Configure & build:
+   ```bash
+   cmake ..
+   cmake --build .
+   ```
+
+> ⚠️ Note: CMake builds are supported but **not the main stage**.  
+> The OverLab Group dev team runs with Makefiles for validation. 🎯
+
+---
+
+### 🛠️ Build with **Make** (recommended)
+1. Clone with minimal history:
+   ```bash
+   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
+   ```
+   Or download without Git history:
+   ```bash
+   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
+   unzip main.zip
+   ```
+2. Enter the project directory:
+   ```bash
+   cd OLSRT
+   ```
+3. Build for your platform:
+   ```bash
+   make <platform>
+   ```
+   Replace `<platform>` with:  
+   `linux`, `windows`, `bsd`, `macos`, or `all-platforms`.
+
+---
+
+## 📅 Release Timeline
+OLSRT versions aren’t just numbers — they’re milestones with names and stories:
 
 | Version | Codename | Highlights |
 |---------|----------|------------|
-| v0.1		|	**Initialize Core** | The first version of OLSRT, nothing was here, only some key features. |
-| v1.*    | **Atom**   | First stable release. Advanced features, but still small compared to the future. (_**We are here**_) |
-| v2.*    | **Apollo** | Added 66 networking protocols and port management. Like launching Apollo 🚀 |
-| v3.*    | **Nova**   | Virtualization support introduced. A stellar explosion of new possibilities. |
-| v4.*    | **Core**   | Focus on Utils until v8. Named Core as a farewell to the runtime’s foundation. |
-| v5.*    | **Spark**  | Utilities expansion begins. The spark of new tools. |
-| v6.*    | **Orion**  | More utilities. Inspired by the powerful constellation. |
-| v7.*    | **Cosmos** | Utilities broaden further. Vast and cosmic scope. |
-| v8.*    | **Hermes** | End of utilities, start of Compiler & OLLC. Messenger of a new era. |
-| v9.*    | **Kernel** | Advanced runtime core, like a real kernel. Foundation for future versions. |
-| v10.*   | **Stream** | Architectures added. Flowing runtime stream. |
-| v11.*   | **Flow**   | Full OS support. Seamless flow across systems. |
-| v12.*   | **Wave**   | Massive expansion. 30% of programming languages supported. 🌊 |
+| v0.1    | **Initialize Core** | First spark. Skeleton features. |
+| v1.*    | **Atom**   | First stable release. (_**We are here**_) |
+| v2.*    | **Apollo** | 66 networking protocols. 🚀 |
+| v3.*    | **Nova**   | Virtualization support. 💥 |
+| v4.*    | **Core**   | Utilities foundation. |
+| v5.*    | **Spark**  | Utilities expansion begins. ✨ |
+| v6.*    | **Orion**  | More utilities. 🌌 |
+| v7.*    | **Cosmos** | Vast scope. 🌠 |
+| v8.*    | **Hermes** | Compiler era begins. 📜 |
+| v9.*    | **Kernel** | Advanced runtime core. 🧩 |
+| v10.*   | **Stream** | Architectures added. 🌊 |
+| v11.*   | **Flow**   | Full OS support. 🔗 |
+| v12.*   | **Wave**   | 30% language coverage. 🌊 |
 
+---
 
-## Contributing
-We are not a big team.<br/>
-We are just trying, failing, and trying more, again.<br/>
-If you join us, you won't just be a contributor.<br/>
-You'll be part of the story.
+## 🤝 Contributing
+We’re not a corporate army.  
+We’re a crew of builders, breakers, and dreamers. 🔄💥  
 
-## License
-Apache 2.0 - free to use, modify, and share.
+Join us, and you’re not just a contributor.  
+You’re part of the legend. 📖🔥  
 
-Current milestone: v1.0 (Atom)<br/>
+---
+
+## 📜 License
+Apache 2.0 – free to use, remix, and share. 🆓  
+
+Current milestone: **v1.0 (Atom)**  
 `By OverLab Group`
