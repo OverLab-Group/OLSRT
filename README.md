@@ -22,10 +22,15 @@ from humble experiments to a universal runtime, **OLSRT** now delivers:
 
 ## Status
 **Production-ready (V1.0)**<br/>
-Stable builds available (`libolsrt.so`, `olsrt.dll`, `libolsrt.dylib`)<br/>
+Stable builds available<br/>
 SDK Bindings & Documentions in Progress
 
-## 📅 Release Timeline
+## Build status
+- Linux: OK
+- Windows: COMING SOON
+- BSD: NO
+
+## Release Timeline
 OLSRT versions are not just numbers — each milestone has a name and a story:
 
 | Version | Codename | Highlights |
