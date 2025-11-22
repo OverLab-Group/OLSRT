@@ -2,52 +2,48 @@
 
 ## What is OLSRT?
 **OLSRT** (**OverLab Streams Runtime**) is not just another runtime.<br/>
-It started a humble attempt to bring Node.js, Golang, and Erlang (WebSocket) power to PHP...<br/>
-but our old system, betrayed us, and we couldn't even get a proper build output.
-
-> Built in one language</br>
-> But usable everywhere
-
-**So we decided to go bigger**.<br/>
-**OLSRT** is now a **universal runtime core** - designed for **all languages**.<br/>
+**OLSRT** is an **universal runtime** - designed for **all languages**.<br/>
 If your language can talk to C, it can talk to **OLSRT**.
 
-## Why **OLSRT** is the best?
-The **OLSRT** core is written in such a way that no additional libraries or tools are needed.<br/>
-Just you and the incredible capabilities of **OLSRT**, which allows you to:
-> Using Actors</br>
-> Using Channels</br>
-> Using Event Loop and Poller</br>
-> Using HTTP</br>
-> Using Parallel</br>
-> Using Promise and Futures</br>
-> Using Streams</br>
-> Using Timers</br>
-> Using WebSocket
+## Why **OLSRT**?
+At the very begining, **OLSRT** was a weak runtime - even weaker that `libuv`, a library from GitHub's history.<br/>
+But that was the past!<br/>
 
-Interesting enough to dive in?
+Today, **OLSRT** has evolved into a **complete & production-ready runtime** with advanced capabilities. Powerful enough to be used in **enterprise-scale projects**.<br/>
+
+from humble experiments to a universal runtime, **OLSRT** now delivers:
+- Modern concurrency primitives (Actors, Async/Await, Coroutines, and Green Threads/Fibers)
+- Robust synchronization (Locks & Mutex, Semaphores, and Supervisors)
+- Reactive and Dataflow programming
+- Event Loop, Poller, and Deadlines
+- Streams, Futures, Promises, and Parallel execution
+
+**Minimal. Hackable. Yet more powerful than Trends**
 
 ## Status
-We'll be honest:
--  No stable build yet.
--  No shiny binaries.
--  Just raw code, ideas, and a vision.
+**Production-ready (V1.0)**<br/>
+Stable builds available (`libolsrt.so`, `olsrt.dll`, `libolsrt.dylib`)<br/>
+SDK Bindings & Documentions in Progress
 
-But that's why this repo exsists.<br/>
-Because **your contributions mean everything**.<br/>
-Even the smallest PR, a bugfix, or a test will make us *incredibly happy*.
+## 📅 Release Timeline
+OLSRT versions are not just numbers — each milestone has a name and a story:
 
-## How to bind OLSRT to your language?
-**OLSRT** exposes a clean C API.<br/>
-Every modern language can connect via FFI:
--  **PHP** -> Use PHP SDK, write an extension (e.g `php_olsrt.c`), write `config.w32/m4`, compile it, then enjoy
--  **Python** -> `ctypes` / `cffi`
--  **Ruby** -> `ffi` gem
--  **C++** -> It can directly using `olsrt.h` and enjoy using it
--  **C# / .NET** -> `Dllimport` (P/Invoke)
--  **Node.js** -> `N-API` / `node-ffi`
--  **Golang** -> `cgo`
--  **Rust** -> `bindgen` + Safe wrappers
+| Version | Codename | Highlights |
+|---------|----------|------------|
+| v0.1		|	**Initialize Core** | The first version of OLSRT, nothing was here, only some key features. |
+| v1.*    | **Atom**   | First stable release. Advanced features, but still small compared to the future. (_**We are here**_) |
+| v2.*    | **Apollo** | Added 66 networking protocols and port management. Like launching Apollo 🚀 |
+| v3.*    | **Nova**   | Virtualization support introduced. A stellar explosion of new possibilities. |
+| v4.*    | **Core**   | Focus on Utils until v8. Named Core as a farewell to the runtime’s foundation. |
+| v5.*    | **Spark**  | Utilities expansion begins. The spark of new tools. |
+| v6.*    | **Orion**  | More utilities. Inspired by the powerful constellation. |
+| v7.*    | **Cosmos** | Utilities broaden further. Vast and cosmic scope. |
+| v8.*    | **Hermes** | End of utilities, start of Compiler & OLLC. Messenger of a new era. |
+| v9.*    | **Kernel** | Advanced runtime core, like a real kernel. Foundation for future versions. |
+| v10.*   | **Stream** | Architectures added. Flowing runtime stream. |
+| v11.*   | **Flow**   | Full OS support. Seamless flow across systems. |
+| v12.*   | **Wave**   | Massive expansion. 30% of programming languages supported. 🌊 |
+
 
 ## Contributing
 We are not a big team.<br/>
@@ -58,5 +54,5 @@ You'll be part of the story.
 ## License
 Apache 2.0 - free to use, modify, and share.
 
-Current milestone: Initial Core (v0.1)
+Current milestone: v1.0 (Atom)<br/>
 `By OverLab Group`
