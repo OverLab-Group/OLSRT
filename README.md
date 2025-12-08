@@ -122,7 +122,7 @@ Two ways to unleash the beast:
    make <platform>
    ```
    Replace `<platform>` with:  
-   `linux`, `windows`, `bsd`, `macos`, or `all-platforms`.
+   `linux`, `windows`, `bsd`, `apple`, or `all-platforms`.
 
 ---
 
