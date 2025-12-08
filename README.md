@@ -50,9 +50,19 @@ More powerful than the hype, sharper than the trends. 🖤
 
 ## 🖥️ Build status
 - 🐧 Linux: ✅ Solid  
-- 🪟 Windows: 🔜 Coming soon  
-- 🐚 BSD: ❌ Not yet  
-- 🍎 macOS: 🔜 Planned  
+- 🪟 Windows: 🔜 Next Target
+- 🍎 macOS: 🔜 Coming Soon
+- 🐚 BSD: 🔜 Preview
+
+---
+
+## Documention
+Documention is planned and will available soon.
+
+---
+
+## Quick Examples
+Quick Examples are planned and will available very soon.
 
 ---
 
