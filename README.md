@@ -15,7 +15,7 @@
 
 ---
 
-> NOTE: OLSRT Atom v1.1 will available coming soon...
+> NOTE: OLSRT Atom v1.1 coming soon...
 
 ---
 
