@@ -12,7 +12,7 @@ CC_APPLE   = clang
 
 OUT_LINUX   = bin/libolsrt.so
 OUT_WINDOWS = bin/olsrt.dll
-OUT_BSD     = bin/libolsrt.so
+OUT_BSD     = bin/bsd/libolsrt.so
 OUT_APPLE   = bin/libolsrt.dylib
 
 .PHONY: all linux windows bsd apple all-platforms clean
@@ -21,17 +21,25 @@ all:
 	@echo "Usage: make linux | make windows | make bsd | make apple | make all-platforms"
 
 linux: $(OBJ)
+	@echo "Building for Linux in process..."
 	$(CC_LINUX) -shared -fPIC -O3 -w -flto -D_LINUX $(OBJ) -o $(OUT_LINUX)
+	@echo "Build success."
 
 windows: $(OBJ)
+	@echo "Building for Windows in process..."
 	$(CC_WINDOWS) -shared -O3 -w -s $(OBJ) -o $(OUT_WINDOWS)
+	@echo "Build success."
 
 # BSD
 bsd: $(OBJ)
+	@echo "Building for BSD in process..."
 	$(CC_BSD) -shared -fPIC -O3 -w -s $(OBJ) -o $(OUT_BSD)
+	@echo "Build success."
 
 apple: $(OBJ)
+	@echo "Building for Mac & Apple in process..."
 	$(CC_APPLE) -dynamiclib -fPIC -O3 -w -s $(OBJ) -o $(OUT_APPLE)
+	@echo "Build success."
 
 build/code/streams/%.o: src/code/streams/%.c
 	@mkdir -p $(dir $@)
