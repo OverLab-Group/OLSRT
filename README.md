@@ -15,6 +15,10 @@
 
 ---
 
+> NOTE: OLSRT Atom v1.1 will available coming soon...
+
+---
+
 ## 🤔 What is OLSRT?
 **OLSRT** (**OverLab Streams Runtime**) is not your average runtime.<br/>
 It’s a **universal engine** – designed to power **all languages**.<br/>
@@ -158,6 +162,10 @@ You’re part of the legend. 📖🔥
 
 ## 📜 License
 Apache 2.0 – free to use, remix, and share. 🆓  
+
+---
+
+You can also visit [Dev.To Blog](https://dev.to/javadinteger/olsrt-overlab-streams-runtime-the-first-language-agnostic-runtime-of-overlab-group-5b8c?utm_source=github.com) for more.
 
 Current milestone: **v1.0 (Atom)**  
 `By OverLab Group`
