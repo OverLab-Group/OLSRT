@@ -55,6 +55,7 @@ static ol_core_t* ol_core_create(struct ol_event_loop *loop) {
     return c;
 }
 
+/* Core release — upgraded to prevent destructor running after take and to be defensive */
 static void ol_core_release(ol_core_t *c) {
     if (!c) return;
 
@@ -62,9 +63,10 @@ static void ol_core_release(ol_core_t *c) {
     ol_cont_node_t *n = c->conts;
     while (n) { ol_cont_node_t *nx = n->next; free(n); n = nx; }
 
-    /* Run destructor if value still owned */
+    /* Run destructor if value still owned and not taken */
     if (c->value && c->dtor && !c->value_taken) {
         c->dtor(c->value);
+        c->value = NULL;
     }
 
     ol_cond_destroy(&c->cv);
@@ -213,6 +215,7 @@ void ol_future_destroy(ol_future_t *f) {
     free(f);
 }
 
+/* Await — upgraded: returns -3 on timeout to align with channel, keeps -1 for error, 1 for success */
 int ol_future_await(ol_future_t *f, int64_t deadline_ns) {
     if (!f || !f->core) return -1;
     ol_core_t *c = f->core;
@@ -223,9 +226,12 @@ int ol_future_await(ol_future_t *f, int64_t deadline_ns) {
         if (r == 1) {
             /* Signaled; loop re-checks state to handle spurious wakeups */
             continue;
+        } else if (r == 0) {
+            ol_mutex_unlock(&c->mu);
+            return -3; /* timeout */
         } else {
             ol_mutex_unlock(&c->mu);
-            return r; /* 0 timeout, -1 error */
+            return -1; /* error */
         }
     }
     ol_mutex_unlock(&c->mu);
@@ -271,6 +277,7 @@ const void* ol_future_get_value_const(const ol_future_t *f) {
     return ptr;
 }
 
+/* Take value — upgraded to always nullify destructor to avoid double-free and mark taken */
 void* ol_future_take_value(ol_future_t *f) {
     if (!f || !f->core) return NULL;
     void *ptr = NULL;

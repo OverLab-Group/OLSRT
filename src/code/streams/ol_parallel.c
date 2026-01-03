@@ -206,12 +206,13 @@ ol_parallel_pool_t* ol_parallel_create(size_t num_threads) {
     return p;
 }
 
+/* Submit — upgraded to return -2 when pool not running to distinguish from generic error */
 int ol_parallel_submit(ol_parallel_pool_t *p, ol_task_fn fn, void *arg) {
     if (!p || !fn) return -1;
     ol_mutex_lock(&p->mu);
     if (!p->running || p->shutting_down) {
         ol_mutex_unlock(&p->mu);
-        return -1;
+        return -2; /* not accepting work */
     }
     ol_enqueue_task(p, fn, arg);
     /* Wake one worker */

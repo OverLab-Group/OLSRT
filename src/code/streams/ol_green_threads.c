@@ -246,12 +246,13 @@ ol_gt_t* ol_gt_current(void) {
     return g_sched.current;
 }
 
+/* Windows: destroy — upgraded to ensure fiber finished before DeleteFiber */
 void ol_gt_destroy(ol_gt_t *gt) {
     if (!gt) return;
-    /* Must be done or canceled */
     if (gt->state != OL_GT_DONE && gt->state != OL_GT_CANCELED) {
-        /* best-effort cancel */
         InterlockedExchange(&gt->cancel_flag, 1);
+        /* Cooperative join attempt */
+        (void)ol_gt_join(gt);
     }
     if (gt->fiber) {
         DeleteFiber(gt->fiber);
@@ -496,11 +497,15 @@ ol_gt_t* ol_gt_current(void) {
     return g_sched.current;
 }
 
+/* POSIX: destroy — upgraded to ensure the GT is finished before freeing stack */
 void ol_gt_destroy(ol_gt_t *gt) {
     if (!gt) return;
+    /* Must be done or canceled */
     if (gt->state != OL_GT_DONE && gt->state != OL_GT_CANCELED) {
         /* best-effort cancel */
         __atomic_store_n(&gt->cancel_flag, 1, __ATOMIC_RELAXED);
+        /* cooperative join attempt to avoid freeing a running stack */
+        (void)ol_gt_join(gt);
     }
     if (gt->stack) {
         free(gt->stack);

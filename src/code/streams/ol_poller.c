@@ -227,11 +227,11 @@ int ol_poller_del(ol_poller_t *p, int fd) {
 #endif
 }
 
-/* Wait */
+/* Wait — upgraded epoll path to clamp timeout and never exceed provided cap in output */
 int ol_poller_wait(ol_poller_t *p, ol_deadline_t dl, ol_poll_event_t *out, int cap) {
     if (!p || !out || cap <= 0) return -1;
 
-#if defined(OL_BACKEND_EPOLL)
+    #if defined(OL_BACKEND_EPOLL)
     int timeout_ms = (dl.when_ns == 0) ? -1 : ol_clamp_poll_timeout_ms(ol_deadline_remaining_ms(dl));
     if (p->capacity < cap) {
         struct epoll_event *new_evs = (struct epoll_event*)realloc(p->evs, sizeof(struct epoll_event) * cap);
@@ -239,14 +239,14 @@ int ol_poller_wait(ol_poller_t *p, ol_deadline_t dl, ol_poll_event_t *out, int c
     }
     int n = epoll_wait(p->epfd, p->evs, cap, timeout_ms);
     if (n <= 0) return n; // 0 timeout, -1 error
-    for (int i = 0; i < n; i++) {
-        out[i].fd   = -1; /* fd is not stored in epoll user data; require upper layer to map via tag if needed */
+    for (int i = 0; i < n && i < cap; i++) {
+        out[i].fd   = -1;
         out[i].mask = ol_backend_to_mask_epoll(p->evs[i].events);
         out[i].tag  = p->evs[i].data.u64;
     }
     return n;
 
-#elif defined(OL_BACKEND_KQUEUE)
+    #elif defined(OL_BACKEND_KQUEUE)
     struct timespec ts, *pts = NULL;
     if (dl.when_ns != 0) {
         int64_t rem = ol_deadline_remaining_ns(dl);
@@ -260,7 +260,7 @@ int ol_poller_wait(ol_poller_t *p, ol_deadline_t dl, ol_poll_event_t *out, int c
     }
     int n = kevent(p->kq, NULL, 0, p->evs, cap, pts);
     if (n <= 0) return n;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n && i < cap; i++) {
         out[i].fd   = (int)p->evs[i].ident;
         out[i].tag  = (uint64_t)(uintptr_t)p->evs[i].udata;
         uint32_t mask = 0;
@@ -271,7 +271,7 @@ int ol_poller_wait(ol_poller_t *p, ol_deadline_t dl, ol_poll_event_t *out, int c
     }
     return n;
 
-#else
+    #else
     fd_set rf = p->rfds, wf = p->wfds, ef = p->efds;
     struct timeval tv, *ptv = NULL;
     if (dl.when_ns != 0) {
@@ -298,5 +298,5 @@ int ol_poller_wait(ol_poller_t *p, ol_deadline_t dl, ol_poll_event_t *out, int c
         }
     }
     return count;
-#endif
+    #endif
 }
