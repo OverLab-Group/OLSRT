@@ -16,6 +16,8 @@
 ---
 
 > NOTE: OLSRT Atom v1.1 coming soon...
+> 
+> NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html)
 
 ---
 
