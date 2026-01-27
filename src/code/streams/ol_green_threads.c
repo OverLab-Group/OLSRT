@@ -494,6 +494,7 @@ static void ol_ctx_make(ol_gt_ctx_t *ctx, void (*fn)(void*), void *arg,
     ctx->rsp = (char*)stack_top - 8;
     void **stack_slot = (void**)ctx->rsp;
     *stack_slot = (void*)fn;
+    // FIXME: Undeclared: ol_gt_trampoline
     ctx->rip = (void*)ol_gt_trampoline;
     ctx->rbx = arg;
     #elif defined(__i386__)
@@ -618,6 +619,7 @@ ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void *arg, size_t stack_size) {
 
     sz = (sz + 15) & ~15;
 
+    // FIXME: Undeclared: sysconf && _SC_PAGESIZE
     size_t page_size = sysconf(_SC_PAGESIZE);
     size_t total_size = sz + 2 * page_size;
 
@@ -668,6 +670,7 @@ int ol_gt_resume(ol_gt_t *gt) {
 
     if (gt->state == OL_GT_READY || gt->state == OL_GT_NEW) {
         /* Cooperative scheduler: explicitly run this GT now by swapping to its context */
+        // FIXME: Implicit declaration: swapcontext
         if (swapcontext(&g_sched.sched_ctx, &gt->ctx) != 0) return -1;
         if (gt->state == OL_GT_RUNNING) gt->state = OL_GT_READY;
         return 0;
