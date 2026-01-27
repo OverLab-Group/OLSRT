@@ -496,32 +496,27 @@ static void ol_ctx_make(ol_gt_ctx_t *ctx, void (*fn)(void*), void *arg,
     *stack_slot = (void*)fn;
     ctx->rip = (void*)ol_gt_trampoline;
     ctx->rbx = arg;
-
     #elif defined(__i386__)
     ctx->esp = (char*)stack_top - 4;
     void **stack_slot = (void**)ctx->esp;
     *stack_slot = (void*)fn;
     ctx->eip = (void*)ol_gt_trampoline;
     ctx->ebx = arg;
-
     #elif defined(__aarch64__)
     ctx->sp = stack_top;
     ctx->lr = (void*)fn;
     ctx->pc = (void*)ol_gt_trampoline;
     ctx->x19 = arg;  /* Save arg in x19 */
-
     #elif defined(__arm__)
     ctx->sp = stack_top;
     ctx->lr = (void*)fn;
     ctx->pc = (void*)ol_gt_trampoline;
     ctx->r4 = arg;  /* Save arg in r4 */
-
     #else
     /* Fallback: استفاده از sigsetjmp */
     ctx->stack = stack_base;
     ctx->stack_size = stack_size;
     ctx->is_main = 0;
-
     sigsetjmp(ctx->env, 0);
     #endif
 }
