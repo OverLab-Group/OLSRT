@@ -688,9 +688,10 @@ void ol_gt_yield(void) {
     if (!g_sched.initialized) return;
     ol_gt_t *cur = g_sched.current;
     if (!cur) return;
+
     cur->state = OL_GT_READY;
-    /* Switch back to scheduler */
-    swapcontext(&cur->ctx, &g_sched.sched_ctx);
+    ol_ctx_save(&cur->ctx)
+    ol_ctx_restore(&g_sched.sched_ctx);
 }
 
 int ol_gt_join(ol_gt_t *gt) {
