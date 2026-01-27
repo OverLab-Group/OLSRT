@@ -535,8 +535,8 @@ static ol_gt_t* dequeue_ready(void) {
 }
 
 /* Trampoline that runs in the GT context */
-static void ol_gt_trampoline(uint32_t low, uint32_t high) {
-    uintptr_t ptr = ((uintptr_t)high << 32) | (uintptr_t)low;
+static void ol_gt_trampoline(uintptr_t arg_low, uintptr_t arg_high) {
+    uintptr_t ptr = (arg_high << 32) | arg_low;
     ol_gt_t *gt = (ol_gt_t*)ptr;
 
     g_sched.current = gt;
@@ -545,8 +545,7 @@ static void ol_gt_trampoline(uint32_t low, uint32_t high) {
     if (__atomic_load_n(&gt->cancel_flag, __ATOMIC_RELAXED)) {
         gt->state = OL_GT_CANCELED;
         g_sched.current = NULL;
-        /* Switch back to scheduler */
-        swapcontext(&gt->ctx, &g_sched.sched_ctx);
+        ol_ctx_restore(&g_sched.sched_ctx);
         return;
     }
 
@@ -554,8 +553,15 @@ static void ol_gt_trampoline(uint32_t low, uint32_t high) {
 
     gt->state = OL_GT_DONE;
     g_sched.current = NULL;
-    /* Return control to scheduler */
-    swapcontext(&gt->ctx, &g_sched.sched_ctx);
+
+    ol_ctx_restore(&g_sched.sched_ctx);
+}
+
+static void ol_ctx_make_with_arg(ol_gt_ctx_t *ctx, void (*fn)(uintptr_t, uintptr_t),
+    uintptr_t arg1, uintptr_t arg2,
+    void *stack_base, size_t stack_size) {
+    ol_ctx_make(ctx, (void(*)(void*))fn, (void*)((arg2 << 32) | arg1),
+                stack_base, stack_size);
 }
 
 int ol_gt_scheduler_init(void) {
