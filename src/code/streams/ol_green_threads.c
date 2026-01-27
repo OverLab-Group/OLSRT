@@ -344,8 +344,6 @@ typedef struct {
 
 static __thread ol_gt_sched_t g_sched = {0};
 
-static __thread ol_gt_sched_t g_sched = {0};
-
 static inline void ol_ctx_save(ol_gt_ctx_t *ctx) {
     #if defined(__x86_64__)
     asm volatile (
