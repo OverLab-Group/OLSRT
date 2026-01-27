@@ -731,17 +731,20 @@ ol_gt_t* ol_gt_current(void) {
 /* POSIX: destroy — upgraded to ensure the GT is finished before freeing stack */
 void ol_gt_destroy(ol_gt_t *gt) {
     if (!gt) return;
-    /* Must be done or canceled */
+
     if (gt->state != OL_GT_DONE && gt->state != OL_GT_CANCELED) {
-        /* best-effort cancel */
         __atomic_store_n(&gt->cancel_flag, 1, __ATOMIC_RELAXED);
-        /* cooperative join attempt to avoid freeing a running stack */
         (void)ol_gt_join(gt);
     }
+
     if (gt->stack) {
-        free(gt->stack);
+        size_t page_size = sysconf(_SC_PAGESIZE);
+        void *stack_area = (char*)gt->stack - page_size;
+        size_t total_size = gt->stack_size + 2 * page_size;
+        munmap(stack_area, total_size);
         gt->stack = NULL;
     }
+
     free(gt);
 }
 
