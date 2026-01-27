@@ -582,12 +582,15 @@ static void ol_ctx_make_with_arg(ol_gt_ctx_t *ctx, void (*fn)(uintptr_t, uintptr
 
 int ol_gt_scheduler_init(void) {
     if (g_sched.initialized) return 0;
-    /* Initialize scheduler context to current */
-    if (getcontext(&g_sched.sched_ctx) != 0) return -1;
+    memset(&g_sched.sched_ctx, 0, sizeof(g_sched.sched_ctx));
+    g_sched.sched_ctx.is_main = 1;
+    ol_ctx_save(&g_sched.sched_ctx);
+
     g_sched.ready_head = g_sched.ready_tail = NULL;
     g_sched.current = NULL;
     g_sched.default_stack = 256 * 1024;
     g_sched.initialized = true;
+
     return 0;
 }
 
