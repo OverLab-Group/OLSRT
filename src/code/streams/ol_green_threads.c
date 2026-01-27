@@ -265,8 +265,11 @@ void ol_gt_destroy(ol_gt_t *gt) {
 
 #else
 /* --------------------------- POSIX (ucontext) --------------------------- */
-#include <ucontext.h>
-#include <errno.h>
+/* --------------------------- POSIX (Context Switching) --------------------------- */
+/* ما ucontext.h را حذف می‌کنیم و با پیاده‌سازی دستی جایگزین می‌کنیم */
+#include <setjmp.h>
+#include <signal.h>
+#include <sys/mman.h>
 
 typedef enum {
     OL_GT_NEW = 0,
@@ -276,13 +279,43 @@ typedef enum {
     OL_GT_CANCELED
 } ol_gt_state_t;
 
+typedef struct ol_gt_ctx {
+#if defined(__x86_64__)
+    void *rbx, *rbp, *r12, *r13, *r14, *r15;
+    void *rsp;
+    void *rip;
+#elif defined(__i386__)
+    void *ebx, *ebp, *esi, *edi;
+    void *esp;
+    void *eip;
+#elif defined(__aarch64__)
+    void *x19, *x20, *x21, *x22, *x23, *x24, *x25, *x26, *x27, *x28;
+    void *x29; /* frame pointer */
+    void *sp;
+    void *lr;  /* link register */
+    void *pc;  /* program counter */
+#elif defined(__arm__)
+    void *r4, *r5, *r6, *r7, *r8, *r9, *r10;
+    void *r11; /* frame pointer */
+    void *sp;
+    void *lr;  /* link register */
+    void *pc;  /* program counter */
+#else
+    sigjmp_buf env;
+#endif
+    /* Stack information */
+    void *stack;
+    size_t stack_size;
+    int is_main;
+} ol_gt_ctx_t;
+
 typedef struct ol_gt {
     ol_gt_state_t state;
     void *arg;
     ol_gt_entry_fn entry;
 
     /* Context and stack */
-    ucontext_t ctx;
+    ol_gt_ctx_t ctx;
     void *stack;
     size_t stack_size;
 
@@ -295,20 +328,6 @@ typedef struct ol_gt {
     /* Linking in scheduler list */
     struct ol_gt *next;
 } ol_gt_t;
-
-/* Scheduler single-threaded context */
-typedef struct {
-    ucontext_t sched_ctx;
-    /* Ready list */
-    ol_gt_t *ready_head;
-    ol_gt_t *ready_tail;
-    /* Currently running GT */
-    ol_gt_t *current;
-    /* Default stack size */
-    size_t default_stack;
-    /* Initialized flag */
-    bool initialized;
-} ol_gt_sched_t;
 
 static __thread ol_gt_sched_t g_sched = {0};
 
