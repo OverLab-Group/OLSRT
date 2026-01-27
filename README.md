@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
 [![Build-System](https://img.shields.io/badge/Build-Make%20%7C%20CMake-orange.svg)](#build-olsrt-yourself)
 [![Status](https://img.shields.io/badge/Status-Production--ready%20(v1.0)-brightgreen.svg)](#status)
-[![Docs](https://img.shields.io/badge/Docs-In%20progress-yellow.svg)](#status)
+[![Docs](https://img.shields.io/badge/Docs-Production--ready-brightgreen.svg)](#status)
 [![Contributions](https://img.shields.io/badge/Contributions-Welcome-success.svg)](#contributing)
 ![GitHub Repo stars](https://img.shields.io/github/stars/OverLab-Group/OLSRT?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/OverLab-Group/OLSRT?style=social)
