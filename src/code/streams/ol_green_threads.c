@@ -264,9 +264,8 @@ void ol_gt_destroy(ol_gt_t *gt) {
 /* --------------------------- End Windows (Fibers) --------------------------- */
 
 #else
-/* --------------------------- POSIX (ucontext) --------------------------- */
+/* --------------------------- POSIX --------------------------- */
 /* --------------------------- POSIX (Context Switching) --------------------------- */
-/* ما ucontext.h را حذف می‌کنیم و با پیاده‌سازی دستی جایگزین می‌کنیم */
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
@@ -330,6 +329,188 @@ typedef struct ol_gt {
 } ol_gt_t;
 
 static __thread ol_gt_sched_t g_sched = {0};
+
+static inline void ol_ctx_save(ol_gt_ctx_t *ctx) {
+    #if defined(__x86_64__)
+    asm volatile (
+        "movq %%rbx, 0(%0)\n\t"
+        "movq %%rbp, 8(%0)\n\t"
+        "movq %%r12, 16(%0)\n\t"
+        "movq %%r13, 24(%0)\n\t"
+        "movq %%r14, 32(%0)\n\t"
+        "movq %%r15, 40(%0)\n\t"
+        "movq %%rsp, 48(%0)\n\t"
+        "leaq 1f(%%rip), %%rax\n\t"
+        "movq %%rax, 56(%0)\n\t"
+        "1:\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "rax", "memory"
+    );
+    #elif defined(__i386__)
+    asm volatile (
+        "movl %%ebx, 0(%0)\n\t"
+        "movl %%ebp, 4(%0)\n\t"
+        "movl %%esi, 8(%0)\n\t"
+        "movl %%edi, 12(%0)\n\t"
+        "movl %%esp, 16(%0)\n\t"
+        "leal 1f(%%eax), %%eax\n\t"
+        "movl %%eax, 20(%0)\n\t"
+        "1:\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "eax", "memory"
+    );
+    #elif defined(__aarch64__)
+    asm volatile (
+        "stp x19, x20, [%0, #0]\n\t"
+        "stp x21, x22, [%0, #16]\n\t"
+        "stp x23, x24, [%0, #32]\n\t"
+        "stp x25, x26, [%0, #48]\n\t"
+        "stp x27, x28, [%0, #64]\n\t"
+        "str x29, [%0, #80]\n\t"
+        "mov x1, sp\n\t"
+        "str x1, [%0, #88]\n\t"
+        "str x30, [%0, #96]\n\t"
+        "adr x1, 1f\n\t"
+        "str x1, [%0, #104]\n\t"
+        "1:\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "x1", "memory"
+    );
+    #elif defined(__arm__)
+    asm volatile (
+        "stmia %0, {r4-r11}\n\t"
+        "str sp, [%0, #32]\n\t"
+        "str lr, [%0, #36]\n\t"
+        "adr r0, 1f\n\t"
+        "str r0, [%0, #40]\n\t"
+        "1:\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "r0", "memory"
+    );
+    #else
+    if (ctx->is_main) {
+        sigsetjmp(ctx->env, 0);
+    }
+    #endif
+}
+
+/* Context restoring */
+static inline void ol_ctx_restore(ol_gt_ctx_t *ctx) __attribute__((noreturn));
+static inline void ol_ctx_restore(ol_gt_ctx_t *ctx) {
+    #if defined(__x86_64__)
+    asm volatile (
+        "movq 0(%0), %%rbx\n\t"
+        "movq 8(%0), %%rbp\n\t"
+        "movq 16(%0), %%r12\n\t"
+        "movq 24(%0), %%r13\n\t"
+        "movq 32(%0), %%r14\n\t"
+        "movq 40(%0), %%r15\n\t"
+        "movq 48(%0), %%rsp\n\t"
+        "movq 56(%0), %%rax\n\t"
+        "jmp *%%rax\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "rax", "memory"
+    );
+    #elif defined(__i386__)
+    asm volatile (
+        "movl 0(%0), %%ebx\n\t"
+        "movl 4(%0), %%ebp\n\t"
+        "movl 8(%0), %%esi\n\t"
+        "movl 12(%0), %%edi\n\t"
+        "movl 16(%0), %%esp\n\t"
+        "movl 20(%0), %%eax\n\t"
+        "jmp *%%eax\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "eax", "memory"
+    );
+    #elif defined(__aarch64__)
+    asm volatile (
+        "ldp x19, x20, [%0, #0]\n\t"
+        "ldp x21, x22, [%0, #16]\n\t"
+        "ldp x23, x24, [%0, #32]\n\t"
+        "ldp x25, x26, [%0, #48]\n\t"
+        "ldp x27, x28, [%0, #64]\n\t"
+        "ldr x29, [%0, #80]\n\t"
+        "ldr x1, [%0, #88]\n\t"
+        "mov sp, x1\n\t"
+        "ldr x30, [%0, #96]\n\t"
+        "ldr x1, [%0, #104]\n\t"
+        "br x1\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "x1", "memory"
+    );
+    #elif defined(__arm__)
+    asm volatile (
+        "ldmia %0, {r4-r11}\n\t"
+        "ldr sp, [%0, #32]\n\t"
+        "ldr lr, [%0, #36]\n\t"
+        "ldr r0, [%0, #40]\n\t"
+        "bx r0\n\t"
+        : /* no output */
+        : "r"(ctx)
+        : "r0", "memory"
+    );
+    #else
+    siglongjmp(ctx->env, 1);
+    #endif
+
+    __builtin_unreachable();
+}
+
+static void ol_ctx_make(ol_gt_ctx_t *ctx, void (*fn)(void*), void *arg,
+                        void *stack_base, size_t stack_size) {
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->stack = stack_base;
+    ctx->stack_size = stack_size;
+    ctx->is_main = 0;
+
+    void *stack_top = (char*)stack_base + stack_size;
+
+    /* align stack به 16 بایت */
+    stack_top = (void*)((uintptr_t)stack_top & ~15);
+
+    #if defined(__x86_64__)
+    ctx->rsp = (char*)stack_top - 8;
+    void **stack_slot = (void**)ctx->rsp;
+    *stack_slot = (void*)fn;
+    ctx->rip = (void*)ol_gt_trampoline;
+    ctx->rbx = arg;
+
+    #elif defined(__i386__)
+    ctx->esp = (char*)stack_top - 4;
+    void **stack_slot = (void**)ctx->esp;
+    *stack_slot = (void*)fn;
+    ctx->eip = (void*)ol_gt_trampoline;
+    ctx->ebx = arg;
+
+    #elif defined(__aarch64__)
+    ctx->sp = stack_top;
+    ctx->lr = (void*)fn;
+    ctx->pc = (void*)ol_gt_trampoline;
+    ctx->x19 = arg;  /* Save arg in x19 */
+
+    #elif defined(__arm__)
+    ctx->sp = stack_top;
+    ctx->lr = (void*)fn;
+    ctx->pc = (void*)ol_gt_trampoline;
+    ctx->r4 = arg;  /* Save arg in r4 */
+
+    #else
+    /* Fallback: استفاده از sigsetjmp */
+    ctx->stack = stack_base;
+    ctx->stack_size = stack_size;
+    ctx->is_main = 0;
+
+    sigsetjmp(ctx->env, 0);
+    #endif
+}
 
 /* Utility: enqueue a GT in ready list */
 static void enqueue_ready(ol_gt_t *gt) {
