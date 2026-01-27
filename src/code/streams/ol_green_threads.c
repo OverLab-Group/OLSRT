@@ -652,21 +652,20 @@ ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void *arg, size_t stack_size) {
     return gt;
 }
 
-/* Run next ready task cooperatively */
 static int ol_run_next(void) {
     ol_gt_t *gt = dequeue_ready();
     if (!gt) return 0;
-    /* Switch from scheduler context to GT context */
-    if (swapcontext(&g_sched.sched_ctx, &gt->ctx) != 0) {
-        return -1;
-    }
-    /* After GT returns control to scheduler: if still runnable and not done/canceled, re-enqueue */
+    ol_ctx_save(&g_sched.sched_ctx);
+    g_sched.current = gt;
+    ol_ctx_restore(&gt->ctx);
     if (gt->state == OL_GT_RUNNING) {
         gt->state = OL_GT_READY;
     }
+
     if (gt->state == OL_GT_READY) {
         enqueue_ready(gt);
     }
+
     return 1;
 }
 
