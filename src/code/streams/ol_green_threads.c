@@ -686,7 +686,7 @@ void ol_gt_yield(void) {
     if (!cur) return;
 
     cur->state = OL_GT_READY;
-    ol_ctx_save(&cur->ctx)
+    ol_ctx_save(&cur->ctx);
     ol_ctx_restore(&g_sched.sched_ctx);
 }
 
