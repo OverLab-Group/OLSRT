@@ -621,25 +621,31 @@ ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void *arg, size_t stack_size) {
     gt->cancel_flag = 0;
     gt->next = NULL;
 
-    /* Allocate stack */
     size_t sz = (stack_size && stack_size >= (64 * 1024)) ? stack_size : g_sched.default_stack;
-    gt->stack = malloc(sz);
-    if (!gt->stack) { free(gt); return NULL; }
-    gt->stack_size = sz;
 
-    /* Prepare context */
-    if (getcontext(&gt->ctx) != 0) {
-        free(gt->stack);
+    sz = (sz + 15) & ~15;
+
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    size_t total_size = sz + 2 * page_size;
+
+    void *stack_area = mmap(NULL, total_size, PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    if (stack_area == MAP_FAILED) {
         free(gt);
         return NULL;
     }
-    gt->ctx.uc_stack.ss_sp = gt->stack;
-    gt->ctx.uc_stack.ss_size = gt->stack_size;
-    gt->ctx.uc_link = &g_sched.sched_ctx;
 
-    /* Pass pointer via two 32-bit args to makecontext (portable trick) */
+    mprotect(stack_area, page_size, PROT_NONE);
+    mprotect((char*)stack_area + total_size - page_size, page_size, PROT_NONE);
+
+    gt->stack = (char*)stack_area + page_size;
+    gt->stack_size = sz;
+
     uintptr_t ptr = (uintptr_t)gt;
-    makecontext(&gt->ctx, (void (*)())ol_gt_trampoline, 2, (uint32_t)(ptr & 0xFFFFFFFFu), (uint32_t)(ptr >> 32));
+    ol_ctx_make_with_arg(&gt->ctx, ol_gt_trampoline,
+                         (uintptr_t)(ptr & 0xFFFFFFFFu),
+                         (uintptr_t)(ptr >> 32),
+                         gt->stack, gt->stack_size);
 
     gt->state = OL_GT_READY;
     enqueue_ready(gt);
