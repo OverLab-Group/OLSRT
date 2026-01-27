@@ -328,6 +328,22 @@ typedef struct ol_gt {
     struct ol_gt *next;
 } ol_gt_t;
 
+/* Scheduler context */
+typedef struct {
+    ol_gt_ctx_t sched_ctx;  /* Context scheduler */
+    /* Ready list */
+    ol_gt_t *ready_head;
+    ol_gt_t *ready_tail;
+    /* Currently running GT */
+    ol_gt_t *current;
+    /* Default stack size */
+    size_t default_stack;
+    /* Initialized flag */
+    bool initialized;
+} ol_gt_sched_t;
+
+static __thread ol_gt_sched_t g_sched = {0};
+
 static __thread ol_gt_sched_t g_sched = {0};
 
 static inline void ol_ctx_save(ol_gt_ctx_t *ctx) {
