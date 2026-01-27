@@ -734,6 +734,7 @@ void ol_gt_destroy(ol_gt_t *gt) {
     }
 
     if (gt->stack) {
+        // FIXME: Undeclared: _SC_PAGESIZE (sysconf is declared WTF)
         size_t page_size = sysconf(_SC_PAGESIZE);
         void *stack_area = (char*)gt->stack - page_size;
         size_t total_size = gt->stack_size + 2 * page_size;
