@@ -413,7 +413,6 @@ static inline void ol_ctx_save(ol_gt_ctx_t *ctx) {
 }
 
 /* Context restoring */
-static inline void ol_ctx_restore(ol_gt_ctx_t *ctx) __attribute__((noreturn));
 static inline void ol_ctx_restore(ol_gt_ctx_t *ctx) {
     #if defined(__x86_64__)
     asm volatile (
@@ -514,7 +513,6 @@ static void ol_ctx_make(ol_gt_ctx_t *ctx, void (*fn)(void*), void *arg,
     ctx->pc = (void*)ol_gt_trampoline;
     ctx->r4 = arg;  /* Save arg in r4 */
     #else
-    /* Fallback: استفاده از sigsetjmp */
     ctx->stack = stack_base;
     ctx->stack_size = stack_size;
     ctx->is_main = 0;
@@ -542,29 +540,6 @@ static ol_gt_t* dequeue_ready(void) {
         gt->next = NULL;
     }
     return gt;
-}
-
-/* Trampoline that runs in the GT context */
-static void ol_gt_trampoline(uintptr_t arg_low, uintptr_t arg_high) {
-    uintptr_t ptr = (arg_high << 32) | arg_low;
-    ol_gt_t *gt = (ol_gt_t*)ptr;
-
-    g_sched.current = gt;
-    gt->state = OL_GT_RUNNING;
-
-    if (__atomic_load_n(&gt->cancel_flag, __ATOMIC_RELAXED)) {
-        gt->state = OL_GT_CANCELED;
-        g_sched.current = NULL;
-        ol_ctx_restore(&g_sched.sched_ctx);
-        return;
-    }
-
-    gt->entry(gt->arg);
-
-    gt->state = OL_GT_DONE;
-    g_sched.current = NULL;
-
-    ol_ctx_restore(&g_sched.sched_ctx);
 }
 
 static void ol_ctx_make_with_arg(ol_gt_ctx_t *ctx, void (*fn)(uintptr_t, uintptr_t),
@@ -600,6 +575,29 @@ void ol_gt_scheduler_shutdown(void) {
     g_sched.ready_head = g_sched.ready_tail = NULL;
     g_sched.current = NULL;
     g_sched.initialized = false;
+}
+
+/* Trampoline that runs in the GT context */
+static void ol_gt_trampoline(uintptr_t arg_low, uintptr_t arg_high) {
+    uintptr_t ptr = (arg_high << 32) | arg_low;
+    ol_gt_t *gt = (ol_gt_t*)ptr;
+
+    g_sched.current = gt;
+    gt->state = OL_GT_RUNNING;
+
+    if (__atomic_load_n(&gt->cancel_flag, __ATOMIC_RELAXED)) {
+        gt->state = OL_GT_CANCELED;
+        g_sched.current = NULL;
+        ol_ctx_restore(&g_sched.sched_ctx);
+        return;
+    }
+
+    gt->entry(gt->arg);
+
+    gt->state = OL_GT_DONE;
+    g_sched.current = NULL;
+
+    ol_ctx_restore(&g_sched.sched_ctx);
 }
 
 ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void *arg, size_t stack_size) {
