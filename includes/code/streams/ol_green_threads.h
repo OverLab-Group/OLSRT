@@ -62,6 +62,9 @@ ol_gt_t* ol_gt_current(void);
  */
 void ol_gt_destroy(ol_gt_t *gt);
 
+static inline void ol_ctx_restore(ol_gt_ctx_t *ctx) __attribute__((noreturn));
+
+
 #ifdef __cplusplus
 }
 #endif
