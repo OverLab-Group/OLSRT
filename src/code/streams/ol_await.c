@@ -1,118 +1,131 @@
 /**
  * @file ol_await.c
- * @brief Utilities for awaiting futures, including cooperative waiting inside an event loop.
- *
- * Overview
- * --------
- * - ol_await_future: thin wrapper around ol_future_await for convenience.
- * - ol_await_future_with_loop: cooperative waiting on a future while keeping an event loop responsive.
- *
- * Rationale
- * ---------
- * Some callers run on the event-loop thread and must not block the loop indefinitely.
- * ol_await_future_with_loop polls the future in short slices and yields control to the
- * event loop between polls so other loop tasks can progress.
- *
- * Contracts and warnings
- * ----------------------
- * - ol_await_future_with_loop must only be called from the event-loop thread (cooperative model).
- * - This function is not suitable for arbitrary threads.
- * - The polling slice is conservative (10 ms) to balance responsiveness and CPU usage.
- *
- * Testing and tooling notes
- * -------------------------
- * - Unit tests should validate correct return codes for success, timeout, and error.
- * - Use sanitizers to detect misuse (e.g., calling from non-loop threads may cause deadlocks).
+ * @brief Future awaiting utilities for OLSRT
+ * @version 1.2.0
+ * 
+ * This module provides functions for awaiting futures, including
+ * cooperative waiting that keeps event loops responsive across
+ * all supported platforms.
  */
 
 #include "ol_await.h"
+#include "ol_common.h"
+#include "ol_future.h"
+#include "ol_event_loop.h"
+#include "ol_deadlines.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <time.h>
-#include <unistd.h>
+
+#if defined(OL_PLATFORM_WINDOWS)
+    #include <windows.h>
+#else
+    #include <time.h>
+    #include <unistd.h>
+#endif
+
+/* --------------------------------------------------------------------------
+ * Internal helper functions
+ * -------------------------------------------------------------------------- */
 
 /**
- * @brief Thin wrapper that awaits a future until deadline.
- *
- * Delegates to ol_future_await which returns:
- * - 1 on success (fulfilled/rejected/canceled)
- * - -3 on timeout
- * - -1 on error
- *
- * @param f Future handle
- * @param deadline_ns Absolute deadline in nanoseconds (0 = infinite)
- * @return int See ol_future_await semantics
+ * @brief Sleep for a short duration (milliseconds)
  */
-int ol_await_future(ol_future_t *f, int64_t deadline_ns) {
-    return ol_future_await(f, deadline_ns);
-}
-
-/**
- * @brief Sleep for a small interval (milliseconds) in a portable way.
- *
- * This helper uses nanosleep on POSIX and Sleep on Windows. It is intended for short
- * cooperative yields inside the event loop polling loop.
- *
- * @param ms Milliseconds to sleep (non-negative)
- */
-static void small_sleep_ms(long ms) {
-#if defined(_WIN32)
+static void ol_small_sleep_ms(long ms) {
+    if (ms <= 0) {
+        return;
+    }
+    
+#if defined(OL_PLATFORM_WINDOWS)
     Sleep((DWORD)ms);
 #else
-    struct timespec ts;
-    ts.tv_sec = ms / 1000;
-    ts.tv_nsec = (ms % 1000) * 1000000L;
-    nanosleep(&ts, NULL);
+    struct timespec req, rem;
+    req.tv_sec = ms / 1000;
+    req.tv_nsec = (ms % 1000) * 1000000L;
+    
+    /* Handle interruption by signals */
+    while (nanosleep(&req, &rem) == -1 && errno == EINTR) {
+        req = rem;
+    }
 #endif
 }
 
-/**
- * @brief Await a future from inside the event-loop thread while keeping the loop responsive.
- *
- * Behavior:
- * - Polls the future using ol_future_await with the provided deadline.
- * - If the future is not ready, wakes the event loop (ol_event_loop_wake) and sleeps briefly
- *   to allow the loop to process other events.
- * - This is cooperative: callers must ensure they are running on the loop thread.
- *
- * Return values mirror ol_future_await:
- * - 1 on completion (fulfilled/rejected/canceled)
- * - -3 on timeout
- * - -1 on error
- *
- * @param loop Event loop instance (may be NULL if caller only wants polling behavior)
- * @param f Future to await (must be non-NULL)
- * @param deadline_ns Absolute deadline in nanoseconds (0 = infinite)
- * @return int See ol_future_await semantics
- */
-int ol_await_future_with_loop(ol_event_loop_t *loop, ol_future_t *f, int64_t deadline_ns) {
-    if (!f) return -1;
+/* --------------------------------------------------------------------------
+ * Public API implementation
+ * -------------------------------------------------------------------------- */
 
-    const long slice_ms = 10; /* 10 ms polling slice */
+int ol_await_future(ol_future_t *f, int64_t deadline_ns) {
+    if (!f) {
+        return OL_ERROR;
+    }
+    
+    /* Delegate to future's await function */
+    return ol_future_await(f, deadline_ns);
+}
+
+int ol_await_future_with_loop(ol_event_loop_t *loop,
+                              ol_future_t *f,
+                              int64_t deadline_ns) {
+    if (!f) {
+        return OL_ERROR;
+    }
+    
+    const long POLL_SLICE_MS = 10; /* 10ms polling slice */
     int64_t start_ns = ol_monotonic_now_ns();
-    int64_t deadline_local = deadline_ns;
-    bool use_deadline = (deadline_ns > 0);
-
-    for (;;) {
-        int r = ol_future_await(f, (use_deadline ? deadline_local : 0));
+    bool has_deadline = (deadline_ns > 0);
+    
+    /* Calculate relative deadline from absolute if provided */
+    int64_t relative_deadline_ns = 0;
+    if (has_deadline) {
+        relative_deadline_ns = deadline_ns - start_ns;
+        if (relative_deadline_ns <= 0) {
+            return OL_TIMEOUT;
+        }
+    }
+    
+    while (1) {
+        /* Calculate next slice deadline */
+        int64_t slice_deadline_ns = 0;
+        if (has_deadline) {
+            int64_t elapsed = ol_monotonic_now_ns() - start_ns;
+            int64_t remaining = relative_deadline_ns - elapsed;
+            
+            if (remaining <= 0) {
+                return OL_TIMEOUT;
+            }
+            
+            /* Use smaller of remaining time or slice size */
+            int64_t slice_ns = POLL_SLICE_MS * 1000000LL;
+            slice_deadline_ns = (remaining < slice_ns) ? remaining : slice_ns;
+        } else {
+            slice_deadline_ns = POLL_SLICE_MS * 1000000LL;
+        }
+        
+        /* Try to await with short timeout */
+        int r = ol_future_await(f, ol_monotonic_now_ns() + slice_deadline_ns);
+        
         if (r != 0) {
             /* Completed, timed out, or error */
             return r;
         }
-
-        /* Defensive deadline check: if deadline passed, return timeout */
-        if (use_deadline) {
-            int64_t now_ns = ol_monotonic_now_ns();
-            if (now_ns >= deadline_local) return -3; /* timeout */
+        
+        /* Not ready yet: yield to event loop */
+        if (loop) {
+            ol_event_loop_wake(loop);
         }
-
-        /* Give control to the event loop: wake it and sleep briefly to allow processing. */
-        if (loop) (void)ol_event_loop_wake(loop);
-        small_sleep_ms(slice_ms);
+        
+        /* Sleep briefly to allow other tasks to run */
+        ol_small_sleep_ms(POLL_SLICE_MS);
+        
+        /* Check if overall deadline expired */
+        if (has_deadline) {
+            int64_t now = ol_monotonic_now_ns();
+            if (now >= deadline_ns) {
+                return OL_TIMEOUT;
+            }
+        }
     }
-
-    /* unreachable */
-    return -1;
+    
+    /* Unreachable */
+    return OL_ERROR;
 }
