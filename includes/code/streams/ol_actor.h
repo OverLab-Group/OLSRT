@@ -1,97 +1,250 @@
+/**
+ * @file ol_actor.h
+ * @brief Actor Model Implementation for OLSRT
+ * 
+ * @details
+ * This module implements a lightweight actor system with message passing,
+ * behaviors, ask/reply patterns, and supervision integration.
+ * Actors are concurrent entities that process messages sequentially.
+ * 
+ * @note
+ * - Thread-safe: all public APIs are thread-safe
+ * - Memory-safe: clear ownership semantics
+ * - Cross-platform: works on Windows, Linux, macOS, BSD
+ */
+
 #ifndef OL_ACTOR_H
 #define OL_ACTOR_H
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-
-#include "ol_lock_mutex.h"
+#include <stdint.h>
 #include "ol_channel.h"
-#include "ol_deadlines.h"
 #include "ol_parallel.h"
 #include "ol_promise.h"
+#include "ol_mutex.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* ==================== Forward Declarations ==================== */
 typedef struct ol_actor ol_actor_t;
+typedef struct ol_supervisor ol_supervisor_t;
 
-/* Message envelope for ask pattern.
- * behavior receives either raw user messages (void*) or ask envelopes when using ask API.
+/* ==================== Type Definitions ==================== */
+
+/**
+ * @brief Actor behavior function type
+ * 
+ * @param actor Actor instance
+ * @param message Received message
+ * @return int Behavior result:
+ *            0: continue processing
+ *           >0: request graceful stop
+ *           <0: error (treated as crash for supervision)
  */
-typedef struct {
-    void  *payload;       /* user message */
-    ol_promise_t *reply;  /* reply promise (owned by the envelope; actor fulfills/rejects) */
+typedef int (*ol_actor_behavior)(ol_actor_t* actor, void* message);
+
+/**
+ * @brief Message destructor function type
+ * 
+ * @param msg Message to destroy
+ */
+typedef void (*ol_actor_msg_destructor)(void* msg);
+
+/**
+ * @brief Value destructor for promise replies
+ */
+typedef void (*ol_actor_value_destructor)(void* value);
+
+/**
+ * @brief Ask envelope for request/response pattern
+ */
+typedef struct ol_ask_envelope {
+    void* payload;                 /**< Message payload */
+    ol_promise_t* reply;           /**< Promise to resolve with reply */
+    ol_actor_t* sender;            /**< Sender actor (optional) */
+    uint64_t ask_id;               /**< Unique ask identifier */
 } ol_ask_envelope_t;
 
-/* Actor behavior signature.
- * - self: current actor
- * - msg:  received message (either user payload or ol_ask_envelope_t* if it is an ask envelope)
- * Return:
- *   0 continue,
- *  >0 request graceful stop,
- *  <0 error (will be logged or handled by supervisor if any)
- */
-typedef int (*ol_actor_behavior)(ol_actor_t *self, void *msg);
+/* ==================== Actor Creation & Lifecycle ==================== */
 
-/* Lifecycle */
-
-/* Create an actor:
- * - pool: thread pool to run this actor (required)
- * - capacity: mailbox capacity (0 => unbounded)
- * - dtor: optional destructor for messages owned by actor (applied on drop at stop/close)
- * - initial: initial behavior
- * - user_ctx: arbitrary context stored in actor (accessible via ol_actor_ctx)
+/**
+ * @brief Create a new actor
+ * 
+ * @param pool Parallel pool for execution
+ * @param capacity Mailbox capacity (0 = unbounded)
+ * @param dtor Message destructor (can be NULL)
+ * @param initial Initial behavior function
+ * @param user_ctx User context pointer
+ * @return ol_actor_t* New actor instance, NULL on failure
  */
-ol_actor_t* ol_actor_create(ol_parallel_pool_t *pool,
+ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
                             size_t capacity,
-                            ol_chan_item_destructor dtor,
+                            ol_actor_msg_destructor dtor,
                             ol_actor_behavior initial,
-                            void *user_ctx);
+                            void* user_ctx);
 
-/* Start the actor’s loop on the pool (idempotent). */
-int ol_actor_start(ol_actor_t *a);
+/**
+ * @brief Start actor message processing
+ * 
+ * @param actor Actor instance
+ * @return int 0 on success, -1 on error
+ */
+int ol_actor_start(ol_actor_t* actor);
 
-/* Request graceful stop (drain mailbox, then exit). */
-int ol_actor_stop(ol_actor_t *a);
+/**
+ * @brief Gracefully stop an actor
+ * 
+ * Actor will process remaining messages before stopping
+ * 
+ * @param actor Actor instance
+ * @return int 0 on success, -1 on error
+ */
+int ol_actor_stop(ol_actor_t* actor);
 
-/* Close mailbox immediately; pending messages are dropped. Actor will stop next tick. */
-int ol_actor_close(ol_actor_t *a);
+/**
+ * @brief Immediately close actor mailbox
+ * 
+ * Actor will stop as soon as possible
+ * 
+ * @param actor Actor instance
+ * @return int 0 on success, -1 on error
+ */
+int ol_actor_close(ol_actor_t* actor);
 
-/* Destroy actor and free resources (implies stop). */
-void ol_actor_destroy(ol_actor_t *a);
+/**
+ * @brief Destroy actor and free resources
+ * 
+ * @param actor Actor instance (can be NULL)
+ */
+void ol_actor_destroy(ol_actor_t* actor);
 
-/* Messaging */
+/* ==================== Message Passing ==================== */
 
-/* send: enqueue a message (blocking until space or deadline via ol_actor_send_deadline). */
-int ol_actor_send(ol_actor_t *a, void *msg);
+/**
+ * @brief Send message to actor (blocking)
+ * 
+ * @param actor Actor instance
+ * @param msg Message to send
+ * @return int 0 on success, -1 on error
+ */
+int ol_actor_send(ol_actor_t* actor, void* msg);
 
-/* send with deadline: absolute ns; returns 0 success, -3 timeout, -2 closed, -1 error. */
-int ol_actor_send_deadline(ol_actor_t *a, void *msg, int64_t deadline_ns);
+/**
+ * @brief Send message with timeout
+ * 
+ * @param actor Actor instance
+ * @param msg Message to send
+ * @param timeout_ms Timeout in milliseconds (0 = infinite)
+ * @return int 0 on success, -1 on error, -3 on timeout
+ */
+int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms);
 
-/* try_send: non-blocking; returns 1 success, 0 full, -2 closed, -1 error. */
-int ol_actor_try_send(ol_actor_t *a, void *msg);
+/**
+ * @brief Try to send message without blocking
+ * 
+ * @param actor Actor instance
+ * @param msg Message to send
+ * @return int 1 if sent, 0 if mailbox full, -1 on error
+ */
+int ol_actor_try_send(ol_actor_t* actor, void* msg);
 
-/* ask: request/reply. Creates a promise, enqueues envelope; returns future for awaiting reply. */
-ol_future_t* ol_actor_ask(ol_actor_t *a, void *msg);
+/**
+ * @brief Ask actor for response (request/response pattern)
+ * 
+ * @param actor Actor instance
+ * @param msg Request message
+ * @return ol_future_t* Future for response, NULL on error
+ */
+ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg);
 
-/* Behavior control */
+/* ==================== Behavior Control ==================== */
 
-/* become: swap current behavior function; takes effect for subsequent messages. */
-int ol_actor_become(ol_actor_t *a, ol_actor_behavior next);
+/**
+ * @brief Change actor behavior
+ * 
+ * @param actor Actor instance
+ * @param behavior New behavior function
+ * @return int 0 on success, -1 on error
+ */
+int ol_actor_become(ol_actor_t* actor, ol_actor_behavior behavior);
 
-/* Context and introspection */
+/**
+ * @brief Get actor user context
+ * 
+ * @param actor Actor instance
+ * @return void* User context pointer
+ */
+void* ol_actor_get_context(const ol_actor_t* actor);
 
-/* Retrieve user context pointer. */
-void* ol_actor_ctx(const ol_actor_t *a);
+/**
+ * @brief Set actor user context
+ * 
+ * @param actor Actor instance
+ * @param context New context pointer
+ */
+void ol_actor_set_context(ol_actor_t* actor, void* context);
 
-/* Is actor running? */
-bool  ol_actor_is_running(const ol_actor_t *a);
+/* ==================== Ask/Reply Helpers ==================== */
 
-/* Mailbox stats */
-size_t ol_actor_mailbox_len(const ol_actor_t *a);
-size_t ol_actor_mailbox_capacity(const ol_actor_t *a);
+/**
+ * @brief Reply to ask envelope with success
+ * 
+ * @param envelope Ask envelope
+ * @param value Reply value
+ * @param dtor Value destructor (can be NULL)
+ */
+void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value, ol_actor_value_destructor dtor);
+
+/**
+ * @brief Reply to ask envelope with error
+ * 
+ * @param envelope Ask envelope
+ * @param error_code Error code
+ */
+void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code);
+
+/**
+ * @brief Cancel ask envelope
+ * 
+ * @param envelope Ask envelope
+ */
+void ol_actor_reply_cancel(ol_ask_envelope_t* envelope);
+
+/* ==================== Introspection ==================== */
+
+/**
+ * @brief Check if actor is running
+ * 
+ * @param actor Actor instance
+ * @return bool true if running
+ */
+bool ol_actor_is_running(const ol_actor_t* actor);
+
+/**
+ * @brief Get mailbox length
+ * 
+ * @param actor Actor instance
+ * @return size_t Number of pending messages
+ */
+size_t ol_actor_mailbox_length(const ol_actor_t* actor);
+
+/**
+ * @brief Get mailbox capacity
+ * 
+ * @param actor Actor instance
+ * @return size_t Mailbox capacity (0 = unbounded)
+ */
+size_t ol_actor_mailbox_capacity(const ol_actor_t* actor);
+
+/**
+ * @brief Get current actor (if called from within actor behavior)
+ * 
+ * @return ol_actor_t* Current actor, NULL if not in actor context
+ */
+ol_actor_t* ol_actor_self(void);
 
 #ifdef __cplusplus
 }
