@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
 [![Build-System](https://img.shields.io/badge/Build-Make%20%7C%20CMake-orange.svg)](#build-olsrt-yourself)
 [![Status](https://img.shields.io/badge/Status-Production--ready%20(v1.0)-brightgreen.svg)](#status)
-[![Docs](https://img.shields.io/badge/Docs-In%20progress-yellow.svg)](#status)
+[![Docs](https://img.shields.io/badge/Docs-Production--ready-brightgreen.svg)](#status)
 [![Contributions](https://img.shields.io/badge/Contributions-Welcome-success.svg)](#contributing)
 ![GitHub Repo stars](https://img.shields.io/github/stars/OverLab-Group/OLSRT?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/OverLab-Group/OLSRT?style=social)
@@ -18,6 +18,8 @@
 > NOTE: OLSRT Atom v1.1 coming soon...
 > 
 > NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html)
+>
+> NOTE: For v1.0, OLSRT is only working on Linux, we're planned for Windows (Target), MacOS (Next), and BSD (ASAP)
 
 ---
 
@@ -32,8 +34,8 @@ If your language can talk to C, it can vibe with **OLSRT**. 🎉
 Once upon a time, **OLSRT** was a fragile experiment – weaker than `libuv`.  
 But that was yesterday. ⏳  
 
-Today, **OLSRT** is a **battle‑tested, production‑ready runtime** with serious muscle.  
-Strong enough for **enterprise workloads**, yet hackable enough for indie devs. 🏢💪🎸  
+Today, **OLSRT** is a **production-ready** with serious muscle.  
+Strong enough for **big projects**, yet hackable enough for indie devs. 🏢💪🎸  
 
 From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 - ⚡ **Concurrency**: Actors, Async/Await, Coroutines, Fibers
@@ -41,21 +43,21 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 - 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
 - ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
 - 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
+- 💥 **Non-Waiting Paradigms (Made by OverLab Group)**: Hot-Coding References (HCR)
 
-**Minimal. Hackable. Ruthless.**  
-More powerful than the hype, sharper than the trends. 🖤
+**Minimal. Hackable. Ruthless.**
 
 ---
 
 ## 📊 Status
-- **Production‑ready (v1.0)** ✅  
-- Stable builds available  
-- SDK Bindings & Documentation cooking 🍳  
+- **Production‑ready (v1.0)** ✅
+- Stable builds available
+- SDK Bindings cooking 🍳
 
 ---
 
 ## 🖥️ Build status
-- 🐧 Linux: ✅ Solid  
+- 🐧 Linux: ✅ Solid
 - 🪟 Windows: 🔜 Next Target
 - 🍎 macOS: 🔜 Coming Soon
 - 🐚 BSD: 🔜 Preview
@@ -63,7 +65,7 @@ More powerful than the hype, sharper than the trends. 🖤
 ---
 
 ## Documention
-Documention is planned and will available soon.
+OLSRT v1.0 is fully documented now! Visit [here](docs/index.html)
 
 ---
 
@@ -75,7 +77,7 @@ Quick Examples are planned and will available very soon.
 ## 🛠️ Build OLSRT Yourself
 Two ways to unleash the beast:
 
-- **Prebuilt binaries**: Grab the `.so` / `.dll` and drop it in your project.  
+- **Prebuilt binaries**: Grab the `.so` and drop it in your project.
 - **Build from source**: Compile OLSRT yourself with **Make** (preferred) or **CMake**.
 
 ---
@@ -104,7 +106,7 @@ Two ways to unleash the beast:
    cmake --build .
    ```
 
-> ⚠️ Note: CMake builds are supported but **not the main stage**.  
+> ⚠️ Note: CMake builds are supported but **not the main stage**.
 > The OverLab Group dev team runs with Makefiles for validation. 🎯
 
 ---
@@ -154,20 +156,16 @@ OLSRT versions aren’t just numbers — they’re milestones with names and sto
 ---
 
 ## 🤝 Contributing
-We’re not a corporate army.  
-We’re a crew of builders, breakers, and dreamers. 🔄💥  
+We’re not a corporate army.
+We’re a crew of builders, breakers, and dreamers. 🔄💥
 
-Join us, and you’re not just a contributor.  
-You’re part of the legend. 📖🔥  
+Join us, and you’re not just a contributor.
+You’re part of the legend. 📖🔥
 
 ---
 
 ## 📜 License
-Apache 2.0 – free to use, remix, and share. 🆓  
-
----
-
-You can also visit [Dev.To Blog](https://dev.to/javadinteger/olsrt-overlab-streams-runtime-the-first-language-agnostic-runtime-of-overlab-group-5b8c?utm_source=github.com) for more.
+Apache 2.0 – free to use, remix, and share. 🆓
 
 Current milestone: **v1.0 (Atom)**  
 `By OverLab Group`
