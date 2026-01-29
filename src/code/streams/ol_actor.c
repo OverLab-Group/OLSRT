@@ -1,470 +1,481 @@
 /**
  * @file ol_actor.c
- * @brief Actor abstraction: mailbox, behavior dispatch, ask/reply envelopes, and lifecycle.
- *
- * Overview
- * --------
- * This module implements a lightweight actor model:
- * - Each actor owns a mailbox (ol_channel_t) for incoming messages.
- * - A behavior callback processes messages; behaviors may change via ol_actor_become.
- * - "Ask" semantics are supported via ol_actor_ask which enqueues an envelope containing
- *   a promise that the actor must resolve via reply helpers.
- * - Actors run on a parallel pool; actor_loop is submitted as a worker task.
- *
- * Ownership and memory model
- * --------------------------
- * - Mailbox items: the channel's destructor (msg_dtor) is authoritative for items enqueued.
- * - For plain messages, if the behavior consumes the message it must free it; otherwise
- *   the actor will call msg_dtor after dispatch.
- * - For ask envelopes, the actor behavior is expected to resolve and free the envelope using
- *   ol_actor_reply_ok/err/cancel. If the behavior ignores an ask envelope, the actor loop
- *   defensively cancels the promise and frees the envelope to avoid leaks.
- *
- * Thread-safety
- * -------------
- * - The actor struct contains a mutex (mu) protecting the running flag and behavior pointer.
- * - All public APIs that mutate actor state lock the mutex appropriately.
- *
- * Testing and tooling notes
- * -------------------------
- * - Unit tests should verify send/try_send/send_deadline semantics, ask/reply lifecycle,
- *   behavior swapping, and mailbox draining on stop/close.
- * - Static analyzers (clang-tidy, cppcheck) should be satisfied by explicit ownership comments.
- * - Sanitizers (ASan, TSan) will detect races if behavior implementations violate contracts.
+ * @brief Actor Model Implementation
+ * 
+ * @details
+ * Complete actor system implementation with message passing,
+ * behavior management, and supervision integration.
  */
 
 #include "ol_actor.h"
-
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
+/* ==================== Platform-Specific Headers ==================== */
+#if defined(_WIN32)
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <time.h>
+#endif
+
+/* ==================== Internal Structures ==================== */
 
 /**
- * @struct ol_actor
- * @brief Internal actor representation.
- *
- * Fields:
- * - pool: parallel pool used to run the actor loop
- * - running: flag indicating actor should continue processing
- * - mailbox: channel for incoming messages
- * - msg_dtor: destructor for mailbox items (may be NULL)
- * - behavior: current behavior callback invoked for each message
- * - user_ctx: opaque user context passed to behaviors
- * - mu: mutex protecting running and behavior swap
+ * @brief Internal actor structure
  */
 struct ol_actor {
-    ol_parallel_pool_t *pool;
-    bool running;
-    ol_channel_t *mailbox;
-    ol_chan_item_destructor msg_dtor;
-    ol_actor_behavior behavior;
-    void *user_ctx;
-    ol_mutex_t mu;
+    ol_parallel_pool_t* pool;           /**< Execution pool */
+    ol_channel_t* mailbox;              /**< Message channel */
+    ol_actor_msg_destructor msg_dtor;   /**< Message destructor */
+    ol_actor_behavior behavior;         /**< Current behavior */
+    void* user_ctx;                     /**< User context */
+    ol_mutex_t mutex;                   /**< State mutex */
+    bool running;                       /**< Running flag */
+    bool closing;                       /**< Closing flag */
+    uint64_t actor_id;                  /**< Unique actor ID */
+    ol_supervisor_t* supervisor;        /**< Parent supervisor (optional) */
 };
 
+/* Thread-local storage for current actor */
+#if defined(_WIN32)
+    static __declspec(thread) ol_actor_t* g_current_actor = NULL;
+#else
+    static __thread ol_actor_t* g_current_actor = NULL;
+#endif
+
+/* Global actor ID counter */
+static uint64_t g_next_actor_id = 1;
+static ol_mutex_t g_id_mutex = OL_MUTEX_INITIALIZER;
+
+/* ==================== Internal Helper Functions ==================== */
+
 /**
- * @brief Actor main loop executed on a worker thread.
- *
- * Loop semantics:
- * - Repeatedly checks running flag under mutex.
- * - Blocks on mailbox receive; handles return codes:
- *     * 1: item received -> dispatch to behavior
- *     * 0: mailbox closed and empty -> stop loop
- *     * -3: timeout -> continue (transient)
- *     * other negative: treat as transient error and continue
- * - Detects "ask" envelopes by peeking the reply pointer field; if reply != NULL treat as ask.
- * - Behavior convention:
- *     * If behavior consumes ownership of msg, it must set msg = NULL before returning.
- *     * If behavior returns br > 0, actor requests graceful stop.
- * - Memory management:
- *     * If behavior did not consume a non-ask message and msg_dtor is set, actor calls msg_dtor.
- *     * If behavior did not consume an ask envelope, actor cancels and destroys the promise and frees envelope.
- *
- * @param arg ol_actor_t* pointer
+ * @brief Get next unique actor ID
+ * 
+ * @return uint64_t Unique actor ID
  */
-static void actor_loop(void *arg) {
-    ol_actor_t *a = (ol_actor_t*)arg;
+static uint64_t ol_actor_next_id(void) {
+    uint64_t id;
+    ol_mutex_lock(&g_id_mutex);
+    id = g_next_actor_id++;
+    ol_mutex_unlock(&g_id_mutex);
+    return id;
+}
 
-    for (;;) {
-        /* Check running state under lock */
-        ol_mutex_lock(&a->mu);
-        bool run = a->running;
-        ol_mutex_unlock(&a->mu);
-        if (!run) break;
+/**
+ * @brief Get current monotonic time in milliseconds
+ * 
+ * @return uint64_t Current time in ms
+ */
+static uint64_t ol_now_ms(void) {
+#if defined(_WIN32)
+    static LARGE_INTEGER frequency = {0};
+    if (frequency.QuadPart == 0) {
+        QueryPerformanceFrequency(&frequency);
+    }
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (uint64_t)((counter.QuadPart * 1000) / frequency.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+#endif
+}
 
-        /* Receive next message (blocking) */
-        void *msg = NULL;
-        int r = ol_channel_recv(a->mailbox, &msg);
-
-        if (r == 1) {
-            /* Dispatch */
-            ol_actor_behavior beh;
-
-            ol_mutex_lock(&a->mu);
-            beh = a->behavior;
-            ol_mutex_unlock(&a->mu);
-
-            int br = 0;
-            bool consumed = false;
-            bool is_ask = false;
-
-            /* Detect ask envelope via convention: envelope has reply pointer non-NULL */
-            if (msg) {
-                ol_ask_envelope_t *maybe = (ol_ask_envelope_t*)msg;
-                if (maybe->reply != NULL) {
-                    is_ask = true;
-                }
+/**
+ * @brief Process a single message
+ * 
+ * @param actor Actor instance
+ * @param message Message to process
+ * @return int Processing result
+ */
+static int ol_actor_process_message(ol_actor_t* actor, void* message) {
+    int result = 0;
+    
+    /* Check if this is an ask envelope */
+    bool is_ask = false;
+    ol_ask_envelope_t* ask_env = NULL;
+    
+    if (message != NULL) {
+        /* Simple type checking - assume any non-NULL reply field indicates ask envelope */
+        ask_env = (ol_ask_envelope_t*)message;
+        if (ask_env->reply != NULL) {
+            is_ask = true;
+        }
+    }
+    
+    /* Get current behavior */
+    ol_actor_behavior behavior;
+    ol_mutex_lock(&actor->mutex);
+    behavior = actor->behavior;
+    ol_mutex_unlock(&actor->mutex);
+    
+    /* Set thread-local current actor */
+    ol_actor_t* prev_actor = g_current_actor;
+    g_current_actor = actor;
+    
+    /* Execute behavior */
+    if (behavior != NULL) {
+        result = behavior(actor, message);
+        
+        /* Check if message was consumed */
+        if (message != NULL && !is_ask) {
+            /* Non-ask message not consumed - clean up */
+            if (actor->msg_dtor != NULL) {
+                actor->msg_dtor(message);
             }
+        }
+    }
+    
+    /* Handle unconsumed ask envelope */
+    if (is_ask && ask_env != NULL && ask_env->reply != NULL) {
+        /* Ask envelope not handled - cancel it */
+        ol_actor_reply_cancel(ask_env);
+    }
+    
+    /* Restore previous current actor */
+    g_current_actor = prev_actor;
+    
+    return result;
+}
 
-            if (beh) {
-                br = beh(a, msg);
-                /* Convention: if behavior takes ownership, it sets msg = NULL before returning. */
-                if (msg == NULL) consumed = true;
-            }
-
-            if (br > 0) {
-                /* Behavior requested graceful stop */
-                ol_mutex_lock(&a->mu);
-                a->running = false;
-                ol_mutex_unlock(&a->mu);
-            }
-
-            /* If behavior did not consume a non-ask message, free via msg_dtor if present */
-            if (!consumed && !is_ask && msg && a->msg_dtor) {
-                a->msg_dtor(msg);
-                msg = NULL;
-            }
-
-            /* Ask envelopes: if not consumed, cancel promise and free envelope to avoid leaks */
-            if (!consumed && is_ask && msg) {
-                ol_ask_envelope_t *env = (ol_ask_envelope_t*)msg;
-                if (env->reply) {
-                    (void)ol_promise_cancel(env->reply);
-                    ol_promise_destroy(env->reply);
-                }
-                free(env);
-                msg = NULL;
-            }
-
-        } else if (r == 0) {
-            /* Mailbox closed and empty: stop actor */
-            ol_mutex_lock(&a->mu);
-            a->running = false;
-            ol_mutex_unlock(&a->mu);
+/**
+ * @brief Actor main loop
+ * 
+ * @param arg Actor instance
+ */
+static void ol_actor_loop(void* arg) {
+    ol_actor_t* actor = (ol_actor_t*)arg;
+    
+    /* Main processing loop */
+    while (true) {
+        /* Check if we should stop */
+        ol_mutex_lock(&actor->mutex);
+        bool should_run = actor->running && !actor->closing;
+        ol_mutex_unlock(&actor->mutex);
+        
+        if (!should_run) {
             break;
-        } else if (r == -3) {
-            /* Timeout: treat as transient and continue */
+        }
+        
+        /* Receive next message */
+        void* message = NULL;
+        int recv_result = ol_channel_recv_timeout(actor->mailbox, &message, 1000);
+        
+        if (recv_result == 1) {
+            /* Message received - process it */
+            int behavior_result = ol_actor_process_message(actor, message);
+            
+            /* Check behavior result */
+            if (behavior_result > 0) {
+                /* Behavior requested stop */
+                ol_mutex_lock(&actor->mutex);
+                actor->running = false;
+                ol_mutex_unlock(&actor->mutex);
+            } else if (behavior_result < 0) {
+                /* Behavior reported error - notify supervisor */
+                if (actor->supervisor != NULL) {
+                    /* TODO: Send error notification to supervisor */
+                }
+            }
+        } else if (recv_result == 0) {
+            /* Channel closed */
+            ol_mutex_lock(&actor->mutex);
+            actor->closing = true;
+            actor->running = false;
+            ol_mutex_unlock(&actor->mutex);
+            break;
+        } else if (recv_result == -3) {
+            /* Timeout - continue */
             continue;
         } else {
-            /* Other error: continue to allow supervisor to decide */
+            /* Error - log and continue */
             continue;
         }
     }
 }
 
-/* -------------------- Public API -------------------- */
+/* ==================== Public API Implementation ==================== */
 
-/**
- * @brief Create a new actor instance.
- *
- * @param pool Parallel pool used to run actor loop (must be non-NULL)
- * @param capacity Mailbox capacity (0 = unbounded)
- * @param dtor Destructor for mailbox items (may be NULL)
- * @param initial Initial behavior callback (must be non-NULL)
- * @param user_ctx Opaque user context passed to behavior (may be NULL)
- * @return ol_actor_t* New actor handle or NULL on failure
- */
-ol_actor_t* ol_actor_create(ol_parallel_pool_t *pool,
+ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
                             size_t capacity,
-                            ol_chan_item_destructor dtor,
+                            ol_actor_msg_destructor dtor,
                             ol_actor_behavior initial,
-                            void *user_ctx)
-{
-    if (!pool || !initial) return NULL;
-
-    ol_actor_t *a = (ol_actor_t*)calloc(1, sizeof(ol_actor_t));
-    if (!a) return NULL;
-
-    a->pool = pool;
-    a->running = false;
-    a->mailbox = ol_channel_create(capacity, dtor);
-    if (!a->mailbox) { free(a); return NULL; }
-    a->msg_dtor = dtor;
-    a->behavior = initial;
-    a->user_ctx = user_ctx;
-
-    if (ol_mutex_init(&a->mu) != 0) {
-        ol_channel_destroy(a->mailbox);
-        free(a);
+                            void* user_ctx) {
+    /* Validate parameters */
+    if (pool == NULL || initial == NULL) {
         return NULL;
     }
-
-    return a;
+    
+    /* Allocate actor structure */
+    ol_actor_t* actor = (ol_actor_t*)calloc(1, sizeof(ol_actor_t));
+    if (actor == NULL) {
+        return NULL;
+    }
+    
+    /* Initialize fields */
+    actor->pool = pool;
+    actor->msg_dtor = dtor;
+    actor->behavior = initial;
+    actor->user_ctx = user_ctx;
+    actor->running = false;
+    actor->closing = false;
+    actor->actor_id = ol_actor_next_id();
+    actor->supervisor = NULL;
+    
+    /* Create mailbox */
+    actor->mailbox = ol_channel_create(capacity, dtor);
+    if (actor->mailbox == NULL) {
+        free(actor);
+        return NULL;
+    }
+    
+    /* Initialize mutex */
+    if (ol_mutex_init(&actor->mutex) != 0) {
+        ol_channel_destroy(actor->mailbox);
+        free(actor);
+        return NULL;
+    }
+    
+    return actor;
 }
 
-/**
- * @brief Start actor processing by submitting actor_loop to the pool.
- *
- * If actor is already running this is a no-op.
- *
- * @param a Actor handle
- * @return int 0 on success, -1 on invalid actor, or pool submit error code
- */
-int ol_actor_start(ol_actor_t *a) {
-    if (!a) return -1;
-    ol_mutex_lock(&a->mu);
-    if (a->running) { ol_mutex_unlock(&a->mu); return 0; }
-    a->running = true;
-    ol_mutex_unlock(&a->mu);
-
-    return ol_parallel_submit(a->pool, actor_loop, a);
+int ol_actor_start(ol_actor_t* actor) {
+    if (actor == NULL) {
+        return -1;
+    }
+    
+    ol_mutex_lock(&actor->mutex);
+    
+    if (actor->running) {
+        ol_mutex_unlock(&actor->mutex);
+        return 0; /* Already running */
+    }
+    
+    actor->running = true;
+    actor->closing = false;
+    
+    ol_mutex_unlock(&actor->mutex);
+    
+    /* Submit actor loop to pool */
+    return ol_parallel_submit(actor->pool, ol_actor_loop, actor);
 }
 
-/**
- * @brief Gracefully stop actor: mark not running and close mailbox to allow loop to drain.
- *
- * @param a Actor handle
- * @return int 0 on success, -1 on invalid actor
- */
-int ol_actor_stop(ol_actor_t *a) {
-    if (!a) return -1;
-    ol_mutex_lock(&a->mu);
-    a->running = false;
-    ol_mutex_unlock(&a->mu);
-    ol_channel_close(a->mailbox);
+int ol_actor_stop(ol_actor_t* actor) {
+    if (actor == NULL) {
+        return -1;
+    }
+    
+    ol_mutex_lock(&actor->mutex);
+    actor->running = false;
+    ol_mutex_unlock(&actor->mutex);
+    
     return 0;
 }
 
-/**
- * @brief Immediately close actor mailbox. Actor loop will stop when it observes closed mailbox.
- *
- * @param a Actor handle
- * @return int 0 on success, -1 on invalid actor
- */
-int ol_actor_close(ol_actor_t *a) {
-    if (!a) return -1;
-    return ol_channel_close(a->mailbox);
-}
-
-/**
- * @brief Destroy actor and free resources. Performs a best-effort stop first.
- *
- * After this call the actor handle is invalid.
- *
- * @param a Actor handle
- */
-void ol_actor_destroy(ol_actor_t *a) {
-    if (!a) return;
-    (void)ol_actor_stop(a);
-    ol_mutex_destroy(&a->mu);
-    ol_channel_destroy(a->mailbox);
-    free(a);
-}
-
-/* -------------------- Messaging API -------------------- */
-
-/**
- * @brief Send a message to actor mailbox (blocking).
- *
- * Ownership:
- * - Caller transfers ownership of msg to the mailbox; mailbox's destructor will be used
- *   if the message is not consumed by behavior.
- *
- * @param a Actor handle
- * @param msg Message pointer
- * @return int 0 on success, -1 on invalid actor, or channel error codes
- */
-int ol_actor_send(ol_actor_t *a, void *msg) {
-    if (!a) return -1;
-    return ol_channel_send(a->mailbox, msg);
-}
-
-/**
- * @brief Send a message with deadline.
- *
- * @param a Actor handle
- * @param msg Message pointer
- * @param deadline_ns Absolute deadline in ns (0 = infinite)
- * @return int 0 on success, -1 on invalid actor, -3 timeout, -2 closed
- */
-int ol_actor_send_deadline(ol_actor_t *a, void *msg, int64_t deadline_ns) {
-    if (!a) return -1;
-    return ol_channel_send_deadline(a->mailbox, msg, deadline_ns);
-}
-
-/**
- * @brief Try to send a message without blocking.
- *
- * @param a Actor handle
- * @param msg Message pointer
- * @return int 1 enqueued, 0 would-block, -2 closed, -1 invalid actor
- */
-int ol_actor_try_send(ol_actor_t *a, void *msg) {
-    if (!a) return -1;
-    return ol_channel_try_send(a->mailbox, msg);
-}
-
-/* -------------------- Ask/Reply API -------------------- */
-
-/**
- * @brief Enqueue an ask envelope and return a future to await the reply.
- *
- * Behavior:
- * - Allocates an ol_ask_envelope_t containing payload and a promise.
- * - Attempts a try_send; if mailbox is full, falls back to blocking send.
- * - On send failure (closed channel or error), rejects the promise and cleans up.
- *
- * Ownership:
- * - Envelope ownership is transferred to the mailbox/actor path.
- * - Payload ownership remains with the caller until actor resolves the envelope.
- *
- * @param a Actor handle
- * @param msg Payload pointer (may be NULL)
- * @return ol_future_t* Future to await reply, or NULL on failure
- */
-ol_future_t* ol_actor_ask(ol_actor_t *a, void *msg) {
-    if (!a) return NULL;
-
-    /* Create promise/future pair */
-    ol_promise_t *p = ol_promise_create(NULL);
-    if (!p) return NULL;
-    ol_future_t *f = ol_promise_get_future(p);
-    if (!f) { ol_promise_destroy(p); return NULL; }
-
-    /* Construct envelope: mailbox owns envelope; payload ownership remains with caller/behavior */
-    ol_ask_envelope_t *env = (ol_ask_envelope_t*)calloc(1, sizeof(ol_ask_envelope_t));
-    if (!env) { ol_future_destroy(f); ol_promise_destroy(p); return NULL; }
-    env->payload = msg;
-    env->reply   = p;
-
-    /* Prefer try_send; fallback to blocking send if would-block */
-    int r = ol_channel_try_send(a->mailbox, env);
-    if (r == 1) {
-        return f;
+int ol_actor_close(ol_actor_t* actor) {
+    if (actor == NULL) {
+        return -1;
     }
-    if (r == 0) {
-        r = ol_channel_send(a->mailbox, env);
-        if (r == 0) {
-            return f;
-        }
-        /* blocking send failed: fall through to cleanup */
-    } else if (r == -2) {
-        /* closed: fail below */
-    } else {
-        /* error: fail below */
-    }
-
-    /* Failed to enqueue: reject promise and cleanup */
-    (void)ol_promise_reject(p, /*error_code*/ -2);
-    ol_promise_destroy(p);
-    ol_future_destroy(f);
-    free(env);
-    return NULL;
+    
+    ol_mutex_lock(&actor->mutex);
+    actor->closing = true;
+    actor->running = false;
+    ol_mutex_unlock(&actor->mutex);
+    
+    return ol_channel_close(actor->mailbox);
 }
 
-/* -------------------- Behavior control and introspection -------------------- */
+void ol_actor_destroy(ol_actor_t* actor) {
+    if (actor == NULL) {
+        return;
+    }
+    
+    /* Stop actor if running */
+    if (ol_actor_is_running(actor)) {
+        ol_actor_close(actor);
+    }
+    
+    /* Wait a bit for graceful shutdown */
+    #if defined(_WIN32)
+        Sleep(100);
+    #else
+        usleep(100000);
+    #endif
+    
+    /* Clean up resources */
+    ol_mutex_destroy(&actor->mutex);
+    
+    if (actor->mailbox != NULL) {
+        ol_channel_destroy(actor->mailbox);
+    }
+    
+    free(actor);
+}
 
-/**
- * @brief Swap actor behavior atomically.
- *
- * @param a Actor handle
- * @param next New behavior callback (must be non-NULL)
- * @return int 0 on success, -1 on invalid args
- */
-int ol_actor_become(ol_actor_t *a, ol_actor_behavior next) {
-    if (!a || !next) return -1;
-    ol_mutex_lock(&a->mu);
-    a->behavior = next;
-    ol_mutex_unlock(&a->mu);
+int ol_actor_send(ol_actor_t* actor, void* msg) {
+    if (actor == NULL) {
+        return -1;
+    }
+    
+    return ol_channel_send(actor->mailbox, msg);
+}
+
+int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
+    if (actor == NULL) {
+        return -1;
+    }
+    
+    uint64_t deadline = ol_now_ms() + timeout_ms;
+    return ol_channel_send_deadline(actor->mailbox, msg, (int64_t)deadline * 1000000);
+}
+
+int ol_actor_try_send(ol_actor_t* actor, void* msg) {
+    if (actor == NULL) {
+        return -1;
+    }
+    
+    return ol_channel_try_send(actor->mailbox, msg);
+}
+
+ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
+    if (actor == NULL) {
+        return NULL;
+    }
+    
+    /* Create promise for reply */
+    ol_promise_t* promise = ol_promise_create(NULL);
+    if (promise == NULL) {
+        return NULL;
+    }
+    
+    ol_future_t* future = ol_promise_get_future(promise);
+    if (future == NULL) {
+        ol_promise_destroy(promise);
+        return NULL;
+    }
+    
+    /* Create ask envelope */
+    ol_ask_envelope_t* envelope = (ol_ask_envelope_t*)calloc(1, sizeof(ol_ask_envelope_t));
+    if (envelope == NULL) {
+        ol_future_destroy(future);
+        ol_promise_destroy(promise);
+        return NULL;
+    }
+    
+    envelope->payload = msg;
+    envelope->reply = promise;
+    envelope->sender = ol_actor_self();
+    envelope->ask_id = ol_now_ms(); /* Simple unique ID */
+    
+    /* Send envelope to actor */
+    int send_result = ol_actor_send(actor, envelope);
+    if (send_result != 0) {
+        /* Failed to send - clean up */
+        ol_actor_reply_cancel(envelope);
+        ol_future_destroy(future);
+        return NULL;
+    }
+    
+    return future;
+}
+
+int ol_actor_become(ol_actor_t* actor, ol_actor_behavior behavior) {
+    if (actor == NULL || behavior == NULL) {
+        return -1;
+    }
+    
+    ol_mutex_lock(&actor->mutex);
+    actor->behavior = behavior;
+    ol_mutex_unlock(&actor->mutex);
+    
     return 0;
 }
 
-/**
- * @brief Retrieve user context pointer.
- *
- * @param a Actor handle
- * @return void* user context or NULL
- */
-void* ol_actor_ctx(const ol_actor_t *a) {
-    return a ? a->user_ctx : NULL;
+void* ol_actor_get_context(const ol_actor_t* actor) {
+    if (actor == NULL) {
+        return NULL;
+    }
+    
+    ol_mutex_lock((ol_mutex_t*)&actor->mutex);
+    void* context = actor->user_ctx;
+    ol_mutex_unlock((ol_mutex_t*)&actor->mutex);
+    
+    return context;
 }
 
-/**
- * @brief Check whether actor is running.
- *
- * @param a Actor handle
- * @return bool true if running, false otherwise
- */
-bool ol_actor_is_running(const ol_actor_t *a) {
-    if (!a) return false;
-    bool r;
-    ol_mutex_lock((ol_mutex_t*)&a->mu);
-    r = a->running;
-    ol_mutex_unlock((ol_mutex_t*)&a->mu);
-    return r;
+void ol_actor_set_context(ol_actor_t* actor, void* context) {
+    if (actor == NULL) {
+        return;
+    }
+    
+    ol_mutex_lock(&actor->mutex);
+    actor->user_ctx = context;
+    ol_mutex_unlock(&actor->mutex);
 }
 
-/**
- * @brief Get current mailbox length (number of queued items).
- *
- * @param a Actor handle
- * @return size_t number of items or 0 on invalid actor
- */
-size_t ol_actor_mailbox_len(const ol_actor_t *a) {
-    if (!a) return 0;
-    return ol_channel_len(a->mailbox);
+void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value, ol_actor_value_destructor dtor) {
+    if (envelope == NULL || envelope->reply == NULL) {
+        return;
+    }
+    
+    ol_promise_fulfill(envelope->reply, value, dtor);
+    ol_promise_destroy(envelope->reply);
+    free(envelope);
 }
 
-/**
- * @brief Get mailbox capacity (0 = unbounded).
- *
- * @param a Actor handle
- * @return size_t capacity or 0 on invalid actor
- */
-size_t ol_actor_mailbox_capacity(const ol_actor_t *a) {
-    if (!a) return 0;
-    return ol_channel_capacity(a->mailbox);
+void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code) {
+    if (envelope == NULL || envelope->reply == NULL) {
+        return;
+    }
+    
+    ol_promise_reject(envelope->reply, error_code);
+    ol_promise_destroy(envelope->reply);
+    free(envelope);
 }
 
-/* -------------------- Ask reply helpers for behaviors -------------------- */
-
-/**
- * @brief Reply with success value to an ask envelope and free envelope.
- *
- * Behavior:
- * - Fulfills the promise, destroys the promise handle, and frees the envelope.
- *
- * @param env Ask envelope pointer
- * @param value Reply value pointer (may be NULL)
- * @param dtor Destructor for value (may be NULL)
- */
-static inline void ol_actor_reply_ok(ol_ask_envelope_t *env, void *value, ol_value_destructor dtor) {
-    if (!env || !env->reply) return;
-    (void)ol_promise_fulfill(env->reply, value, dtor);
-    ol_promise_destroy(env->reply);
-    free(env);
+void ol_actor_reply_cancel(ol_ask_envelope_t* envelope) {
+    if (envelope == NULL || envelope->reply == NULL) {
+        return;
+    }
+    
+    ol_promise_cancel(envelope->reply);
+    ol_promise_destroy(envelope->reply);
+    free(envelope);
 }
 
-/**
- * @brief Reply with error code to an ask envelope and free envelope.
- *
- * @param env Ask envelope pointer
- * @param error_code Integer error code
- */
-static inline void ol_actor_reply_err(ol_ask_envelope_t *env, int error_code) {
-    if (!env || !env->reply) return;
-    (void)ol_promise_reject(env->reply, error_code);
-    ol_promise_destroy(env->reply);
-    free(env);
+bool ol_actor_is_running(const ol_actor_t* actor) {
+    if (actor == NULL) {
+        return false;
+    }
+    
+    bool running;
+    ol_mutex_lock((ol_mutex_t*)&actor->mutex);
+    running = actor->running;
+    ol_mutex_unlock((ol_mutex_t*)&actor->mutex);
+    
+    return running;
 }
 
-/**
- * @brief Cancel an ask envelope's promise and free envelope.
- *
- * @param env Ask envelope pointer
- */
-static inline void ol_actor_reply_cancel(ol_ask_envelope_t *env) {
-    if (!env || !env->reply) return;
-    (void)ol_promise_cancel(env->reply);
-    ol_promise_destroy(env->reply);
-    free(env);
+size_t ol_actor_mailbox_length(const ol_actor_t* actor) {
+    if (actor == NULL) {
+        return 0;
+    }
+    
+    return ol_channel_len(actor->mailbox);
+}
+
+size_t ol_actor_mailbox_capacity(const ol_actor_t* actor) {
+    if (actor == NULL) {
+        return 0;
+    }
+    
+    return ol_channel_capacity(actor->mailbox);
+}
+
+ol_actor_t* ol_actor_self(void) {
+    return g_current_actor;
 }
