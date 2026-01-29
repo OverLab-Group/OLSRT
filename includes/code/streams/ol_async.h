@@ -1,44 +1,77 @@
+/**
+ * @file ol_async.h
+ * @brief Asynchronous task execution primitives for OLSRT
+ * @version 1.2.0
+ * 
+ * This header provides APIs for running tasks on thread pools and event loops,
+ * with future/promise semantics for handling asynchronous results.
+ */
+
 #ifndef OL_ASYNC_H
 #define OL_ASYNC_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-
-#include "ol_parallel.h"
+#include "ol_common.h"
 #include "ol_promise.h"
 #include "ol_event_loop.h"
+#include "ol_parallel_pool.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Task function run on pool thread; should return pointer result (owned by caller) */
+/**
+ * @brief Task function type for pool execution
+ * @param arg User-provided argument
+ * @return Pointer to result (ownership transferred to promise)
+ */
 typedef void* (*ol_async_task_fn)(void *arg);
 
-/* Schedule a task on thread pool. Returns a future that will be fulfilled with the returned pointer.
- * If fn returns NULL that is treated as a valid value (not an error). Use reject on error via ol_promise_reject
- * inside task if you need to signal an error code.
+/**
+ * @brief Loop callback function type
+ * @param loop Event loop instance
+ * @param arg User-provided argument
+ * @param promise Promise to resolve (optional)
+ * @return Pointer to result if available, NULL if promise will be resolved later
  */
-ol_future_t* ol_async_run(ol_parallel_pool_t *pool, ol_async_task_fn fn, void *arg, ol_value_destructor dtor);
+typedef void* (*ol_async_loop_fn)(ol_event_loop_t *loop, void *arg, ol_promise_t *promise);
 
-/* Event-loop callback signature for scheduling on the loop.
- * cb receives user arg and a promise pointer it should fulfill/reject before returning,
- * or it can return a result pointer which will be used to fulfill the promise automatically.
- *
- * Two styles are supported:
- * - If cb returns non-NULL, that value will be used to fulfill the promise automatically.
- * - If cb returns NULL but uses the promise pointer to fulfill/reject asynchronously, that's also supported.
- *
- * The promise provided must not be destroyed by the callback; the runtime will destroy it after fulfillment.
+/**
+ * @brief Run a task on a parallel thread pool
+ * 
+ * Submits a task to the thread pool and returns a future that will be
+ * resolved when the task completes. The task runs on a worker thread
+ * and should not block the calling thread.
+ * 
+ * @param pool Thread pool instance (must not be NULL)
+ * @param fn Task function to execute (must not be NULL)
+ * @param arg Argument passed to the task function
+ * @param dtor Destructor for the result value (optional)
+ * @return Future handle, or NULL on error
+ * @note The caller must destroy the returned future with ol_future_destroy()
  */
-typedef void* (*ol_async_loop_fn)(struct ol_event_loop *loop, void *arg, ol_promise_t *promise);
+OL_API ol_future_t* ol_async_run(ol_parallel_pool_t *pool,
+                                 ol_async_task_fn fn,
+                                 void *arg,
+                                 ol_value_destructor dtor);
 
-/* Schedule a callback to run on the event loop thread (non-blocking). Returns a future.
- * The callback will run in the loop thread and its return value (or explicit promise fulfill) resolves the future.
- * If scheduling fails (e.g., event loop registration problem), returns NULL.
+/**
+ * @brief Schedule a callback on an event loop thread
+ * 
+ * Schedules a callback to run on the event loop's thread and returns a
+ * future for its result. The callback can either return a result immediately
+ * or use the provided promise to resolve asynchronously.
+ * 
+ * @param loop Event loop instance (must not be NULL)
+ * @param cb Callback to execute on loop thread (must not be NULL)
+ * @param arg Argument passed to callback
+ * @param dtor Destructor for the result value (optional)
+ * @return Future handle, or NULL on error
+ * @note The caller must destroy the returned future with ol_future_destroy()
  */
-ol_future_t* ol_async_run_on_loop(ol_event_loop_t *loop, ol_async_loop_fn cb, void *arg, ol_value_destructor dtor);
+OL_API ol_future_t* ol_async_run_on_loop(ol_event_loop_t *loop,
+                                         ol_async_loop_fn cb,
+                                         void *arg,
+                                         ol_value_destructor dtor);
 
 #ifdef __cplusplus
 }
