@@ -11,7 +11,7 @@
 #define OL_AWAIT_H
 
 #include "ol_common.h"
-#include "ol_future.h"
+#include "ol_promise.h"
 #include "ol_event_loop.h"
 
 #ifdef __cplusplus
