@@ -10,7 +10,7 @@
 
 #include "ol_await.h"
 #include "ol_common.h"
-#include "ol_future.h"
+#include "ol_promise.h"
 #include "ol_event_loop.h"
 #include "ol_deadlines.h"
 
@@ -22,6 +22,7 @@
 #else
     #include <time.h>
     #include <unistd.h>
+    #include <errno.h>
 #endif
 
 /* --------------------------------------------------------------------------
