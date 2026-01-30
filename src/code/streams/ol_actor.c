@@ -47,7 +47,7 @@ struct ol_actor {
 
 /* Global actor ID counter */
 static uint64_t g_next_actor_id = 1;
-static ol_mutex_t g_id_mutex = OL_MUTEX_INITIALIZER;
+static ol_mutex_t g_id_mutex = PTHREAD_MUTEX_INITIALIZER; // Fixed OL_MUTEX_INITIALIZER
 
 /* ==================== Internal Helper Functions ==================== */
 
@@ -163,7 +163,7 @@ static void ol_actor_loop(void* arg) {
         
         /* Receive next message */
         void* message = NULL;
-        int recv_result = ol_channel_recv_timeout(actor->mailbox, &message, 1000);
+        int recv_result = ol_channel_recv_deadline(actor->mailbox, &message, 1000); // Fixed ol_channel_recv_timeout
         
         if (recv_result == 1) {
             /* Message received - process it */
