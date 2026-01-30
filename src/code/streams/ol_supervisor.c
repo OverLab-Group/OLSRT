@@ -80,13 +80,13 @@ typedef enum {
     EVENT_CHILD_STOPPED,
     EVENT_CHILD_CRASHED,
     EVENT_SUPERVISOR_STOP
-} ol_supervisor_event_t;
+} ol_supervisor_event_type_t;
 
 /**
  * @brief Supervisor event structure
  */
 typedef struct {
-    ol_supervisor_event_t type;        /**< Event type */
+    ol_supervisor_event_type_t type;        /**< Event type */
     uint32_t child_id;                 /**< Child ID (if applicable) */
     void* data;                        /**< Event data */
     size_t data_size;                  /**< Data size */
@@ -231,7 +231,7 @@ static void* ol_supervisor_monitor_func(void* arg)
     while (supervisor->running) {
         /* Check for events */
         ol_supervisor_event_t* event = NULL;
-        int result = ol_channel_recv_timeout(supervisor->event_channel, (void**)&event, 1000);
+        int result = ol_channel_recv_deadline(supervisor->event_channel, (void**)&event, 1000);
         
         if (result == 1 && event != NULL) {
             /* Process event */
