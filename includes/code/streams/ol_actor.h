@@ -22,7 +22,7 @@
 #include "ol_channel.h"
 #include "ol_parallel.h"
 #include "ol_promise.h"
-#include "ol_mutex.h"
+#include "ol_lock_mutex.h"
 
 #ifdef __cplusplus
 extern "C" {
