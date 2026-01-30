@@ -15,11 +15,13 @@
 
 ---
 
-> NOTE: OLSRT Atom v1.1 coming soon...
+> NOTE: OLSRT Atom v1.1 broke...
+>
+> NOTE: But it's not the end! OLSRT Atom v1.2 is here with many new features!
 > 
 > NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html)
 >
-> NOTE: For v1.0, OLSRT is only working on Linux, we're planned for Windows (Target), MacOS (Next), and BSD (ASAP)
+> NOTE: For v1.2, OLSRT is only working on Linux, we're planned for Windows (Target), MacOS (Next), and BSD (ASAP)
 
 ---
 
@@ -43,14 +45,14 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 - 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
 - ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
 - 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
-- 💥 **Non-Waiting Paradigms (Made by OverLab Group)**: Hot-Coding References (HCR)
+- 💥 **Non-Waiting Paradigms (Made by OverLab Group)**: Hot-Coding References (HCR) (COMING SOON!)
 
 **Minimal. Hackable. Ruthless.**
 
 ---
 
 ## 📊 Status
-- **Production‑ready (v1.0)** ✅
+- **Production‑ready (v1.2)** ✅
 - Stable builds available
 - SDK Bindings cooking 🍳
 
@@ -79,6 +81,9 @@ Two ways to unleash the beast:
 
 - **Prebuilt binaries**: Grab the `.so` and drop it in your project.
 - **Build from source**: Compile OLSRT yourself with **Make** (preferred) or **CMake**.
+> NOTE: YOU CAN ONLY BUILD FOR LINUX RIGHT NOW!
+>
+> WE'RE WORKING ON OLSRT CROSS-PLATFORM!
 
 ---
 
@@ -167,5 +172,5 @@ You’re part of the legend. 📖🔥
 ## 📜 License
 Apache 2.0 – free to use, remix, and share. 🆓
 
-Current milestone: **v1.0 (Atom)**  
+Current milestone: **v1.2 (Atom)**  
 `By OverLab Group`
