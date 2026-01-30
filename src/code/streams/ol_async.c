@@ -11,7 +11,7 @@
 #include "ol_async.h"
 #include "ol_common.h"
 #include "ol_promise.h"
-#include "ol_parallel_pool.h"
+#include "ol_parallel.h"
 #include "ol_event_loop.h"
 
 #include <stdlib.h>
