@@ -1,6 +1,6 @@
 /**
  * @file ol_memwatch.c
- * @brief Memory leak detection implementation
+ * @brief Memory leak detection implementation - Cross Platform
  */
 
 #include "ol_memwatch.h"
@@ -9,7 +9,43 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <execinfo.h>
+
+/* Platform detection */
+#if defined(_WIN32) || defined(_WIN64)
+    #define OL_PLATFORM_WINDOWS 1
+    #define OL_PLATFORM_UNIX 0
+    
+    /* Windows headers for backtrace */
+    #ifndef _WIN32_WINNT
+        #define _WIN32_WINNT 0x0600  /* Windows Vista or later */
+    #endif
+    #include <windows.h>
+    #include <dbghelp.h>
+    #pragma comment(lib, "dbghelp.lib")
+    
+#elif defined(__APPLE__)
+    #define OL_PLATFORM_WINDOWS 0
+    #define OL_PLATFORM_UNIX 1
+    #define OL_PLATFORM_APPLE 1
+    
+    /* macOS headers for backtrace */
+    #include <execinfo.h>
+    #include <TargetConditionals.h>
+    
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    #define OL_PLATFORM_WINDOWS 0
+    #define OL_PLATFORM_UNIX 1
+    #define OL_PLATFORM_APPLE 0
+    
+    /* Unix headers for backtrace */
+    #include <execinfo.h>
+    
+#else
+    #define OL_PLATFORM_WINDOWS 0
+    #define OL_PLATFORM_UNIX 1
+    #define OL_PLATFORM_APPLE 0
+    /* Unknown platform - disable backtrace */
+#endif
 
 /* Configuration */
 #define MEMWATCH_HASH_SIZE 4096
@@ -36,16 +72,16 @@ static struct {
     size_t peak_usage;
     size_t total_allocations;
     size_t total_frees;
-
+    
     /* Hash table for quick lookup */
     mem_record_t *hash_table[MEMWATCH_HASH_SIZE];
-
+    
     /* Synchronization */
     ol_mutex_t mutex;
-
-    /* Callback for custom logging */
-    void (*log_callback)(const char *msg, void *userdata);
-    void *log_userdata;
+    
+    /* Platform-specific backtrace support */
+    bool backtrace_supported;
+    
 } g_memwatch = {0};
 
 /* Hash function for pointers */
@@ -54,36 +90,116 @@ static inline size_t ptr_hash(void *ptr) {
     return (p ^ (p >> 16)) % MEMWATCH_HASH_SIZE;
 }
 
-/* Get backtrace if available */
+/* Platform-specific backtrace functions */
+#if OL_PLATFORM_WINDOWS
+
+/* Windows implementation of get_backtrace */
 static int get_backtrace(void **buffer, int max_depth) {
-    #if defined(__linux__) || defined(__APPLE__)
-    return backtrace(buffer, max_depth);
-    #else
-    (void)buffer;
-    (void)max_depth;
-    return 0;
-    #endif
+    if (max_depth <= 0) return 0;
+    
+    /* Initialize debug help if needed */
+    static BOOL sym_initialized = FALSE;
+    if (!sym_initialized) {
+        sym_initialized = SymInitialize(GetCurrentProcess(), NULL, TRUE);
+    }
+    
+    /* Capture stack trace */
+    USHORT frames = CaptureStackBackTrace(0, max_depth, buffer, NULL);
+    return (int)frames;
 }
 
-/* Symbolicate backtrace */
+/* Windows implementation of symbolize_backtrace */
 static void symbolize_backtrace(void **buffer, int depth, char *out, size_t out_size) {
-    #if defined(__linux__) || defined(__APPLE__)
+    if (depth <= 0 || out_size == 0) {
+        out[0] = '\0';
+        return;
+    }
+    
+    HANDLE process = GetCurrentProcess();
+    char *pos = out;
+    size_t remaining = out_size;
+    
+    for (int i = 0; i < depth && remaining > 1; i++) {
+        DWORD64 address = (DWORD64)(buffer[i]);
+        char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+        PSYMBOL_INFO symbol = (PSYMBOL_INFO)buffer;
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+        symbol->MaxNameLen = MAX_SYM_NAME;
+        
+        if (SymFromAddr(process, address, NULL, symbol)) {
+            int written = snprintf(pos, remaining, "%zu: %s (0x%llX)\n", 
+                                   i, symbol->Name, symbol->Address);
+            if (written > 0) {
+                pos += written;
+                remaining -= written;
+            }
+        } else {
+            int written = snprintf(pos, remaining, "%zu: [0x%p]\n", i, buffer[i]);
+            if (written > 0) {
+                pos += written;
+                remaining -= written;
+            }
+        }
+    }
+    
+    if (remaining > 0) {
+        *pos = '\0';
+    }
+}
+
+#elif OL_PLATFORM_UNIX && (defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__))
+
+/* Unix implementation of get_backtrace */
+static int get_backtrace(void **buffer, int max_depth) {
+    if (max_depth <= 0) return 0;
+    return backtrace(buffer, max_depth);
+}
+
+/* Unix implementation of symbolize_backtrace */
+static void symbolize_backtrace(void **buffer, int depth, char *out, size_t out_size) {
+    if (depth <= 0 || out_size == 0) {
+        out[0] = '\0';
+        return;
+    }
+    
     char **symbols = backtrace_symbols(buffer, depth);
     if (symbols) {
         out[0] = '\0';
-        for (int i = 0; i < depth; i++) {
-            strncat(out, symbols[i], out_size - strlen(out) - 1);
-            strncat(out, "\n", out_size - strlen(out) - 1);
+        char *pos = out;
+        size_t remaining = out_size;
+        
+        for (int i = 0; i < depth && remaining > 1; i++) {
+            int written = snprintf(pos, remaining, "%s\n", symbols[i]);
+            if (written > 0) {
+                pos += written;
+                remaining -= written;
+            }
         }
+        
         free(symbols);
+    } else {
+        out[0] = '\0';
     }
-    #else
+}
+
+#else
+
+/* Fallback implementation for platforms without backtrace support */
+static int get_backtrace(void **buffer, int max_depth) {
+    (void)buffer;
+    (void)max_depth;
+    return 0;
+}
+
+static void symbolize_backtrace(void **buffer, int depth, char *out, size_t out_size) {
     (void)buffer;
     (void)depth;
-    (void)out;
-    (void)out_size;
-    #endif
+    if (out_size > 0) {
+        out[0] = '\0';
+    }
 }
+
+#endif
 
 /* Initialize memory watcher */
 int ol_memwatch_init(void) {
@@ -96,6 +212,14 @@ int ol_memwatch_init(void) {
     memset(g_memwatch.hash_table, 0, sizeof(g_memwatch.hash_table));
     g_memwatch.enabled = true;
     g_memwatch.threshold = 1024; /* 1KB default threshold */
+    
+    /* Check backtrace support */
+    #if (OL_PLATFORM_WINDOWS) || (OL_PLATFORM_UNIX && (defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)))
+        g_memwatch.backtrace_supported = true;
+    #else
+        g_memwatch.backtrace_supported = false;
+    #endif
+    
     g_memwatch.initialized = true;
 
     return 0;
@@ -127,7 +251,9 @@ void ol_memwatch_shutdown(void) {
                         char bt_buffer[4096];
                         symbolize_backtrace(rec->backtrace, rec->bt_depth,
                                             bt_buffer, sizeof(bt_buffer));
-                        fprintf(stderr, "Backtrace:\n%s", bt_buffer);
+                        if (bt_buffer[0] != '\0') {
+                            fprintf(stderr, "Backtrace:\n%s", bt_buffer);
+                        }
                     }
                 }
                 rec = rec->next;
@@ -175,8 +301,15 @@ void *ol_memwatch_track_alloc(size_t size, const char *file, int line) {
         rec->size = size;
         rec->file = file;
         rec->line = line;
-        rec->bt_depth = get_backtrace(rec->backtrace, MAX_BACKTRACE_DEPTH);
-        rec->timestamp = 0; /* Could use clock_gettime here */
+        
+        /* Get backtrace if supported */
+        if (g_memwatch.backtrace_supported) {
+            rec->bt_depth = get_backtrace(rec->backtrace, MAX_BACKTRACE_DEPTH);
+        } else {
+            rec->bt_depth = 0;
+        }
+        
+        rec->timestamp = 0; /* Could use platform-specific timing function */
 
         /* Add to hash table */
         size_t hash = ptr_hash(ptr);
@@ -321,6 +454,8 @@ void ol_memwatch_dump(void) {
     fprintf(stderr, "  Frees:         %zu\n", g_memwatch.total_frees);
     fprintf(stderr, "  Leaks:         %zu bytes\n",
             g_memwatch.current_usage);
+    fprintf(stderr, "  Backtrace:     %s\n", 
+            g_memwatch.backtrace_supported ? "Supported" : "Not supported");
 
     ol_mutex_unlock(&g_memwatch.mutex);
 }
