@@ -15,13 +15,13 @@
 
 ---
 
-> NOTE: OLSRT Atom v1.1 broke...
+> NOTE: OLSRT v1.3.0 with many interesting features are coming!
 >
-> NOTE: But it's not the end! OLSRT Atom v1.2 is here with many new features!
+> NOTE: OLSRT v1.3.0 have some bugs right now...
 > 
-> NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html)
+> NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html).
 >
-> NOTE: For v1.2, OLSRT is only working on Linux, we're planned for Windows (Target), MacOS (Next), and BSD (ASAP)
+> NOTE: OLSRT v1.2.0 is fully working on Linux and BSD. macOS and Windows are planned.
 
 ---
 
@@ -45,7 +45,7 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 - 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
 - ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
 - 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
-- 💥 **Non-Waiting Paradigms (Made by OverLab Group)**: Hot-Coding References (HCR) (COMING SOON!)
+- 💥 **Made by OverLab Group**: Hot-Coding References (HCR), ORoutines (OLSRT Coroutines) (COMING ON v1.3!)
 
 **Minimal. Hackable. Ruthless.**
 
@@ -53,6 +53,8 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 
 ## 📊 Status
 - **Production‑ready (v1.2)** ✅
+- **Documentations available (v1.2)** ✅
+- **Active Development (v1.3)** ✅
 - Stable builds available
 - SDK Bindings cooking 🍳
 
@@ -62,17 +64,18 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 - 🐧 Linux: ✅ Solid
 - 🪟 Windows: 🔜 Next Target
 - 🍎 macOS: 🔜 Coming Soon
-- 🐚 BSD: 🔜 Preview
+- 🐚 BSD: ✅ Solid
 
 ---
 
-## Documention
+## Documentation
 OLSRT v1.0 is fully documented now! Visit [here](docs/index.html)
+OLSRT v1.2 documentations cooking...
 
 ---
 
 ## Quick Examples
-Quick Examples are planned and will available very soon.
+Quick Examples are planned for OLSRT v1.2 (ASAP).
 
 ---
 
@@ -80,10 +83,10 @@ Quick Examples are planned and will available very soon.
 Two ways to unleash the beast:
 
 - **Prebuilt binaries**: Grab the `.so` and drop it in your project.
-- **Build from source**: Compile OLSRT yourself with **Make** (preferred) or **CMake**.
-> NOTE: YOU CAN ONLY BUILD FOR LINUX RIGHT NOW!
+- **Build from source**: Compile OLSRT yourself with **Make** (recommended) or **CMake**.
+> NOTE: YOU CAN ONLY BUILD FOR LINUX AND BSD RIGHT NOW!
 >
-> WE'RE WORKING ON OLSRT CROSS-PLATFORM!
+> WE'RE WORKING ON OLSRT v1.3 CROSS-PLATFORM!
 
 ---
 
