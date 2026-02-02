@@ -69,7 +69,7 @@ From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
 ---
 
 ## Documentation
-OLSRT v1.0 is fully documented now! Visit [here](docs/index.html)
+OLSRT v1.0 is fully documented now! Visit [here](docs/index.html) 
 OLSRT v1.2 documentations cooking...
 
 ---
