@@ -1,51 +1,121 @@
-SRC := $(shell find src/code/streams -name '*.c')
-OBJ := $(SRC:src/code/streams/%.c=build/code/streams/%.o)
+# Main Makefile for OLSRT - Cross-platform build system
+# Usage: make [TARGET=linux|windows|darwin|bsd] [ARCH=x86_64|i686|aarch64]
 
+# Use command line or environment variables
+TARGET ?= bsd
+ARCH ?= x86_64
+
+# Find source files
+SRC_DIR := src/code/streams
+SRC := $(wildcard $(SRC_DIR)/*.c)
+OBJ_DIR := build/$(TARGET)/$(ARCH)/code/streams
+OBJ := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRC))
+
+# Include directories
 INC := -Iincludes \
+       -Iincludes/code \
        -Iincludes/code/streams \
        -Iincludes/runtime
 
-CC_LINUX   = gcc
-CC_WINDOWS = x86_64-w64-mingw32-gcc
-CC_BSD     = clang
-CC_APPLE   = clang
+# Platform-specific settings
+ifeq ($(TARGET),linux)
+    CC := gcc
+    CFLAGS := -fPIC -D_LINUX -D__linux__ -O3 -Wall -Wextra
+    LDFLAGS := -shared -lpthread -lrt -ldl -flto
+    OUTPUT := bin/$(TARGET)/$(ARCH)/libolsrt.so
+    LINK_CMD := $(CC) -shared $(CFLAGS) $(LDFLAGS) $(OBJ) -o $(OUTPUT)
+    
+else ifeq ($(TARGET),windows)
+    CC := x86_64-w64-mingw32-gcc
+    CFLAGS := -D_WINDOWS -D_WIN32 -D_WIN64 -DWIN32_LEAN_AND_MEAN -O3 -Wall -Wextra
+    LDFLAGS := -shared -lws2_32 -static-libgcc -s
+    OUTPUT := bin/$(TARGET)/$(ARCH)/olsrt.dll
+    LINK_CMD := $(CC) -shared $(CFLAGS) $(LDFLAGS) $(OBJ) -o $(OUTPUT)
+    
+else ifeq ($(TARGET),darwin)
+    CC := clang
+    CFLAGS := -fPIC -D_APPLE -D__APPLE__ -D__MACH__ -O3 -Wall -Wextra
+    LDFLAGS := -dynamiclib -s
+    OUTPUT := bin/$(TARGET)/$(ARCH)/libolsrt.dylib
+    LINK_CMD := $(CC) -dynamiclib $(CFLAGS) $(LDFLAGS) $(OBJ) -o $(OUTPUT)
+    
+else ifeq ($(TARGET),bsd)
+    CC := clang
+    CFLAGS := -fPIC -D_BSD -D__FreeBSD__ -D__BSD__ -O3 -Wall -Wextra
+    LDFLAGS := -shared -lpthread -s
+    OUTPUT := bin/$(TARGET)/$(ARCH)/libolsrt.so
+    LINK_CMD := $(CC) -shared $(CFLAGS) $(LDFLAGS) $(OBJ) -o $(OUTPUT)
+endif
 
-OUT_LINUX   = bin/libolsrt.so
-OUT_WINDOWS = bin/olsrt.dll
-OUT_BSD     = bin/bsd/libolsrt.so
-OUT_APPLE   = bin/libolsrt.dylib
+.PHONY: all linux windows darwin bsd all-platforms clean clean-all help
 
-.PHONY: all linux windows bsd apple all-platforms clean
+# Default target - BUILD EVERYTHING
+all: create-dirs $(OBJ)
+	@echo "========================================"
+	@echo "Linking for $(TARGET)/$(ARCH)..."
+	@echo "Command: $(LINK_CMD)"
+	$(LINK_CMD)
+	@echo ""
+	@echo "✅ Build successful!"
+	@echo "📂 Output: $(OUTPUT)"
+	@echo "========================================"
 
-all:
-	@echo "Usage: make linux | make windows | make bsd | make apple | make all-platforms"
+# Create necessary directories
+create-dirs:
+	@mkdir -p $(OBJ_DIR)
+	@mkdir -p bin/$(TARGET)/$(ARCH)
 
-linux: $(OBJ)
-	@echo "Building for Linux in process..."
-	$(CC_LINUX) -shared -fPIC -O3 -w -flto -D_LINUX $(OBJ) -o $(OUT_LINUX)
-	@echo "Build success."
+# Rule to build object files - THIS IS THE KEY!
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@echo "📦 Compiling: $<"
+	$(CC) -c $(CFLAGS) $(INC) -o $@ $<
 
-windows: $(OBJ)
-	@echo "Building for Windows in process..."
-	$(CC_WINDOWS) -shared -O3 -w -s $(OBJ) -o $(OUT_WINDOWS)
-	@echo "Build success."
+# Platform-specific shortcuts
+linux:
+	@$(MAKE) TARGET=linux ARCH=x86_64
 
-# BSD
-bsd: $(OBJ)
-	@echo "Building for BSD in process..."
-	$(CC_BSD) -shared -fPIC -O3 -w -s $(OBJ) -o $(OUT_BSD)
-	@echo "Build success."
+windows:
+	@$(MAKE) TARGET=windows ARCH=x86_64
 
-apple: $(OBJ)
-	@echo "Building for Mac & Apple in process..."
-	$(CC_APPLE) -dynamiclib -fPIC -O3 -w -s $(OBJ) -o $(OUT_APPLE)
-	@echo "Build success."
+darwin:
+	@$(MAKE) TARGET=darwin ARCH=x86_64
 
-build/code/streams/%.o: src/code/streams/%.c
-	@mkdir -p $(dir $@)
-	$(CC_LINUX) -c -fPIC -O3 -Wall $(INC) -o $@ $<
+bsd:
+	@$(MAKE) TARGET=bsd ARCH=x86_64
 
-all-platforms: linux windows bsd apple
+# Build for all platforms
+all-platforms:
+	@for target in linux windows darwin bsd; do \
+		for arch in x86_64 i686 aarch64; do \
+			echo "=== Building for $$target/$$arch ==="; \
+			$(MAKE) TARGET=$$target ARCH=$$arch clean; \
+			$(MAKE) TARGET=$$target ARCH=$$arch || true; \
+			echo ""; \
+		done \
+	done
 
+# Clean current target
 clean:
-	rm -rf build $(OUT_LINUX) $(OUT_WINDOWS) $(OUT_BSD) $(OUT_APPLE)
+	@echo "🧹 Cleaning $(TARGET)/$(ARCH)..."
+	@rm -rf build/$(TARGET)/$(ARCH) bin/$(TARGET)/$(ARCH)
+
+# Clean everything
+clean-all:
+	@echo "🧹 Cleaning everything..."
+	@rm -rf build bin
+
+# Help
+help:
+	@echo "Usage:"
+	@echo "  make [TARGET=platform] [ARCH=arch]   - Build with specified platform/arch"
+	@echo "  make linux                          - Build for Linux x86_64"
+	@echo "  make windows                        - Build for Windows x86_64"
+	@echo "  make darwin                         - Build for macOS x86_64"
+	@echo "  make bsd                            - Build for BSD x86_64"
+	@echo "  make all-platforms                  - Build for all platforms"
+	@echo "  make clean                          - Clean current target"
+	@echo "  make clean-all                      - Clean everything"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make TARGET=windows ARCH=x86_64"
+	@echo "  make TARGET=linux ARCH=aarch64"
