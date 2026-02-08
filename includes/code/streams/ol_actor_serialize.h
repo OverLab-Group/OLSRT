@@ -13,6 +13,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+/* Forward declaration from ol_actor_process.h */
+typedef uint64_t ol_pid_t;
+
 /** Serialization format */
 typedef enum {
     OL_SERIALIZE_BINARY,      /**< Raw binary format (fastest) */

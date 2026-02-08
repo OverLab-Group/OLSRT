@@ -15,7 +15,7 @@
  * - Custom serialization callbacks
  */
 
-#include "ol_serialize.h"
+#include "ol_actor_serialize.h"
 #include "ol_common.h"
 #include "ol_lock_mutex.h"
 
@@ -23,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include <stdio.h>
 
 #if defined(_WIN32)
     #include <windows.h>

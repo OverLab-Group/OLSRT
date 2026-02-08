@@ -21,9 +21,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "ol_arena.h"
+#include "ol_actor_arena.h"
 #include "ol_green_threads.h"
-#include "ol_serialize.h"
+#include "ol_actor_serialize.h"
 
 /** Process state enumeration */
 typedef enum {

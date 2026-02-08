@@ -31,6 +31,8 @@ extern "C" {
 /* ==================== Forward Declarations ==================== */
 typedef struct ol_actor ol_actor_t;
 typedef struct ol_supervisor ol_supervisor_t;
+typedef struct ol_process ol_process_t;
+typedef struct ol_arena ol_arena_t;
 
 /* ==================== Type Definitions ==================== */
 
@@ -67,6 +69,19 @@ typedef struct ol_ask_envelope {
     ol_actor_t* sender;            /**< Sender actor (optional) */
     uint64_t ask_id;               /**< Unique ask identifier */
 } ol_ask_envelope_t;
+
+/**
+ * @brief Actor performance statistics
+ */
+typedef struct ol_actor_stats {
+    uint64_t processed_messages;   /**< Total processed messages */
+    uint64_t processing_time_ns;   /**< Total processing time in nanoseconds */
+    uint64_t avg_latency_ns;       /**< Average latency per message */
+    size_t mailbox_size;           /**< Current mailbox size */
+    size_t mailbox_capacity;       /**< Mailbox capacity */
+    size_t mailbox_peak;           /**< Peak mailbox size */
+    size_t overflow_events;        /**< Number of overflow events */
+} ol_actor_stats_t;
 
 /* ==================== Actor Creation & Lifecycle ==================== */
 
@@ -245,6 +260,38 @@ size_t ol_actor_mailbox_capacity(const ol_actor_t* actor);
  * @return ol_actor_t* Current actor, NULL if not in actor context
  */
 ol_actor_t* ol_actor_self(void);
+
+/* ==================== Extended API ==================== */
+
+/**
+ * @brief Get actor's isolated process
+ */
+ol_process_t* ol_actor_get_process(const ol_actor_t* actor);
+
+/**
+ * @brief Get actor's private arena
+ */
+ol_arena_t* ol_actor_get_arena(const ol_actor_t* actor);
+
+/**
+ * @brief Link two actors (monitor each other)
+ */
+int ol_actor_link(ol_actor_t* actor1, ol_actor_t* actor2);
+
+/**
+ * @brief Monitor another actor
+ */
+uint64_t ol_actor_monitor(ol_actor_t* monitor, ol_actor_t* target);
+
+/**
+ * @brief Get actor performance statistics
+ */
+int ol_actor_get_stats(const ol_actor_t* actor, ol_actor_stats_t* stats);
+
+/**
+ * @brief Process messages in batch mode for better performance
+ */
+size_t ol_actor_process_batch(ol_actor_t* actor, size_t max_batch_size);
 
 #ifdef __cplusplus
 }

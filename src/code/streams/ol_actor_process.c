@@ -17,16 +17,18 @@
  * - Cross-platform support (Linux, Windows, macOS, BSD)
  */
 
-#include "ol_process.h"
-#include "ol_arena.h"
+#include "ol_actor_process.h"
+#include "ol_actor_arena.h"
 #include "ol_green_threads.h"
-#include "ol_serialize.h"
+#include "ol_actor_serialize.h"
 #include "ol_lock_mutex.h"
 #include "ol_deadlines.h"
+#include "ol_actor_hashmap.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 #if defined(_WIN32)
     #include <windows.h>

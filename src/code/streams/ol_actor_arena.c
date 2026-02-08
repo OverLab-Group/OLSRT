@@ -16,7 +16,9 @@
  * - Automatic arena expansion when needed
  */
 
-#include "ol_arena.h"
+#define _GNU_SOURCE
+
+#include "ol_actor_arena.h"
 #include "ol_common.h"
 #include "ol_lock_mutex.h"
 
@@ -31,6 +33,7 @@
 #else
     #include <unistd.h>
     #include <sys/mman.h>
+    
     static size_t ol_get_page_size(void) {
         static size_t page_size = 0;
         if (page_size == 0) {
@@ -76,7 +79,7 @@ typedef struct alloc_header {
     /* User data follows immediately */
 } alloc_header_t;
 
-#define ALLOC_MAGIC 0xARENA123
+#define ALLOC_MAGIC 0xAFEA1234
 #define GUARD_PATTERN 0xCC
 
 /**
@@ -271,7 +274,7 @@ static void ol_arena_coalesce_free_blocks(ol_arena_t* arena) {
             /* Merge current with next */
             current->size += current->next->size;
             current->next = current->next->next;
-            arena->free_blocks--;
+            arena->header->free_blocks--;
         } else {
             current = current->next;
         }
@@ -279,7 +282,7 @@ static void ol_arena_coalesce_free_blocks(ol_arena_t* arena) {
 }
 
 /**
- * @brief Expand arena memory pool
+ * @brief Expand arena memory pool without copying data
  * 
  * @param arena Arena to expand
  * @param additional_size Additional size needed
@@ -291,11 +294,37 @@ static int ol_arena_expand_pool(ol_arena_t* arena, size_t additional_size) {
     }
     
     /* Calculate new total size */
-    size_t new_total_size = arena->header->total_size + additional_size;
+    size_t old_total_size = arena->header->total_size;
+    size_t new_total_size = old_total_size + additional_size;
     size_t new_pool_size = new_total_size - sizeof(arena_header_t);
     
     /* Reallocate memory */
 #if defined(_WIN32)
+    /* On Windows, try to use VirtualAlloc with MEM_COMMIT to expand */
+    void* old_memory = arena->header;
+    
+    /* Try to commit more memory at the end */
+    void* additional_mem = VirtualAlloc(
+        (char*)old_memory + old_total_size,
+        additional_size,
+        MEM_RESERVE | MEM_COMMIT,
+        PAGE_READWRITE
+    );
+    
+    if (additional_mem == (char*)old_memory + old_total_size) {
+        /* Success! Memory expanded in-place */
+        arena->header->total_size = new_total_size;
+        arena->pool_size = new_pool_size;
+        
+        /* Reinitialize guard pages */
+        ol_arena_destroy_guards(arena);
+        ol_arena_init_guards(arena);
+        
+        arena->expansion_count++;
+        return OL_SUCCESS;
+    }
+    
+    /* Fallback to allocate new region and copy */
     void* new_memory = VirtualAlloc(NULL, new_total_size,
                                    MEM_RESERVE | MEM_COMMIT,
                                    PAGE_READWRITE);
@@ -303,34 +332,65 @@ static int ol_arena_expand_pool(ol_arena_t* arena, size_t additional_size) {
         return OL_ERROR;
     }
     
-    /* Copy existing data */
-    memcpy(new_memory, arena->header, arena->header->total_size);
-    
-    /* Free old memory */
-    VirtualFree(arena->header, 0, MEM_RELEASE);
-#else
-    void* new_memory = mremap(arena->header, arena->header->total_size,
-                             new_total_size, MREMAP_MAYMOVE);
-    if (new_memory == MAP_FAILED) {
-        /* Try manual reallocation */
-        new_memory = mmap(NULL, new_total_size,
-                         PROT_READ | PROT_WRITE,
-                         MAP_PRIVATE | MAP_ANONYMOUS,
-                         -1, 0);
-        if (new_memory == MAP_FAILED) {
-            return OL_ERROR;
-        }
-        
-        memcpy(new_memory, arena->header, arena->header->total_size);
-        munmap(arena->header, arena->header->total_size);
-    }
-#endif
+    memcpy(new_memory, old_memory, old_total_size);
+    VirtualFree(old_memory, 0, MEM_RELEASE);
     
     /* Update arena pointers */
     arena->header = (arena_header_t*)new_memory;
     arena->memory_pool = (char*)new_memory + sizeof(arena_header_t);
     arena->pool_size = new_pool_size;
     arena->header->total_size = new_total_size;
+    
+#else
+    /* Unix-like systems (Linux, macOS, etc.) */
+    void* new_memory = MAP_FAILED;
+    
+    #if defined(__linux__)
+        /* Try mremap first on Linux (most efficient) */
+        new_memory = mremap(arena->header, old_total_size,
+                           new_total_size, MREMAP_MAYMOVE);
+    #endif
+    
+    if (new_memory == MAP_FAILED) {
+        /* Fallback for macOS and Linux when mremap fails or not available */
+        /* First, reserve the larger address space */
+        new_memory = mmap(NULL, new_total_size,
+                         PROT_NONE,
+                         MAP_PRIVATE | MAP_ANONYMOUS,
+                         -1, 0);
+        if (new_memory == MAP_FAILED) {
+            return OL_ERROR;
+        }
+        
+        /* Map the old memory at the start of new region */
+        if (mmap(new_memory, old_total_size,
+                 PROT_READ | PROT_WRITE,
+                 MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
+                 -1, 0) == MAP_FAILED) {
+            munmap(new_memory, new_total_size);
+            return OL_ERROR;
+        }
+        
+        /* Map the additional memory after the old region */
+        void* additional_start = (char*)new_memory + old_total_size;
+        if (mmap(additional_start, additional_size,
+                 PROT_READ | PROT_WRITE,
+                 MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
+                 -1, 0) == MAP_FAILED) {
+            munmap(new_memory, new_total_size);
+            return OL_ERROR;
+        }
+        
+        /* Now we can unmap the old region */
+        munmap(arena->header, old_total_size);
+    }
+    
+    /* Update arena pointers */
+    arena->header = (arena_header_t*)new_memory;
+    arena->memory_pool = (char*)new_memory + sizeof(arena_header_t);
+    arena->pool_size = new_pool_size;
+    arena->header->total_size = new_total_size;
+#endif
     
     /* Reinitialize guard pages */
     ol_arena_destroy_guards(arena);

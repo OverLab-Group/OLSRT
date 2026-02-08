@@ -16,17 +16,27 @@
  * - Async/await with continuation stealing
  */
 
+#define _GNU_SOURCE
+
 #include "ol_actor.h"
-#include "ol_process.h"
-#include "ol_arena.h"
-#include "ol_serialize.h"
+#include "ol_actor_process.h"
+#include "ol_actor_arena.h"
+#include "ol_actor_serialize.h"
 #include "ol_lock_mutex.h"
 #include "ol_deadlines.h"
 #include "ol_green_threads.h"
+#include "ol_actor_hashmap.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+
+#if defined(_WIN32)
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <sys/time.h>
+#endif
 
 /* ==================== Internal Constants ==================== */
 
@@ -127,6 +137,8 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
                                             ol_actor_msg_destructor dtor) {
     actor_mailbox_t* mb = (actor_mailbox_t*)calloc(1, sizeof(actor_mailbox_t));
     if (!mb) return NULL;
+    
+    (void)dtor; /* Mark as unused for now */
     
     /* Allocate ring buffer */
     mb->capacity = capacity;
@@ -859,7 +871,7 @@ int ol_actor_link(ol_actor_t* actor1, ol_actor_t* actor2) {
 /**
  * @brief Monitor another actor
  */
-ol_pid_t ol_actor_monitor(ol_actor_t* monitor, ol_actor_t* target) {
+uint64_t ol_actor_monitor(ol_actor_t* monitor, ol_actor_t* target) {
     if (!monitor || !target) {
         return 0;
     }
