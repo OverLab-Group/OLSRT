@@ -16,12 +16,11 @@
  */
 
 #include "ol_supervisor.h"
-#include "ol_process.h"
-#include "ol_arena.h"
+#include "ol_actor_process.h"
+#include "ol_actor_arena.h"
 #include "ol_lock_mutex.h"
 #include "ol_deadlines.h"
-#include "ol_hashmap.h"
-#include "ol_list.h"
+#include "ol_actor_hashmap.h"
 
 #include <stdlib.h>
 #include <string.h>
