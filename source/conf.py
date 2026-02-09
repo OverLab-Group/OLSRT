@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'OLSRT'
-copyright = '2025, OverLab Group'
+copyright = '2026, OverLab Group'
 author = 'OverLab Group'
-release = 'v1.0.1'
+release = 'v1.2.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -32,7 +32,7 @@ exclude_patterns = []
 
 html_theme = 'furo'
 html_static_path = ['_static']
-html_title = 'OLSRT Documention'
+html_title = 'OLSRT Documentation'
 
-breathe_projects = { "OLSRT": "./xml" }
+breathe_projects = { "OLSRT": "./html" }
 breathe_default_project = "OLSRT"
