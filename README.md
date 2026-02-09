@@ -1,0 +1,179 @@
+![OLSRT Logo](assets/olsrt.png)
+
+# ⚡ OLSRT – OverLab Streams Runtime
+[![Made with C](https://img.shields.io/badge/Made%20with-C-blue.svg)](https://en.wikipedia.org/wiki/C_(programming_language))
+[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20BSD%20%7C%20macOS-8A2BE2.svg)](#build-status)
+[![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
+[![Build-System](https://img.shields.io/badge/Build-Make%20%7C%20CMake-orange.svg)](#build-olsrt-yourself)
+[![Status](https://img.shields.io/badge/Status-Production--ready%20(v1.0)-brightgreen.svg)](#status)
+[![Docs](https://img.shields.io/badge/Docs-Production--ready-brightgreen.svg)](#status)
+[![Contributions](https://img.shields.io/badge/Contributions-Welcome-success.svg)](#contributing)
+![GitHub Repo stars](https://img.shields.io/github/stars/OverLab-Group/OLSRT?style=social)
+![GitHub forks](https://img.shields.io/github/forks/OverLab-Group/OLSRT?style=social)
+![GitHub issues](https://img.shields.io/github/issues/OverLab-Group/OLSRT)
+![GitHub release](https://img.shields.io/github/v/release/OverLab-Group/OLSRT)
+
+---
+
+> NOTE: OLSRT v1.3.0 with many interesting features are coming!
+>
+> NOTE: OLSRT v1.3.0 have some bugs right now...
+> 
+> NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html).
+>
+> NOTE: OLSRT v1.2.0 is fully working on Linux and BSD. macOS and Windows are planned.
+
+---
+
+## 🤔 What is OLSRT?
+**OLSRT** (**OverLab Streams Runtime**) is not your average runtime.<br/>
+It’s a **universal engine** – designed to power **all languages**.<br/>
+If your language can talk to C, it can vibe with **OLSRT**. 🎉
+
+---
+
+## 💡 Why OLSRT?
+Once upon a time, **OLSRT** was a fragile experiment – weaker than `libuv`.  
+But that was yesterday. ⏳  
+
+Today, **OLSRT** is a **production-ready** with serious muscle.  
+Strong enough for **big projects**, yet hackable enough for indie devs. 🏢💪🎸  
+
+From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
+- ⚡ **Concurrency**: Actors, Async/Await, Coroutines, Fibers
+- 🔒 **Synchronization**: Locks, Mutexes, Semaphores, Supervisors
+- 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
+- ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
+- 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
+- 💥 **Made by OverLab Group**: Hot-Coding References (HCR), ORoutines (OLSRT Coroutines) (COMING ON v1.3!)
+
+**Minimal. Hackable. Ruthless.**
+
+---
+
+## 📊 Status
+- **Production‑ready (v1.2)** ✅
+- **Documentations available (v1.2)** ✅
+- **Active Development (v1.3)** ✅
+- Stable builds available
+- SDK Bindings cooking 🍳
+
+---
+
+## 🖥️ Build status
+- 🐧 Linux: ✅ Solid
+- 🪟 Windows: 🔜 Next Target
+- 🍎 macOS: 🔜 Coming Soon
+- 🐚 BSD: ✅ Solid
+
+---
+
+## Documentation
+OLSRT v1.0 is fully documented now! Visit [here](docs/index.html)<br/>
+OLSRT v1.2 documentations cooking...
+
+---
+
+## Quick Examples
+Quick Examples are planned for OLSRT v1.2 (ASAP).
+
+---
+
+## 🛠️ Build OLSRT Yourself
+Two ways to unleash the beast:
+
+- **Prebuilt binaries**: Grab the `.so` and drop it in your project.
+- **Build from source**: Compile OLSRT yourself with **Make** (recommended) or **CMake**.
+> NOTE: YOU CAN ONLY BUILD FOR LINUX AND BSD RIGHT NOW!
+>
+> WE'RE WORKING ON OLSRT v1.3 CROSS-PLATFORM!
+
+---
+
+### 🚀 Build with **CMake**
+1. Clone with minimal history:
+   ```bash
+   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
+   ```
+   Or download without Git history:
+   ```bash
+   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
+   unzip main.zip
+   ```
+2. Enter the project directory:
+   ```bash
+   cd OLSRT
+   ```
+3. Create a build directory:
+   ```bash
+   mkdir build && cd build
+   ```
+4. Configure & build:
+   ```bash
+   cmake ..
+   cmake --build .
+   ```
+
+> ⚠️ Note: CMake builds are supported but **not the main stage**.
+> The OverLab Group dev team runs with Makefiles for validation. 🎯
+
+---
+
+### 🛠️ Build with **Make** (recommended)
+1. Clone with minimal history:
+   ```bash
+   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
+   ```
+   Or download without Git history:
+   ```bash
+   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
+   unzip main.zip
+   ```
+2. Enter the project directory:
+   ```bash
+   cd OLSRT
+   ```
+3. Build for your platform:
+   ```bash
+   make <platform>
+   ```
+   Replace `<platform>` with:  
+   `linux`, `windows`, `bsd`, `apple`, or `all-platforms`.
+
+---
+
+## 📅 Release Timeline
+OLSRT versions aren’t just numbers — they’re milestones with names and stories:
+
+| Version | Codename | Highlights |
+|---------|----------|------------|
+| v0.1    | **Initialize Core** | First spark. Skeleton features. |
+| v1.*    | **Atom**   | First stable release. (_**We are here**_) |
+| v2.*    | **Apollo** | 66 networking protocols. 🚀 |
+| v3.*    | **Nova**   | Virtualization support. 💥 |
+| v4.*    | **Core**   | Utilities foundation. |
+| v5.*    | **Spark**  | Utilities expansion begins. ✨ |
+| v6.*    | **Orion**  | More utilities. 🌌 |
+| v7.*    | **Cosmos** | Vast scope. 🌠 |
+| v8.*    | **Hermes** | Compiler era begins. 📜 |
+| v9.*    | **Kernel** | Advanced runtime core. 🧩 |
+| v10.*   | **Stream** | Architectures added. 🌊 |
+| v11.*   | **Flow**   | Full OS support. 🔗 |
+| v12.*   | **Wave**   | 30% language coverage. 🌊 |
+
+---
+
+## 🤝 Contributing
+We’re not a corporate army.
+We’re a crew of builders, breakers, and dreamers. 🔄💥
+
+Join us, and you’re not just a contributor.
+You’re part of the legend. 📖🔥
+
+---
+
+## 📜 License
+Apache 2.0 – free to use, remix, and share. 🆓
+
+Current milestone: **v1.2 (Atom)**  
+`By OverLab Group`
