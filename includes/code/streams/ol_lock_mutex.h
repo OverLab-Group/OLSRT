@@ -11,12 +11,13 @@
 #define OL_LOCK_MUTEX_H
 
 #include "ol_common.h"
+#include "ol_compat.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
     /* Windows implementation using CRITICAL_SECTION and CONDITION_VARIABLE */
     #include <windows.h>
     

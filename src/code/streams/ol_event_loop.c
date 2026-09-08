@@ -10,6 +10,7 @@
 
 #include "ol_event_loop.h"
 #include "ol_common.h"
+#include "ol_compat.h"
 #include "ol_deadlines.h"
 #include "ol_lock_mutex.h"
 
@@ -17,7 +18,7 @@
 #include <string.h>
 #include <errno.h>
 
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
     #include <winsock2.h>
     #pragma comment(lib, "ws2_32.lib")
 #else
@@ -89,7 +90,7 @@ struct ol_event_loop {
  * @brief Create a wake pipe (cross-platform)
  */
 static int ol_create_wake_pipe(int fds[2]) {
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
     /* Windows: use socketpair or pipe from Winsock */
     SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock == INVALID_SOCKET) {
@@ -168,7 +169,7 @@ static int ol_create_wake_pipe(int fds[2]) {
  */
 static void ol_close_fd(int fd) {
     if (fd >= 0) {
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
         closesocket(fd);
 #else
         close(fd);
@@ -181,7 +182,7 @@ static void ol_close_fd(int fd) {
  */
 static void ol_drain_wake_pipe(int fd) {
     char buffer[256];
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
     while (recv(fd, buffer, sizeof(buffer), 0) > 0) {
         /* Keep draining */
     }
@@ -525,7 +526,7 @@ int ol_event_loop_wake(ol_event_loop_t *loop) {
     
     /* Write a byte to wake pipe */
     char byte = 1;
-#if defined(OL_PLATFORM_WINDOWS)
+#if OL_PLATFORM_WINDOWS
     if (send(loop->wake_write_fd, &byte, 1, 0) != 1) {
         return OL_ERROR;
     }
