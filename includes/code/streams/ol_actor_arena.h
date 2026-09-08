@@ -180,7 +180,7 @@ size_t ol_arena_total_size(const ol_arena_t* arena);
  * @param arena Arena instance
  * @return size_t Currently used size in bytes, 0 if arena is NULL
  */
-size_t ol_arena_used_size(const ol_actor_t* actor);
+size_t ol_arena_used_size(const ol_arena_t* arena);
 
 /**
  * @brief Expand arena if possible
