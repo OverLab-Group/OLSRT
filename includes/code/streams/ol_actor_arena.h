@@ -30,6 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "ol_common.h"
 
 /**
  * @brief Opaque memory arena structure

@@ -21,6 +21,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stdalign.h>
 
+/* Include common definitions first */
+#include "ol_common.h"
+
 /* ==================== Platform Detection ==================== */
 #if defined(_WIN32) || defined(_WIN64)
     #define OL_PLATFORM_WINDOWS 1
@@ -53,33 +56,36 @@ extern "C" {
 #endif
 
 /* ==================== Compiler Features ==================== */
-#if defined(__GNUC__) || defined(__clang__)
-    #define OL_LIKELY(x)   __builtin_expect(!!(x), 1)
-    #define OL_UNLIKELY(x) __builtin_expect(!!(x), 0)
-    #define OL_ALWAYS_INLINE __attribute__((always_inline)) inline
-    #define OL_NOINLINE __attribute__((noinline))
-    #define OL_ALIGNED(x) __attribute__((aligned(x)))
-    #define OL_PACKED __attribute__((packed))
-    #define OL_COLD __attribute__((cold))
-    #define OL_HOT __attribute__((hot))
-#elif defined(_MSC_VER)
-    #define OL_LIKELY(x)   (x)
-    #define OL_UNLIKELY(x) (x)
-    #define OL_ALWAYS_INLINE __forceinline
-    #define OL_NOINLINE __declspec(noinline)
-    #define OL_ALIGNED(x) __declspec(align(x))
-    #define OL_PACKED
-    #define OL_COLD
-    #define OL_HOT
-#else
-    #define OL_LIKELY(x)   (x)
-    #define OL_UNLIKELY(x) (x)
-    #define OL_ALWAYS_INLINE static inline
-    #define OL_NOINLINE
-    #define OL_ALIGNED(x)
-    #define OL_PACKED
-    #define OL_COLD
-    #define OL_HOT
+/* These are defined in ol_common.h, but we provide fallbacks if needed */
+#ifndef OL_LIKELY
+    #if defined(__GNUC__) || defined(__clang__)
+        #define OL_LIKELY(x)   __builtin_expect(!!(x), 1)
+        #define OL_UNLIKELY(x) __builtin_expect(!!(x), 0)
+        #define OL_NOINLINE __attribute__((noinline))
+        #define OL_ALWAYS_INLINE __attribute__((always_inline)) inline
+        #define OL_ALIGNED(x) __attribute__((aligned(x)))
+        #define OL_PACKED __attribute__((packed))
+        #define OL_COLD __attribute__((cold))
+        #define OL_HOT __attribute__((hot))
+    #elif defined(_MSC_VER)
+        #define OL_LIKELY(x)   (x)
+        #define OL_UNLIKELY(x) (x)
+        #define OL_NOINLINE __declspec(noinline)
+        #define OL_ALWAYS_INLINE __forceinline
+        #define OL_ALIGNED(x) __declspec(align(x))
+        #define OL_PACKED
+        #define OL_COLD
+        #define OL_HOT
+    #else
+        #define OL_LIKELY(x)   (x)
+        #define OL_UNLIKELY(x) (x)
+        #define OL_NOINLINE
+        #define OL_ALWAYS_INLINE static inline
+        #define OL_ALIGNED(x)
+        #define OL_PACKED
+        #define OL_COLD
+        #define OL_HOT
+    #endif
 #endif
 
 /* ==================== Atomic Operations ==================== */
@@ -414,7 +420,7 @@ struct ol_gt {
     
     /* Padding to 1024 bytes exactly */
     uint8_t padding[1024 - 384];
-} OL_ALIGNED(64) OL_PACKED;
+};
 
 struct ol_work_stealing_queue {
     /* Chase-Lev work-stealing deque */
@@ -495,11 +501,9 @@ struct ol_gt_scheduler {
     #define OL_EXPECT_FALSE(x) (x)
 #endif
 
-/* Cache line size detection */
+/* Cache line size detection - only if not already defined in ol_common.h */
 #ifndef OL_CACHE_LINE_SIZE
-    #if defined(__x86_64__) || defined(__i386__)
-        #define OL_CACHE_LINE_SIZE 64
-    #elif defined(__aarch64__)
+    #if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
         #define OL_CACHE_LINE_SIZE 64
     #elif defined(__arm__)
         #define OL_CACHE_LINE_SIZE 32
@@ -508,17 +512,14 @@ struct ol_gt_scheduler {
     #endif
 #endif
 
-/* Force inlining of critical functions */
-#define OL_CRITICAL_SECTION_BEGIN() \
-    do { \
-        _Pragma("GCC diagnostic push") \
-        _Pragma("GCC diagnostic ignored \"-Wignored-optimization-argument\"") \
-        asm volatile("" ::: "memory"); \
-        _Pragma("GCC diagnostic pop") \
-    } while(0)
+/* Force inlining of critical functions - only define if not already defined */
+#ifndef OL_CRITICAL_SECTION_BEGIN
+    #define OL_CRITICAL_SECTION_BEGIN() \
+        do { \\\n            _Pragma("GCC diagnostic push") \\\n            _Pragma("GCC diagnostic ignored \"-Wignored-optimization-argument\"") \\\n            asm volatile("" ::: "memory"); \\\n            _Pragma("GCC diagnostic pop") \\\n        } while(0)
 
-#define OL_CRITICAL_SECTION_END() \
-    asm volatile("" ::: "memory")
+    #define OL_CRITICAL_SECTION_END() \
+        asm volatile("" ::: "memory")
+#endif
 
 /* ==================== Platform-specific Declarations ==================== */
 
@@ -563,14 +564,14 @@ struct ol_gt_scheduler {
  * @param ctx Context structure to save into
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_save(void* ctx);
+void ol_ctx_save(void* ctx);
 
 /**
  * @brief Restore execution context
  * @param ctx Context structure to restore from
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_restore(const void* ctx);
+void ol_ctx_restore(const void* ctx);
 
 /**
  * @brief Initialize context for new green thread
@@ -581,8 +582,8 @@ OL_ALWAYS_INLINE void ol_ctx_restore(const void* ctx);
  * @param stack_size Stack size
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_make(void* ctx, ol_gt_entry_fn entry, void* arg,
-                                  void* stack_base, size_t stack_size);
+void ol_ctx_make(void* ctx, ol_gt_entry_fn entry, void* arg,
+                 void* stack_base, size_t stack_size);
 
 /* ==================== Memory Management ==================== */
 

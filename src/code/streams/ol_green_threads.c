@@ -632,61 +632,6 @@ static OL_FORCE_INLINE void ol_ctx_make(void* ctx, void (*fn)(void), void* arg,
 /* ==================== Work-Stealing Deque Implementation ==================== */
 
 /**
- * @brief Work-stealing deque structure (Chase-Lev algorithm)
- */
-struct ol_work_stealing_queue {
-    atomic_uintptr_t* array;
-    atomic_long bottom;
-    atomic_long top;
-    size_t capacity;
-    size_t mask;
-    uint8_t padding[OL_CACHE_LINE_SIZE - (4 * sizeof(size_t) + sizeof(atomic_uintptr_t*))];
-};
-
-/**
- * @brief Initialize work-stealing queue
- */
-static OL_FORCE_INLINE int ol_work_stealing_queue_init(ol_work_stealing_queue_t* queue, 
-                                                       size_t capacity) {
-    /* Capacity must be power of 2 */
-    if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
-        return -1;
-    }
-    
-    /* Allocate array */
-    size_t array_size = capacity * sizeof(atomic_uintptr_t);
-    atomic_uintptr_t* array = (atomic_uintptr_t*)ol_numa_alloc(array_size, 64, -1);
-    if (!array) {
-        return -1;
-    }
-    
-    /* Initialize all entries */
-    for (size_t i = 0; i < capacity; i++) {
-        atomic_init(&array[i], 0);
-    }
-    
-    queue->array = array;
-    queue->capacity = capacity;
-    queue->mask = capacity - 1;
-    atomic_init(&queue->bottom, 0);
-    atomic_init(&queue->top, 0);
-    
-    return 0;
-}
-
-/**
- * @brief Destroy work-stealing queue
- */
-static OL_FORCE_INLINE void ol_work_stealing_queue_destroy(ol_work_stealing_queue_t* queue) {
-    if (queue->array) {
-        ol_numa_free(queue->array, queue->capacity * sizeof(atomic_uintptr_t));
-        queue->array = NULL;
-    }
-    queue->capacity = 0;
-    queue->mask = 0;
-}
-
-/**
  * @brief Push task to bottom of deque (owner thread)
  */
 static OL_FORCE_INLINE bool ol_work_stealing_queue_push(ol_work_stealing_queue_t* queue, 
@@ -701,7 +646,7 @@ static OL_FORCE_INLINE bool ol_work_stealing_queue_push(ol_work_stealing_queue_t
     
     /* Store task */
     size_t idx = b & queue->mask;
-    atomic_store_explicit(&queue->array[idx], (uintptr_t)task, memory_order_relaxed);
+    atomic_store_explicit(&queue->tasks[idx], (uintptr_t)task, memory_order_relaxed);
     
     /* Ensure task is visible before updating bottom */
     atomic_thread_fence(memory_order_release);
@@ -724,7 +669,7 @@ static OL_FORCE_INLINE void* ol_work_stealing_queue_pop(ol_work_stealing_queue_t
     if (b > t) {
         /* Non-empty deque */
         size_t idx = b & queue->mask;
-        void* task = (void*)atomic_load_explicit(&queue->array[idx], memory_order_relaxed);
+        void* task = (void*)atomic_load_explicit(&queue->tasks[idx], memory_order_relaxed);
         
         if (b != t) {
             /* More than one item */
@@ -765,7 +710,7 @@ static OL_FORCE_INLINE void* ol_work_stealing_queue_steal(ol_work_stealing_queue
     
     /* Read task */
     size_t idx = t & queue->mask;
-    void* task = (void*)atomic_load_explicit(&queue->array[idx], memory_order_consume);
+    void* task = (void*)atomic_load_explicit(&queue->tasks[idx], memory_order_consume);
     
     if (!task) {
         /* Task not yet committed by pusher */

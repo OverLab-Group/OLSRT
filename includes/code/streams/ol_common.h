@@ -78,10 +78,38 @@ extern "C" {
     #endif
 #endif
 
+/* Function attribute macros */
+#if defined(__GNUC__) || defined(__clang__)
+    #define OL_MALLOC_LIKE __attribute__((malloc))
+    #define OL_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+    #define OL_PURE __attribute__((pure))
+    #define OL_HOT __attribute__((hot))
+    #define OL_COLD __attribute__((cold))
+    #define OL_RESTRICT __restrict__
+#else
+    #define OL_MALLOC_LIKE
+    #define OL_WARN_UNUSED_RESULT
+    #define OL_PURE
+    #define OL_HOT
+    #define OL_COLD
+    #define OL_RESTRICT
+#endif
+
 /* Basic type definitions */
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+/* Cache line size detection */
+#ifndef OL_CACHE_LINE_SIZE
+    #if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
+        #define OL_CACHE_LINE_SIZE 64
+    #elif defined(__arm__)
+        #define OL_CACHE_LINE_SIZE 32
+    #else
+        #define OL_CACHE_LINE_SIZE 64
+    #endif
+#endif
 
 /* Thread-local storage */
 #if defined(_WIN32)
