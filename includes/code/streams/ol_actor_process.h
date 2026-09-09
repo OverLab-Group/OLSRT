@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "ol_common.h"
 
 #include "ol_actor_arena.h"
 #include "ol_green_threads.h"
