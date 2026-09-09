@@ -38,6 +38,11 @@ extern "C" {
     #error "Unsupported platform"
 #endif
 
+/* Include standard headers FIRST before any macro definitions */
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 /* Compiler feature detection */
 #if defined(__GNUC__) || defined(__clang__)
     #define OL_LIKELY(x)   __builtin_expect(!!(x), 1)
@@ -95,12 +100,7 @@ extern "C" {
     #define OL_RESTRICT
 #endif
 
-/* Basic type definitions */
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-
-/* Cache line size detection */
+/* Cache line size detection - Already defined above with standard headers */
 #ifndef OL_CACHE_LINE_SIZE
     #if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
         #define OL_CACHE_LINE_SIZE 64
@@ -109,6 +109,15 @@ extern "C" {
     #else
         #define OL_CACHE_LINE_SIZE 64
     #endif
+#endif
+
+/* Alignment macro */
+#if defined(__GNUC__) || defined(__clang__)
+    #define OL_ALIGNED(x) __attribute__((aligned(x)))
+#elif defined(_MSC_VER)
+    #define OL_ALIGNED(x) __declspec(align(x))
+#else
+    #define OL_ALIGNED(x)
 #endif
 
 /* Thread-local storage */
