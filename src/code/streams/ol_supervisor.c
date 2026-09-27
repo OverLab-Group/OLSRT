@@ -766,12 +766,17 @@ int ol_supervisor_stop(ol_supervisor_t* supervisor, bool graceful) {
     /* Wake up event processor */
     ol_cond_signal(&supervisor->event_cond);
     
-    /* Wait for shutdown */
-    ol_deadline_t deadline = ol_deadline_from_ms(
-        graceful ? supervisor->config.shutdown_timeout_ms : 1000);
+    /* Wait for shutdown, but never longer than the configured timeout plus
+     * a small grace period. A stuck child must not block supervisor teardown
+     * indefinitely. After the deadline we forcibly destroy the supervisor
+     * process and mark the supervisor as stopped. */
+    int64_t timeout_ms = graceful ? supervisor->config.shutdown_timeout_ms : 1000;
+    if (timeout_ms <= 0) timeout_ms = 1000; /* never wait forever */
+    ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms + 500 /* grace */);
     
     while (supervisor->state != SUPERVISOR_STATE_STOPPED) {
         if (ol_deadline_expired(deadline)) {
+            /* Hard timeout - escalate by killing the process directly. */
             break;
         }
 #if defined(_WIN32)
@@ -781,9 +786,9 @@ int ol_supervisor_stop(ol_supervisor_t* supervisor, bool graceful) {
 #endif
     }
     
-    /* Destroy supervisor process */
+    /* Destroy supervisor process (idempotent on already-dead process) */
     if (supervisor->process) {
-        ol_process_destroy(supervisor->process, OL_EXIT_NORMAL);
+        ol_process_destroy(supervisor->process, OL_EXIT_KILL);
         supervisor->process = NULL;
     }
     

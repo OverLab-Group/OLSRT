@@ -72,6 +72,7 @@ typedef struct {
     void* arg;                 /**< Function argument */
     ol_child_policy_t policy;  /**< Restart policy */
     uint32_t shutdown_timeout_ms; /**< Graceful shutdown timeout */
+    size_t   arena_size;       /**< Per-child memory arena size in bytes (0 = default) */
 } ol_child_spec_t;
 
 /**
@@ -87,6 +88,21 @@ typedef struct {
 } ol_child_status_t;
 
 /**
+ * @brief Supervisor runtime statistics
+ *
+ * @details Snapshot of live counters for the supervisor and its children.
+ * Filled by ol_supervisor_get_stats().
+ */
+typedef struct {
+    size_t   child_count;              /**< Current number of managed children */
+    size_t   max_concurrent_children;  /**< Peak number of children seen */
+    uint64_t total_restarts;           /**< Total child restarts performed */
+    uint64_t total_crashes;            /**< Total child crashes observed */
+    uint64_t uptime_ms;                /**< Supervisor uptime in ms */
+    int      restarts_in_window;       /**< Restarts in the current intensity window */
+} ol_supervisor_stats_t;
+
+/**
  * @brief Supervisor configuration
  */
 typedef struct {
@@ -94,6 +110,7 @@ typedef struct {
     int max_restarts;                  /**< Max restarts in window */
     int restart_window_ms;             /**< Restart window in ms */
     bool enable_logging;               /**< Enable supervisor logging */
+    uint32_t shutdown_timeout_ms;      /**< Max ms to wait for graceful child stop */
 } ol_supervisor_config_t;
 
 /* ==================== Supervisor Lifecycle ==================== */
@@ -206,6 +223,15 @@ int ol_supervisor_get_config(const ol_supervisor_t* supervisor, ol_supervisor_co
  * @return int 0 on success, -1 on error
  */
 int ol_supervisor_set_config(ol_supervisor_t* supervisor, const ol_supervisor_config_t* config);
+
+/**
+ * @brief Get live supervisor statistics
+ * 
+ * @param supervisor Supervisor instance
+ * @param stats Output statistics structure (must not be NULL)
+ * @return int 0 on success, -1 on error
+ */
+int ol_supervisor_get_stats(const ol_supervisor_t* supervisor, ol_supervisor_stats_t* stats);
 
 /* ==================== Utility Functions ==================== */
 
