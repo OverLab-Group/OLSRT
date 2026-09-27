@@ -780,6 +780,25 @@ void ol_arena_free(ol_arena_t* arena, void* ptr) {
         return;
     }
     
+    /* Ownership validation: reject pointers that do not belong to this arena.
+     * Freeing a pointer from a different arena would read garbage from the
+     * supposed header, potentially corrupting the free list and causing
+     * undefined behavior. This is a common bug in multi-actor / multi-arena
+     * setups where a message allocated in arena A is mistakenly freed into
+     * arena B.
+     *
+     * If the pointer is out of range we return silently. In debug builds
+     * this would be an assertion failure; in release builds we prefer to
+     * leak rather than corrupt. */
+    {
+        uintptr_t addr      = (uintptr_t)ptr;
+        uintptr_t pool_base = (uintptr_t)arena->memory_pool;
+        uintptr_t pool_end  = pool_base + arena->pool_size;
+        if (addr < pool_base || addr >= pool_end) {
+            return; /* Not our pointer */
+        }
+    }
+    
     ol_mutex_lock(&arena->mutex);
     
     /* Get allocation header (before user pointer) */
