@@ -55,6 +55,18 @@
         #include <mach/thread_policy.h>
         #include <sys/param.h>
         #include <sys/sysctl.h>
+
+/* These helpers are defined later in this file but used earlier by
+ * ol_work_stealing_queue_init and ol_stack_pool_*. They are static
+ * (file-local); the public header does not expose them. Declaring them
+ * here prevents the compiler's implicit `extern int f()` assumption,
+ * which would otherwise conflict with the actual `static void* f(...)`
+ * definitions further down. */
+static OL_NO_INLINE void* ol_numa_alloc(size_t size, size_t alignment, int numa_node);
+static OL_NO_INLINE void  ol_numa_free(void* ptr, size_t size);
+static OL_FORCE_INLINE int ol_get_current_numa_node(void);
+static OL_FORCE_INLINE int ol_get_numa_cpu_count(int numa_node);
+
         #define OL_NUMA_AVAILABLE 0  /* macOS has no NUMA support */
     #else
         #define OL_NUMA_AVAILABLE 0
@@ -611,18 +623,18 @@ static OL_FORCE_INLINE void ol_ctx_restore(const void* ctx) {
 /**
  * @brief Platform-independent context creation
  */
-static OL_FORCE_INLINE void ol_ctx_make(void* ctx, void (*fn)(void), void* arg,
+static OL_FORCE_INLINE void ol_ctx_make(void* ctx, ol_gt_entry_fn entry, void* arg,
                                         void* stack_base, size_t stack_size) {
 #if OL_PLATFORM_WINDOWS
     /* Windows fibers are created differently */
     (void)ctx; (void)fn; (void)arg; (void)stack_base; (void)stack_size;
 #elif OL_PLATFORM_POSIX
     #if OL_ARCH_X86_64
-        ol_ctx_make_x86_64((ol_ctx_x86_64_t*)ctx, fn, arg, stack_base, stack_size);
+        ol_ctx_make_x86_64((ol_ctx_x86_64_t*)ctx, (void(*)(void))entry, arg, stack_base, stack_size);
     #elif OL_ARCH_AARCH64
-        ol_ctx_make_aarch64((ol_ctx_aarch64_t*)ctx, fn, arg, stack_base, stack_size);
+        ol_ctx_make_aarch64((ol_ctx_aarch64_t*)ctx, (void(*)(void))entry, arg, stack_base, stack_size);
     #elif OL_ARCH_ARM
-        ol_ctx_make_arm((ol_ctx_arm_t*)ctx, fn, arg, stack_base, stack_size);
+        ol_ctx_make_arm((ol_ctx_arm_t*)ctx, (void(*)(void))entry, arg, stack_base, stack_size);
     #else
         #error "Unsupported architecture for assembly context switching"
     #endif
@@ -634,18 +646,21 @@ static OL_FORCE_INLINE void ol_ctx_make(void* ctx, void (*fn)(void), void* arg,
 /**
  * @brief Work-stealing deque structure (Chase-Lev algorithm)
  */
-struct ol_work_stealing_queue {
-    atomic_uintptr_t* array;
-    atomic_long bottom;
-    atomic_long top;
-    size_t capacity;
-    size_t mask;
-    uint8_t padding[OL_CACHE_LINE_SIZE - (4 * sizeof(size_t) + sizeof(atomic_uintptr_t*))];
-};
+/* struct ol_work_stealing_queue is defined in ol_green_threads.h */
 
 /**
  * @brief Initialize work-stealing queue
  */
+/* Internal helper forward declarations (Wave 1 fix). */
+/* These helpers are defined later in this file but used earlier by
+ * ol_work_stealing_queue_init and ol_stack_pool_*. Static linkage,
+ * defined further down; declared here to avoid the implicit-int rule
+ * giving them an extern-int type. */
+static void* ol_numa_alloc(size_t size, size_t alignment, int numa_node);
+static void  ol_numa_free(void* ptr, size_t size);
+static int   ol_get_current_numa_node(void);
+static int   ol_get_numa_cpu_count(int numa_node);
+
 static OL_FORCE_INLINE int ol_work_stealing_queue_init(ol_work_stealing_queue_t* queue, 
                                                        size_t capacity) {
     /* Capacity must be power of 2 */
@@ -797,24 +812,12 @@ static OL_FORCE_INLINE bool ol_work_stealing_queue_empty(ol_work_stealing_queue_
 /**
  * @brief Stack pool bucket structure
  */
-typedef struct {
-    void** stacks;
-    atomic_size_t count;
-    size_t capacity;
-    size_t stack_size;
-} ol_stack_bucket_t;
+/* ol_stack_bucket_t is defined in ol_green_threads.h */
 
 /**
  * @brief Stack pool structure
  */
-struct ol_stack_pool {
-    ol_stack_bucket_t buckets[8];  /* 1KB, 2KB, 4KB, 8KB, 16KB, 32KB, 64KB, 128KB */
-    atomic_uint_fast64_t hits;
-    atomic_uint_fast64_t misses;
-    atomic_uint_fast64_t allocations;
-    atomic_uint_fast64_t deallocations;
-    uint8_t padding[OL_CACHE_LINE_SIZE - (8 * sizeof(ol_stack_bucket_t) + 4 * sizeof(atomic_uint_fast64_t))];
-};
+/* struct ol_stack_pool is defined in ol_green_threads.h */
 
 /**
  * @brief Initialize stack pool
