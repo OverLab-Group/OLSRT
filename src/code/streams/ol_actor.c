@@ -933,12 +933,35 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
         return 1;
     }
     
-    /* Check overflow capacity without blocking */
+    /* Slow path: try the overflow list. The ring buffer is full, but
+     * the overflow list often has capacity left. If we did not add here,
+     * callers would think the mailbox is full while it is only 3/4 full. */
     ol_mutex_lock(&actor->mailbox->mutex);
-    bool has_space = (actor->mailbox->overflow_count < actor->mailbox->capacity);
+    
+    /* Re-check state under the lock: the actor may have been closed
+     * between the fast-path attempt and now. */
+    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        ol_mutex_unlock(&actor->mailbox->mutex);
+        if (actor->msg_dtor) {
+            actor->msg_dtor(msg);
+        }
+        return -1;
+    }
+    
+    /* Truly full? Both ring buffer and overflow list must be exhausted. */
+    if (actor->mailbox->overflow_count >= actor->mailbox->capacity) {
+        ol_mutex_unlock(&actor->mailbox->mutex);
+        return 0; /* would block */
+    }
+    
+    /* Add to overflow list */
+    actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
+    actor->mailbox->overflow_events++;
+    actor->mailbox->total_messages++;
+    ol_cond_signal(&actor->mailbox->not_empty);
     ol_mutex_unlock(&actor->mailbox->mutex);
     
-    return has_space ? 0 : -1; /* 0 = would block, -1 = error */
+    return 1;
 }
 
 /**
@@ -1004,8 +1027,16 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
     /* Send envelope to actor */
     int send_result = ol_actor_send(actor, envelope);
     if (send_result != 0) {
-        /* Failed to send - clean up */
-        ol_actor_reply_cancel(envelope);
+        /* Failed to send. ol_actor_send may have already invoked the
+         * message destructor, which frees the envelope. We must NOT
+         * touch the envelope here.
+         *
+         * The promise is still owned by us (ol_future_get_future only
+         * incremented the shared core's refcount, it did not transfer
+         * ownership). Cancel and destroy the promise, then destroy the
+         * future to release the final reference to the shared core. */
+        (void)ol_promise_cancel(promise);
+        ol_promise_destroy(promise);
         ol_future_destroy(future);
         return NULL;
     }
