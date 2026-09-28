@@ -315,7 +315,9 @@ int ol_gt_get_numa_topology(ol_numa_node_t* nodes, int max_nodes);
 typedef struct ol_gt_statistics {
     /* Thread-specific stats */
     uint64_t spawn_count;           /**< Number of times spawned */
+    uint64_t total_spawned;         /**< Total threads spawned (global) */
     uint64_t destroy_count;         /**< Number of times destroyed */
+    uint64_t total_destroyed;       /**< Total threads destroyed (global) */
     uint64_t context_switches;      /**< Context switches */
     uint64_t voluntary_yields;      /**< Voluntary yields */
     uint64_t preemptive_yields;     /**< Preemptive yields */
@@ -416,28 +418,41 @@ struct ol_gt {
     uint8_t padding[1024 - 384];
 } OL_ALIGNED(64) OL_PACKED;
 
+/* Chase-Lev work-stealing deque. Field names and padding must match the
+ * implementation in ol_green_threads.c. */
+#ifndef OL_CACHE_LINE_SIZE
+#  define OL_CACHE_LINE_SIZE 64
+#endif
+
 struct ol_work_stealing_queue {
-    /* Chase-Lev work-stealing deque */
-    atomic_uintptr_t* tasks;
+    atomic_uintptr_t* array;
     atomic_long bottom;
     atomic_long top;
     size_t capacity;
     size_t mask;
+    uint8_t padding[OL_CACHE_LINE_SIZE - (4 * sizeof(size_t) + sizeof(atomic_uintptr_t*))];
 };
 
+/* Stack pool bucket: one size class of cached stacks. */
+typedef struct ol_stack_bucket {
+    void** stacks;
+    atomic_size_t count;
+    size_t capacity;
+    size_t stack_size;
+} ol_stack_bucket_t;
+
+/* Segregated stack pool: buckets[0] = 1 KB, buckets[7] = 128 KB.
+ * The previous padding formula (64 - (8*sizeof(bucket) + 4*sizeof(u64)))
+ * evaluates negative on 64-bit hosts; use a fixed positive size and rely
+ * on the struct's cache-line alignment for false-sharing avoidance. */
 struct ol_stack_pool {
-    /* Segregated stack pool by size */
-    struct {
-        void** stacks;
-        atomic_size_t count;
-        size_t size;
-    } buckets[8]; /* 1KB, 2KB, 4KB, 8KB, 16KB, 32KB, 64KB, 128KB */
-    
+    ol_stack_bucket_t buckets[8];
     atomic_uint_fast64_t hits;
     atomic_uint_fast64_t misses;
     atomic_uint_fast64_t allocations;
     atomic_uint_fast64_t deallocations;
-};
+    uint8_t padding[64];
+} __attribute__((aligned(64)));
 
 struct ol_gt_scheduler {
     /* Per-thread scheduler instance */
@@ -461,6 +476,9 @@ struct ol_gt_scheduler {
     /* Preemption timer */
     uint64_t preemption_slice_ns;
     atomic_uint_fast64_t last_preemption;
+    
+    /* Linked list for cross-thread work stealing */
+    struct ol_gt_scheduler* next;
     
     /* Configuration */
     bool work_stealing_enabled;
@@ -563,14 +581,14 @@ struct ol_gt_scheduler {
  * @param ctx Context structure to save into
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_save(void* ctx);
+/* ol_ctx_* are static in ol_green_threads.c; no external declaration here. */
 
 /**
  * @brief Restore execution context
  * @param ctx Context structure to restore from
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_restore(const void* ctx);
+/* ol_ctx_* are static in ol_green_threads.c; no external declaration here. */
 
 /**
  * @brief Initialize context for new green thread
@@ -581,8 +599,7 @@ OL_ALWAYS_INLINE void ol_ctx_restore(const void* ctx);
  * @param stack_size Stack size
  * @note Platform-specific assembly implementation
  */
-OL_ALWAYS_INLINE void ol_ctx_make(void* ctx, ol_gt_entry_fn entry, void* arg,
-                                  void* stack_base, size_t stack_size);
+/* ol_ctx_* are static in ol_green_threads.c; no external declaration here. */
 
 /* ==================== Memory Management ==================== */
 
@@ -593,28 +610,24 @@ OL_ALWAYS_INLINE void ol_ctx_make(void* ctx, ol_gt_entry_fn entry, void* arg,
  * @param numa_node Preferred NUMA node (-1 for any)
  * @return Pointer to allocated memory or NULL
  */
-void* ol_numa_alloc(size_t size, size_t alignment, int numa_node);
-
+/* NUMA helper: implementation detail, not part of the public header. */
 /**
  * @brief Free NUMA-aware memory
  * @param ptr Pointer to memory
  * @param size Size in bytes
  */
-void ol_numa_free(void* ptr, size_t size);
-
+/* NUMA helper: implementation detail, not part of the public header. */
 /**
  * @brief Get current NUMA node
  * @return NUMA node ID or -1 if unknown
  */
-int ol_get_current_numa_node(void);
-
+/* NUMA helper: implementation detail, not part of the public header. */
 /**
  * @brief Get CPU core count per NUMA node
  * @param numa_node NUMA node ID
  * @return Number of CPU cores or -1 on error
  */
-int ol_get_numa_cpu_count(int numa_node);
-
+/* NUMA helper: implementation detail, not part of the public header. */
 /* ==================== Error Handling ==================== */
 
 /**

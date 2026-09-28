@@ -1,2 +1,122 @@
-bin/
+```
+# Compiled and build artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+target/
+.gradle/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
+# Backups created by fix scripts
+*.orig
+*.orig2
+*.save
+
+# Local build configs
+build_wave1_config.py
+
+# Wave 1 local tools and backups
+*.orig
+*.orig2
+*.orig3
+*.save
+*.bak
+*~
+__pycache__/
+*.py[cod]
+
+# Personal scripts (not part of the library)
+apply_patches.py
+add_tcp_udp_patches.py
+fix_*.py
+verify.py
+verify.py.orig
+verify.sh
+build_wave1_config.py
+
+# Personal notes
+BUGS.txt
+FOUND_BUG.txt
+TEMP.txt
+dump.txt
+log.txt
+errors.txt
+bash.sh
+
+# Accidental shell outputs
+Building
+compiler:
+workdir:
+OLSRT
+
+# Local build outputs
 build/
+bin/
+html/
+docu/
+workspace.tar
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store

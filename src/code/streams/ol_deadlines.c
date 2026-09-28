@@ -14,7 +14,7 @@
 #include <string.h>
 #include <errno.h>
 
-#if defined(OL_PLATFORM_WINDOWS)
+#if defined(_WIN32) || defined(_WIN64)
     #include <windows.h>
 #else
     #include <time.h>
@@ -25,7 +25,7 @@
  * Platform-specific monotonic clock implementation
  * -------------------------------------------------------------------------- */
 
-#if defined(OL_PLATFORM_WINDOWS)
+#if defined(_WIN32) || defined(_WIN64)
 
 /* Windows implementation using QueryPerformanceCounter */
 static int64_t ol_monotonic_now_ns_impl(void) {
@@ -145,7 +145,7 @@ void ol_sleep_until(ol_deadline_t dl) {
         return;
     }
     
-#if defined(OL_PLATFORM_WINDOWS)
+#if defined(_WIN32) || defined(_WIN64)
     /* Windows sleep with high precision */
     int64_t ms = rem_ns / 1000000LL;
     if (ms > 0) {
