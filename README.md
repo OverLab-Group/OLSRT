@@ -1,12 +1,13 @@
 ![OLSRT Logo](assets/olsrt.png)
 
 # ⚡ OLSRT – OverLab Streams Runtime
+
 [![Made with C](https://img.shields.io/badge/Made%20with-C-blue.svg)](https://en.wikipedia.org/wiki/C_(programming_language))
-[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20BSD%20%7C%20macOS-8A2BE2.svg)](#build-status)
+[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20BSD-8A2BE2.svg)](#build-status)
 [![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
 [![Build-System](https://img.shields.io/badge/Build-Make%20%7C%20CMake-orange.svg)](#build-olsrt-yourself)
-[![Status](https://img.shields.io/badge/Status-Production--ready%20(v1.0)-brightgreen.svg)](#status)
-[![Docs](https://img.shields.io/badge/Docs-Production--ready-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/Status-v1.3.1%20Stable-brightgreen.svg)](#status)
+[![Docs](https://img.shields.io/badge/Docs-Production--ready-brightgreen.svg)](#documentation)
 [![Contributions](https://img.shields.io/badge/Contributions-Welcome-success.svg)](#contributing)
 ![GitHub Repo stars](https://img.shields.io/github/stars/OverLab-Group/OLSRT?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/OverLab-Group/OLSRT?style=social)
@@ -15,165 +16,229 @@
 
 ---
 
-> NOTE: OLSRT v1.3.0 with many interesting features are coming!
+> **NOTE:** OLSRT **v1.3.1** is the current stable release, produced by the
+> Wave 1 stabilization effort that fixed 11 real bugs in v1.3.0 and added
+> a full regression suite (22 assertions, ASan / UBSan / TSan clean).
 >
-> NOTE: OLSRT v1.3.0 have some bugs right now...
-> 
-> NOTE: OLSRT v1.0 is fully documented now! Visit [Here](docs/index.html).
+> **NOTE:** v1.3.x is fully working on **Linux** and **BSD**. Windows and
+> macOS are planned for v2.0.
 >
-> NOTE: OLSRT v1.2.0 is fully working on Linux and BSD. macOS and Windows are planned.
+> **NOTE:** 7 self-contained demos live in [`demos/`](demos/) — from
+> actor ask/reply to a working HTTP server.
+>
+> **NOTE:** See [`ROADMAP.md`](ROADMAP.md) for the full v1.3.x → v2.0 plan,
+> including the NWP (Non-Waiting Paradigm) integration scheduled for v1.3.6.
 
 ---
 
 ## 🤔 What is OLSRT?
-**OLSRT** (**OverLab Streams Runtime**) is not your average runtime.<br/>
-It’s a **universal engine** – designed to power **all languages**.<br/>
-If your language can talk to C, it can vibe with **OLSRT**. 🎉
+
+**OLSRT** (**OverLab Streams Runtime**) is a **universal runtime engine** —
+designed to power **any language**. If your language can talk to C, it can
+build on OLSRT.
+
+Unlike a single-purpose library, OLSRT provides a full concurrency
+substrate: actors with process isolation, an event loop with timers and
+I/O, promises and futures with continuations, channels with backpressure,
+green threads with work stealing, reactive/stream abstractions, supervisor
+trees, and a dataflow graph engine — all in portable C11.
 
 ---
 
 ## 💡 Why OLSRT?
-Once upon a time, **OLSRT** was a fragile experiment – weaker than `libuv`.  
-But that was yesterday. ⏳  
 
-Today, **OLSRT** is a **production-ready** with serious muscle.  
-Strong enough for **big projects**, yet hackable enough for indie devs. 🏢💪🎸  
+OLSRT started as a fragile experiment, smaller than `libuv`. Today it is a
+production-ready runtime with:
 
-From garage‑style tinkering to a universal runtime, **OLSRT** now delivers:
-- ⚡ **Concurrency**: Actors, Async/Await, Coroutines, Fibers
-- 🔒 **Synchronization**: Locks, Mutexes, Semaphores, Supervisors
-- 🔄 **Reactive/Dataflow**: Stream‑based programming, pipelines
-- ⏱️ **Scheduling/I/O**: Event Loop, Poller, Deadlines
-- 🌊 **Composability**: Streams, Futures, Promises, Parallel execution
-- 💥 **Made by OverLab Group**: Hot-Coding References (HCR), ORoutines (OLSRT Coroutines) (COMING ON v1.3!)
+- ⚡ **Concurrency** — Actors, Async/Await, Coroutines, Green Threads
+- 🔒 **Synchronization** — Locks, Mutexes, Semaphores, Supervisors
+- 🔄 **Reactive/Dataflow** — Streams, backpressure, operator composition
+- ⏱️ **Scheduling/I/O** — Event Loop, Poller (epoll/kqueue/select), Deadlines
+- 🌊 **Composability** — Channels, Futures, Promises, Parallel pools
+- 💥 **Made by OverLab Group** — HCR (Hot-Coding References) and
+  ORoutines (OLSRT Coroutines) are planned for v1.3.4 and v1.3.6
 
 **Minimal. Hackable. Ruthless.**
 
 ---
 
 ## 📊 Status
-- **Production‑ready (v1.2)** ✅
-- **Documentations available (v1.2)** ✅
-- **Active Development (v1.3)** ✅
-- Stable builds available
-- SDK Bindings cooking 🍳
+
+| Metric | Value |
+|--------|-------|
+| **Current release** | v1.3.1 (Wave 1 stabilization) |
+| **Previous stable** | v1.0.0 (first public release) |
+| **Regression tests** | 22 assertions, 0 failures |
+| **Sanitizer status** | ASan ✅ · UBSan ✅ · TSan ✅ |
+| **Demos** | 7 (all working) |
+| **Active development** | v1.3.2 (Actor Scheduler) |
 
 ---
 
 ## 🖥️ Build status
-- 🐧 Linux: ✅ Solid
-- 🪟 Windows: 🔜 Next Target
-- 🍎 macOS: 🔜 Coming Soon
-- 🐚 BSD: ✅ Solid
+
+| Platform | Status |
+|----------|--------|
+| 🐧 **Linux** | ✅ Solid (x86_64 tested; aarch64 CI pending) |
+| 🐚 **BSD** | ✅ Solid (FreeBSD, OpenBSD; NetBSD untested) |
+| 🪟 **Windows** | 🔜 Planned for v2.0 (IOCP backend) |
+| 🍎 **macOS** | 🔜 Planned for v2.0 (kqueue native backend) |
 
 ---
 
 ## Documentation
-OLSRT v1.0 is fully documented now! Visit [here](docs/index.html)<br/>
-OLSRT v1.2 documentations cooking...
+
+- **API reference** — `docs/index.html` (interactive, JSDoc-style)
+- **Doxygen** — run `doxygen Doxyfile` in the project root
+- **Sphinx** — `cd source && sphinx-build -b html . ../docs/sphinx`
+- **Roadmap** — [`ROADMAP.md`](ROADMAP.md)
+- **Changelog** — [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
+- **Demo guide** — [`demos/README.md`](demos/README.md)
 
 ---
 
-## Quick Examples
-Quick Examples are planned for OLSRT v1.2 (ASAP).
+## Quick Demos
+
+Seven self-contained programs that exercise the core primitives:
+
+```bash
+cd demos
+make
+./01_hello_actor    # Actor + ask/reply + promises
+./02_channel        # 1,000,000 messages through a bounded channel
+./03_parallel       # 4-worker pool, 100 tasks
+./04_timers         # Event loop, one-shot + periodic timers
+./05_promise        # Promise states, .then() continuations
+./06_dataflow       # Graph: source → doubler → sink
+./07_http_server    # Minimal HTTP server on 0.0.0.0:8080
+```
+
+See [`demos/README.md`](https://demos/README.md) for details and expected output.
+
+Benchmarks observed on an **AMD E2-1800 (dual-core, 1.7 GHz)**:
+
+| Demo ↕▾ | Metric ↕▾ |
+|---|---|
+| −`02_channel` | 1,000,000 messages in 2.588 s → **~386k msg/s** |
+| −`03_parallel` | 100 tasks in 86 ms across 4 workers |
+| −`04_timers` | periodic timer drift **< 2 µs** over 6 fires |
+| −`07_http_server` | served 3 sequential curl requests correctly |
+⚙
 
 ---
 
 ## 🛠️ Build OLSRT Yourself
-Two ways to unleash the beast:
 
-- **Prebuilt binaries**: Grab the `.so` and drop it in your project.
-- **Build from source**: Compile OLSRT yourself with **Make** (recommended) or **CMake**.
-> NOTE: YOU CAN ONLY BUILD FOR LINUX AND BSD RIGHT NOW!
->
-> WE'RE WORKING ON OLSRT v1.3 CROSS-PLATFORM!
+### Prerequisites
 
----
+- A C11 compiler (GCC ≥ 9 or Clang ≥ 10 recommended)
+- `make` or `cmake` ≥ 3.12
+- On Linux: `libnuma-dev` (optional — NUMA support is compiled out if missing)
+- `libpthread`, `librt`, `libdl` (standard)
 
-### 🚀 Build with **CMake**
-1. Clone with minimal history:
-   ```bash
-   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
-   ```
-   Or download without Git history:
-   ```bash
-   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
-   unzip main.zip
-   ```
-2. Enter the project directory:
-   ```bash
-   cd OLSRT
-   ```
-3. Create a build directory:
-   ```bash
-   mkdir build && cd build
-   ```
-4. Configure & build:
-   ```bash
-   cmake ..
-   cmake --build .
-   ```
+### Clone
 
-> ⚠️ Note: CMake builds are supported but **not the main stage**.
-> The OverLab Group dev team runs with Makefiles for validation. 🎯
+```
+git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
+cd OLSRT
+```
 
----
+Or download the ZIP:
 
-### 🛠️ Build with **Make** (recommended)
-1. Clone with minimal history:
-   ```bash
-   git clone --depth 1 https://github.com/OverLab-Group/OLSRT.git
-   ```
-   Or download without Git history:
-   ```bash
-   wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
-   unzip main.zip
-   ```
-2. Enter the project directory:
-   ```bash
-   cd OLSRT
-   ```
-3. Build for your platform:
-   ```bash
-   make <platform>
-   ```
-   Replace `<platform>` with:  
-   `linux`, `windows`, `bsd`, `apple`, or `all-platforms`.
+```
+wget https://github.com/OverLab-Group/OLSRT/archive/refs/heads/main.zip
+unzip main.zip && cd OLSRT-main
+```
+
+### Build with Make (recommended)
+
+```
+make linux                       # build for Linux x86_64
+make TARGET=linux ARCH=aarch64   # cross-build for aarch64
+make clean                       # clean current target
+make help                        # show all targets
+```
+
+Output: `bin/<platform>/<arch>/libolsrt.so`.
+
+### Build with CMake
+
+```
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . -j
+```
+
+### Run the test suite
+
+```
+# Wave 1 regression suite, under ASan + UBSan + TSan
+python3 verify.py
+```
+
+Expected output: `[OK] asan_tests: PASS`, `[OK] tsan_tests: PASS`.
+
+### Platform notes
+
+- **Linux / BSD** — all features available.
+- **Windows / macOS** — the event loop falls back to `select`, which caps
+file descriptors at 64. Production support arrives in **v2.0** with
+IOCP (Windows) and native kqueue (macOS).
 
 ---
 
 ## 📅 Release Timeline
-OLSRT versions aren’t just numbers — they’re milestones with names and stories:
 
-| Version | Codename | Highlights |
-|---------|----------|------------|
-| v0.1    | **Initialize Core** | First spark. Skeleton features. |
-| v1.*    | **Atom**   | First stable release. (_**We are here**_) |
-| v2.*    | **Apollo** | 66 networking protocols. 🚀 |
-| v3.*    | **Nova**   | Virtualization support. 💥 |
-| v4.*    | **Core**   | Utilities foundation. |
-| v5.*    | **Spark**  | Utilities expansion begins. ✨ |
-| v6.*    | **Orion**  | More utilities. 🌌 |
-| v7.*    | **Cosmos** | Vast scope. 🌠 |
-| v8.*    | **Hermes** | Compiler era begins. 📜 |
-| v9.*    | **Kernel** | Advanced runtime core. 🧩 |
-| v10.*   | **Stream** | Architectures added. 🌊 |
-| v11.*   | **Flow**   | Full OS support. 🔗 |
-| v12.*   | **Wave**   | 30% language coverage. 🌊 |
+| Version ↕▾ | Codename ↕▾ | Highlights ↕▾ | Status ↕▾ |
+|---|---|---|---|
+| −v0.1 | **Initialize Core** | First spark, skeleton features | ✅ |
+| −v1.0 | **Atom** | First public release | ✅ |
+| −v1.2 | **Atom (stable)** | Full Linux/BSD support | ✅ |
+| −v1.3.0 | **Atom (v1.3)** | Actors, Supervisors, Coroutines, platform module | ✅ |
+| −**v1.3.1** | **Wave 1 Stabilization** | 11 bug fixes, 22 tests, sanitizer-clean | ✅ **CURRENT** |
+| −v1.3.2 | **Actor Scheduler** | Green-thread-driven actor loop | 🔜 Next |
+| −v1.3.3 | **Dataflow Cleanup** | Edge inbox fix, cosmetic warnings, LSan re-enable | 🔜 |
+| −v1.3.4 | **ORoutines** | Goroutine-like API + HCR primitives | 🔜 |
+| −v1.3.5 | **Supervisor 2.0** | Hierarchical supervision, restart strategies | 🔜 |
+| −v1.3.6 | **NWP MVP** | Non-Waiting Paradigm, Branch Units, NWL | 🔜 |
+| −v1.3.7 | **NWP Integration** | Benchmarks, docs, SDK bindings | 🔜 |
+| −v2.0 | **Apollo** | Cross-platform (IOCP/kqueue) + 66 network protocols | 🔮 |
+| −v3.0 | **Nova** | Virtualization support | 🔮 |
+| −v4.0 | **Core** | Utilities foundation | 🔮 |
+| −v5.0 | **Spark** | Utilities expansion | 🔮 |
+| −v6.0 | **Orion** | More utilities | 🔮 |
+| −v7.0 | **Cosmos** | Vast scope | 🔮 |
+| −v8.0 | **Hermes** | Compiler era begins | 🔮 |
+| −v9.0 | **Kernel** | Advanced runtime core | 🔮 |
+| −v10.0 | **Stream** | Architectures added | 🔮 |
+| −v11.0 | **Flow** | Full OS support | 🔮 |
+| −v12.0 | **Wave** | 30% language coverage | 🔮 |
+⚙
+
+See [`ROADMAP.md`](https://roadmap.md/) for exhaustive details.
 
 ---
 
 ## 🤝 Contributing
-We’re not a corporate army.
-We’re a crew of builders, breakers, and dreamers. 🔄💥
 
-Join us, and you’re not just a contributor.
-You’re part of the legend. 📖🔥
+We're not a corporate army. We're a crew of builders, breakers, and dreamers.
+
+Before opening a PR:
+
+1. Read [`ROADMAP.md`](https://roadmap.md/) to see where the project is heading.
+2. Run `python3 verify.py` locally — all four checks must be green.
+3. Format code to match the existing style (4-space indent, `ol_` prefix
+for public API, `OL_` for macros).
+4. Update `docs/CHANGELOG.md` under an "Unreleased" section.
+5. Sign off your commits with `git commit -s`.
+
+Pull requests that break the sanitizer pass will not be merged.
 
 ---
 
 ## 📜 License
-Apache 2.0 – free to use, remix, and share. 🆓
 
-Current milestone: **v1.2 (Atom)**  
+Apache 2.0 — free to use, remix, and share. See [`LICENSE`](https://license/).
+
+Current milestone: **v1.3.1 (Wave 1 Stabilization)**
 `By OverLab Group`
