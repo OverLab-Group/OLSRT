@@ -42,9 +42,16 @@
         #include <sys/timerfd.h>
         #include <sys/eventfd.h>
         #include <linux/futex.h>
-        #include <numa.h>
-        #include <numaif.h>
-        #define OL_NUMA_AVAILABLE 1
+        /* NUMA support is optional. If libnuma-dev is installed, we use it;
+         * otherwise the runtime falls back to node-agnostic allocation.
+         * The behaviour can also be forced via -DOL_DISABLE_NUMA=1. */
+        #if !defined(OL_DISABLE_NUMA) && defined(__has_include) && __has_include(<numa.h>)
+            #include <numa.h>
+            #include <numaif.h>
+            #define OL_NUMA_AVAILABLE 1
+        #else
+            #define OL_NUMA_AVAILABLE 0
+        #endif
     #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
         #include <sys/param.h>
         #include <sys/cpuset.h>

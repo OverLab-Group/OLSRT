@@ -526,7 +526,11 @@ ol_serialized_msg_t* ol_serialize(const void* data, size_t size,
                 processed_data = encrypted;
                 processed_size = encrypted_size;
                 header.encrypted_size = (uint32_t)encrypted_size;
-                memcpy(header.iv, iv, sizeof(header.iv));
+                /* header.iv is 16 bytes but our local iv buffer is 12.
+                 * Zero the destination first, then copy exactly as much
+                 * as the source holds. */
+                memset(header.iv, 0, sizeof(header.iv));
+                memcpy(header.iv, iv, sizeof(iv));
             }
         }
     }

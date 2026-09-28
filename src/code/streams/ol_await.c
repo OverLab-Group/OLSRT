@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(OL_PLATFORM_WINDOWS)
+#if defined(_WIN32) || defined(_WIN64)
     #include <windows.h>
 #else
     #include <time.h>
@@ -37,7 +37,7 @@ static void ol_small_sleep_ms(long ms) {
         return;
     }
     
-#if defined(OL_PLATFORM_WINDOWS)
+#if defined(_WIN32) || defined(_WIN64)
     Sleep((DWORD)ms);
 #else
     struct timespec req, rem;
