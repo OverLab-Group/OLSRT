@@ -120,3 +120,9 @@ workspace.tar
 .idea/
 *.swp
 .DS_Store
+
+# Demos — build artifacts
+demos/01_hello_actor
+demos/*.o
+demos/*.so
+demos/libolsrt.so
