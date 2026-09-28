@@ -17,7 +17,7 @@
 #include <string.h>
 #include <errno.h>
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
     #include <winsock2.h>
     #pragma comment(lib, "ws2_32.lib")
 #else
@@ -43,7 +43,7 @@
 #else
     /* Fallback to select for other platforms (including Windows) */
     #define OL_BACKEND_SELECT 1
-    #if defined(_WIN32) || defined(_WIN64)
+    #if defined(OL_PLATFORM_WINDOWS)
         #include <winsock2.h>
     #else
         #include <sys/select.h>
@@ -164,7 +164,7 @@ ol_poller_t* ol_poller_create(void) {
     
 #else /* SELECT backend */
     
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
     /* Initialize Winsock on Windows */
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
@@ -185,7 +185,7 @@ ol_poller_t* ol_poller_create(void) {
     if (!p->tags || !p->masks) {
         free(p->tags);
         free(p->masks);
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
         WSACleanup();
 #endif
         free(p);
@@ -221,7 +221,7 @@ void ol_poller_destroy(ol_poller_t *p) {
     free(p->tags);
     free(p->masks);
     
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
     WSACleanup();
 #endif
     
@@ -593,7 +593,7 @@ int ol_poller_wait(ol_poller_t *p,
     
     /* Wait for events */
     int n;
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
     if (p->max_fd == -1) {
         /* No fds to wait on, just sleep for timeout */
         if (ptv) {
@@ -607,7 +607,7 @@ int ol_poller_wait(ol_poller_t *p,
 #endif
     
     if (n < 0) {
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
         int err = WSAGetLastError();
         if (err == WSAEINTR) {
             return 0;

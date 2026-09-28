@@ -15,7 +15,7 @@
 #include <string.h>
 #include <errno.h>
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(OL_PLATFORM_WINDOWS)
 
 /* --------------------------------------------------------------------------
  * Windows implementation (CRITICAL_SECTION, CONDITION_VARIABLE, SRWLOCK)

@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""
+OLSRT Wave 1 verification - Python replacement for verify.sh.
+Shell heredocs get corrupted by chat markdown renderers, so this script
+drives cc directly via subprocess with argument lists (no shell parsing).
+"""
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+GREEN = "\033[32m"
+RED = "\033[31m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
+
+def info(m):
+    print(YELLOW + "==> " + RESET + m, flush=True)
+
+def ok(m):
+    print(GREEN + "[OK] " + RESET + m, flush=True)
+
+def bad(m):
+    print(RED + "[FAIL] " + RESET + m, flush=True)
+
+def find_root(start=None):
+    base = Path(start or Path.cwd()).resolve()
+    for c in [base] + list(base.parents)[:6]:
+        if (c / "includes" / "olsrt.h").exists():
+            return c
+    return None
+
+def run(cmd, cwd=None, env=None, capture=True):
+    e = os.environ.copy()
+    if env:
+        e.update(env)
+    return subprocess.run(
+        [str(x) for x in cmd],
+        cwd=str(cwd) if cwd else None,
+        env=e,
+        capture_output=capture,
+        text=True,
+    )
+
+def compile_lib(cc, sources, out_lib, extra_flags, inc_dirs, log_path):
+    cmd = [cc, "-std=gnu11", "-D_GNU_SOURCE", "-D_POSIX_C_SOURCE=200809L", "-O1", "-g", "-fPIC", "-shared"]
+    cmd += extra_flags
+    for inc in inc_dirs:
+        cmd += ["-I", str(inc)]
+    cmd += ["-o", str(out_lib)]
+    cmd += [str(s) for s in sources]
+    cmd += ["-lpthread", "-lrt", "-ldl"]
+    r = run(cmd)
+    with open(log_path, "w") as f:
+        f.write("$ " + " ".join(str(x) for x in cmd) + "\n\n")
+        f.write(r.stdout or "")
+        f.write(r.stderr or "")
+    return r.returncode == 0, cmd, r
+
+def tail_log(path, n=40):
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+        for line in lines[-n:]:
+            sys.stdout.write(line)
+    except Exception:
+        pass
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=None,
+                    help="OLSRT root (auto-detected if omitted)")
+    ap.add_argument("--no-tsan", action="store_true",
+                    help="skip ThreadSanitizer build (faster)")
+    ap.add_argument("--no-tests", action="store_true",
+                    help="build only, skip running the regression suite")
+    args = ap.parse_args()
+
+    root = find_root(args.root) if args.root else find_root()
+    if not root:
+        bad("OLSRT root not found (no includes/olsrt.h)")
+        return 1
+    info("OLSRT root: " + str(root))
+
+    cc = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+    if not cc:
+        bad("no C compiler found in PATH")
+        return 1
+    info("compiler: " + cc)
+
+    src_dir = root / "src" / "code" / "streams"
+    if not src_dir.is_dir():
+        bad("missing source dir: " + str(src_dir))
+        return 1
+
+    sources = sorted(src_dir.glob("*.c"))
+    if not sources:
+        bad("no .c files under " + str(src_dir))
+        return 1
+    info("source files: " + str(len(sources)))
+
+    inc_dirs = [
+        root / "includes",
+        root / "includes" / "code" / "streams",
+        root / "includes" / "runtime",
+    ]
+
+    tmp = Path("/tmp/olsrt_verify")
+    tmp.mkdir(parents=True, exist_ok=True)
+    info("workdir: " + str(tmp))
+
+    results = {}
+
+    # ---- ASan + UBSan library ----
+    info("Building libolsrt_asan.so ...")
+    asan_lib = tmp / "libolsrt_asan.so"
+    asan_flags = [
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+    ]
+    okflag, _, _ = compile_lib(cc, sources, asan_lib, asan_flags, inc_dirs,
+                               tmp / "asan_build.log")
+    if okflag and asan_lib.exists():
+        ok("ASan/UBSan build OK  ->  " + str(asan_lib))
+        results["asan_build"] = True
+    else:
+        bad("ASan/UBSan build FAILED  (see " + str(tmp / "asan_build.log") + ")")
+        print()
+        tail_log(tmp / "asan_build.log", n=60)
+        return 2
+
+    # ---- TSan library ----
+    tsan_lib = None
+    if not args.no_tsan:
+        info("Building libolsrt_tsan.so ...")
+        tsan_lib = tmp / "libolsrt_tsan.so"
+        tsan_flags = ["-fsanitize=thread", "-fno-omit-frame-pointer"]
+        okflag, _, _ = compile_lib(cc, sources, tsan_lib, tsan_flags, inc_dirs,
+                                   tmp / "tsan_build.log")
+        if okflag and tsan_lib.exists():
+            ok("TSan build OK  ->  " + str(tsan_lib))
+            results["tsan_build"] = True
+        else:
+            bad("TSan build FAILED  (see " + str(tmp / "tsan_build.log") + ")")
+            tail_log(tmp / "tsan_build.log", n=60)
+            results["tsan_build"] = False
+    else:
+        info("TSan build skipped (--no-tsan)")
+
+    if args.no_tests:
+        print()
+        info("Summary")
+        for k, v in results.items():
+            ok(k + ": " + ("PASS" if v else "FAIL"))
+        return 0 if all(results.values()) else 4
+
+    # ---- Locate the Wave 1 test source ----
+    test_src = None
+    for c in [
+        root / "tests" / "test_wave1.c",
+        root / "wave1_patches" / "tests" / "test_wave1.c",
+        root / "test_wave1.c",
+    ]:
+        if c.exists():
+            test_src = c
+            break
+
+    if test_src is None:
+        info("no test_wave1.c found - skipping runtime tests")
+        print()
+        info("Summary")
+        for k, v in results.items():
+            ok(k + ": " + ("PASS" if v else "FAIL"))
+        return 0 if all(results.values()) else 4
+    info("test source: " + str(test_src))
+
+    # ---- Compile test binary against the ASan lib ----
+    info("Compiling test binary (ASan) ...")
+    test_bin = tmp / "test_wave1_asan"
+    cmd = [cc, "-std=gnu11", "-D_GNU_SOURCE", "-D_POSIX_C_SOURCE=200809L", "-O1", "-g",
+           "-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
+    for inc in inc_dirs:
+        cmd += ["-I", str(inc)]
+    cmd += [str(test_src),
+            "-L", str(tmp), "-lolsrt_asan",
+            "-lpthread", "-lrt", "-ldl",
+            "-Wl,-rpath," + str(tmp),
+            "-o", str(test_bin)]
+    r = run(cmd)
+    if r.returncode != 0:
+        bad("test binary compilation FAILED")
+        print(r.stdout or "")
+        print(r.stderr or "")
+        return 3
+    ok("test binary compiled")
+
+    # ---- Run the tests under ASan ----
+    info("Running Wave 1 regression suite under ASan+UBSan ...")
+    env = {
+        "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=0",
+        "UBSAN_OPTIONS": "print_stacktrace=1",
+    }
+    r = run([test_bin], env=env, capture=False)
+    if r.returncode == 0:
+        ok("ASan tests PASSED")
+        results["asan_tests"] = True
+    else:
+        bad("ASan tests FAILED (exit " + str(r.returncode) + ")")
+        results["asan_tests"] = False
+
+    # ---- Optionally run under TSan as well ----
+    if tsan_lib is not None and results.get("tsan_build"):
+        info("Compiling test binary (TSan) ...")
+        tsan_bin = tmp / "test_wave1_tsan"
+        cmd = [cc, "-std=gnu11", "-D_GNU_SOURCE", "-D_POSIX_C_SOURCE=200809L", "-O1", "-g",
+               "-fsanitize=thread", "-fno-omit-frame-pointer"]
+        for inc in inc_dirs:
+            cmd += ["-I", str(inc)]
+        cmd += [str(test_src),
+                "-L", str(tmp), "-lolsrt_tsan",
+                "-lpthread", "-lrt", "-ldl",
+                "-Wl,-rpath," + str(tmp),
+                "-o", str(tsan_bin)]
+        r = run(cmd)
+        if r.returncode != 0:
+            bad("TSan test binary compilation FAILED")
+            print(r.stdout or "")
+            print(r.stderr or "")
+            results["tsan_tests"] = False
+        else:
+            ok("TSan test binary compiled")
+            info("Running Wave 1 regression suite under TSan ...")
+            env = {"TSAN_OPTIONS": "halt_on_error=0:second_deadlock_stack=1"}
+            r = run([tsan_bin], env=env, capture=False)
+            if r.returncode == 0:
+                ok("TSan tests PASSED")
+                results["tsan_tests"] = True
+            else:
+                bad("TSan tests FAILED (exit " + str(r.returncode) + ")")
+                results["tsan_tests"] = False
+
+    # ---- Summary ----
+    print()
+    info("Summary")
+    for k, v in sorted(results.items()):
+        ok(k + ": " + ("PASS" if v else "FAIL"))
+
+    return 0 if all(results.values()) else 4
+
+if __name__ == "__main__":
+    sys.exit(main())

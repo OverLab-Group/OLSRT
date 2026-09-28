@@ -1,0 +1,1002 @@
+📦 Compiling: src/code/streams/ol_actor_arena.c
+gcc -c -fPIC -DOL_PLATFORM_POSIX -D_LINUX -D__linux__ -O3 -Wall -Wextra -Iincludes -Iincludes/code/streams -Iincludes/runtime -o build/linux/x86_64/code/streams/ol_actor_arena.o src/code/streams/ol_actor_arena.c
+📦 Compiling: src/code/streams/ol_actor.c
+gcc -c -fPIC -DOL_PLATFORM_POSIX -D_LINUX -D__linux__ -O3 -Wall -Wextra -Iincludes -Iincludes/code/streams -Iincludes/runtime -o build/linux/x86_64/code/streams/ol_actor.o src/code/streams/ol_actor.c
+In file included from includes/code/streams/ol_actor.h:30,
+                 from src/code/streams/ol_actor.c:24:
+includes/code/streams/ol_actor_isolation.h: In function ‘ol_arena_create’:
+includes/code/streams/ol_actor_isolation.h:359:58: error: expected declaration specifiers before ‘OL_MALLOC_LIKE’
+  359 | ol_arena_t* ol_arena_create(size_t size, uint32_t flags) OL_MALLOC_LIKE;
+      |                                                          ^~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:378:54: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘OL_MALLOC_LIKE’
+  378 | void* ol_arena_alloc(ol_arena_t* arena, size_t size) OL_MALLOC_LIKE OL_WARN_UNUSED_RESULT;
+      |                                                      ^~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:390:5: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘OL_MALLOC_LIKE’
+  390 |     OL_MALLOC_LIKE OL_WARN_UNUSED_RESULT;
+      |     ^~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:425:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  425 | bool ol_arena_contains(const ol_arena_t* arena, const void* ptr) OL_PURE;
+      | ^~~~
+includes/code/streams/ol_actor_isolation.h:432:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  432 | size_t ol_arena_total_size(const ol_arena_t* arena) OL_PURE;
+      | ^~~~~~
+includes/code/streams/ol_actor_isolation.h:439:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  439 | size_t ol_arena_used_size(const ol_arena_t* arena) OL_PURE;
+      | ^~~~~~
+includes/code/streams/ol_actor_isolation.h:462:67: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘OL_MALLOC_LIKE’
+  462 | ol_arena_t* ol_arena_create_shared(size_t size, const char* name) OL_MALLOC_LIKE;
+      |                                                                   ^~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:469:54: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘OL_MALLOC_LIKE’
+  469 | ol_arena_t* ol_arena_attach_shared(const char* name) OL_MALLOC_LIKE;
+      |                                                      ^~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:491:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  491 | void ol_memcpy_nt(void* OL_RESTRICT dest, const void* OL_RESTRICT src, size_t n) OL_HOT;
+      | ^~~~
+includes/code/streams/ol_actor_isolation.h:499:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  499 | void ol_memset_nt(void* dest, int c, size_t n) OL_HOT;
+      | ^~~~
+includes/code/streams/ol_actor_isolation.h:507:20: error: storage class specified for parameter ‘ol_prefetch_range’
+  507 | static inline void ol_prefetch_range(const void* ptr, size_t stride, size_t count) OL_HOT;
+      |                    ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:507:20: warning: parameter ‘ol_prefetch_range’ declared ‘inline’
+includes/code/streams/ol_actor_isolation.h:507:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  507 | static inline void ol_prefetch_range(const void* ptr, size_t stride, size_t count) OL_HOT;
+      | ^~~~~~
+includes/code/streams/ol_actor_isolation.h:514:20: error: storage class specified for parameter ‘ol_memory_barrier_range’
+  514 | static inline void ol_memory_barrier_range(void* ptr, size_t size);
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:514:20: warning: parameter ‘ol_memory_barrier_range’ declared ‘inline’
+includes/code/streams/ol_actor_isolation.h:520:20: error: storage class specified for parameter ‘ol_clflush’
+  520 | static inline void ol_clflush(const void* ptr) OL_HOT;
+      |                    ^~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:520:20: warning: parameter ‘ol_clflush’ declared ‘inline’
+includes/code/streams/ol_actor_isolation.h:520:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  520 | static inline void ol_clflush(const void* ptr) OL_HOT;
+      | ^~~~~~
+includes/code/streams/ol_actor_isolation.h:526:20: error: storage class specified for parameter ‘ol_clflushopt’
+  526 | static inline void ol_clflushopt(const void* ptr) OL_HOT;
+      |                    ^~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:526:20: warning: parameter ‘ol_clflushopt’ declared ‘inline’
+includes/code/streams/ol_actor_isolation.h:526:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  526 | static inline void ol_clflushopt(const void* ptr) OL_HOT;
+      | ^~~~~~
+includes/code/streams/ol_actor_isolation.h:540:3: error: storage class specified for parameter ‘ol_zero_copy_buffer_t’
+  540 | } ol_zero_copy_buffer_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:549:1: error: expected declaration specifiers before ‘ol_zero_copy_buffer_t’
+  549 | ol_zero_copy_buffer_t* ol_zero_copy_create(ol_arena_t* arena, void* data, size_t size) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:556:1: error: expected declaration specifiers before ‘ol_zero_copy_buffer_t’
+  556 | ol_zero_copy_buffer_t* ol_zero_copy_ref(ol_zero_copy_buffer_t* buffer);
+      | ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:564:25: error: expected declaration specifiers or ‘...’ before ‘ol_zero_copy_buffer_t’
+  564 | void ol_zero_copy_unref(ol_zero_copy_buffer_t* buffer);
+      |                         ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:573:1: error: expected declaration specifiers before ‘ol_zero_copy_buffer_t’
+  573 | ol_zero_copy_buffer_t* ol_zero_copy_transfer(ol_arena_t* src_arena,
+      | ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:609:3: error: storage class specified for parameter ‘ol_cache_aligned_counter_t’
+  609 | } ol_cache_aligned_counter_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:618:3: error: storage class specified for parameter ‘ol_cache_aligned_ring_t’
+  618 | } ol_cache_aligned_ring_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_isolation.h:624:48: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token
+  624 | static inline void ol_clflush(const void* ptr) {
+      |                                                ^
+includes/code/streams/ol_actor_isolation.h:628:51: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token
+  628 | static inline void ol_clflushopt(const void* ptr) {
+      |                                                   ^
+includes/code/streams/ol_actor_isolation.h:636:84: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token
+  636 | static inline void ol_prefetch_range(const void* ptr, size_t stride, size_t count) {
+      |                                                                                    ^
+includes/code/streams/ol_actor_isolation.h:643:68: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token
+  643 | static inline void ol_memory_barrier_range(void* ptr, size_t size) {
+      |                                                                    ^
+In file included from includes/code/streams/ol_actor.h:31:
+includes/code/streams/ol_actor_process.h:38:18: error: storage class specified for parameter ‘ol_pid_t’
+   38 | typedef uint64_t ol_pid_t;
+      |                  ^~~~~~~~
+includes/code/streams/ol_actor_process.h:52:3: error: storage class specified for parameter ‘ol_exit_reason_t’
+   52 | } ol_exit_reason_t;
+      |   ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:66:3: error: storage class specified for parameter ‘ol_process_state_t’
+   66 | } ol_process_state_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:80:3: error: storage class specified for parameter ‘ol_process_flags_t’
+   80 | } ol_process_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:87:16: error: storage class specified for parameter ‘ol_process_entry_fn’
+   87 | typedef void (*ol_process_entry_fn)(void* process, void* arg);
+      |                ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:96:51: error: expected declaration specifiers or ‘...’ before ‘ol_pid_t’
+   96 | typedef void (*ol_exit_handler_fn)(void* process, ol_pid_t from_pid,
+      |                                                   ^~~~~~~~
+includes/code/streams/ol_actor_process.h:97:35: error: expected declaration specifiers or ‘...’ before ‘ol_exit_reason_t’
+   97 |                                   ol_exit_reason_t reason, void* data);
+      |                                   ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:104:22: error: storage class specified for parameter ‘ol_gt_t’
+  104 | typedef struct ol_gt ol_gt_t;
+      |                      ^~~~~~~
+includes/code/streams/ol_actor_process.h:109:32: error: storage class specified for parameter ‘ol_gt_scheduler_t’
+  109 | typedef struct ol_gt_scheduler ol_gt_scheduler_t;
+      |                                ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:116:1: error: expected declaration specifiers before ‘ol_gt_scheduler_t’
+  116 | ol_gt_scheduler_t* ol_gt_scheduler_create(size_t worker_count) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:122:30: error: expected declaration specifiers or ‘...’ before ‘ol_gt_scheduler_t’
+  122 | void ol_gt_scheduler_destroy(ol_gt_scheduler_t* scheduler);
+      |                              ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:132:1: error: expected declaration specifiers before ‘ol_gt_t’
+  132 | ol_gt_t* ol_gt_spawn(ol_gt_scheduler_t* scheduler, void (*fn)(void*),
+      | ^~~~~~~
+includes/code/streams/ol_actor_process.h:144:1: error: expected declaration specifiers before ‘ol_gt_t’
+  144 | ol_gt_t* ol_gt_self(void);
+      | ^~~~~~~
+includes/code/streams/ol_actor_process.h:152:16: error: expected declaration specifiers or ‘...’ before ‘ol_gt_t’
+  152 | int ol_gt_join(ol_gt_t* gt, int timeout_ms);
+      |                ^~~~~~~
+includes/code/streams/ol_actor_process.h:161:3: error: storage class specified for parameter ‘ol_context_x86_64_t’
+  161 | } ol_context_x86_64_t;
+      |   ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:196:27: error: storage class specified for parameter ‘ol_process_t’
+  196 | typedef struct ol_process ol_process_t;
+      |                           ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:210:1: error: expected declaration specifiers before ‘ol_process_t’
+  210 | ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:219:22: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  219 | int ol_process_start(ol_process_t* process);
+      |                      ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:227:21: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  227 | int ol_process_stop(ol_process_t* process, int timeout_ms);
+      |                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:233:22: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  233 | void ol_process_kill(ol_process_t* process);
+      |                      ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:242:25: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  242 | void ol_process_destroy(ol_process_t* process, ol_exit_reason_t reason);
+      |                         ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:242:48: error: expected declaration specifiers or ‘...’ before ‘ol_exit_reason_t’
+  242 | void ol_process_destroy(ol_process_t* process, ol_exit_reason_t reason);
+      |                                                ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:249:1: error: expected declaration specifiers before ‘ol_pid_t’
+  249 | ol_pid_t ol_process_pid(const ol_process_t* process) OL_PURE;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_process.h:256:1: error: expected declaration specifiers before ‘ol_process_state_t’
+  256 | ol_process_state_t ol_process_state(const ol_process_t* process) OL_PURE;
+      | ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:263:1: error: expected declaration specifiers before ‘ol_exit_reason_t’
+  263 | ol_exit_reason_t ol_process_exit_reason(const ol_process_t* process) OL_PURE;
+      | ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:270:32: error: type defaults to ‘int’ in declaration of ‘ol_process_t’ [-Wimplicit-int]
+  270 | bool ol_process_is_alive(const ol_process_t* process) OL_PURE;
+      |                                ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:270:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  270 | bool ol_process_is_alive(const ol_process_t* process) OL_PURE;
+      |                                            ^
+includes/code/streams/ol_actor_process.h:278:21: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  278 | int ol_process_link(ol_process_t* process1, ol_process_t* process2);
+      |                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:278:45: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  278 | int ol_process_link(ol_process_t* process1, ol_process_t* process2);
+      |                                             ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:286:29: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  286 | uint64_t ol_process_monitor(ol_process_t* monitor, ol_process_t* target);
+      |                             ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:286:52: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  286 | uint64_t ol_process_monitor(ol_process_t* monitor, ol_process_t* target);
+      |                                                    ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:294:23: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  294 | int ol_process_unlink(ol_process_t* process1, ol_process_t* process2);
+      |                       ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:294:47: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  294 | int ol_process_unlink(ol_process_t* process1, ol_process_t* process2);
+      |                                               ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:304:21: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  304 | int ol_process_send(ol_process_t* process, const void* data, size_t size,
+      |                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:305:20: error: expected declaration specifiers or ‘...’ before ‘ol_pid_t’
+  305 |                    ol_pid_t sender_pid);
+      |                    ^~~~~~~~
+includes/code/streams/ol_actor_process.h:314:31: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  314 | int ol_process_send_zero_copy(ol_process_t* process,
+      |                               ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:315:30: error: expected declaration specifiers or ‘...’ before ‘ol_zero_copy_buffer_t’
+  315 |                              ol_zero_copy_buffer_t* buffer,
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:316:30: error: expected declaration specifiers or ‘...’ before ‘ol_pid_t’
+  316 |                              ol_pid_t sender_pid);
+      |                              ^~~~~~~~
+includes/code/streams/ol_actor_process.h:327:21: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  327 | int ol_process_recv(ol_process_t* process, void** out_data, size_t* out_size,
+      |                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:328:20: error: expected declaration specifiers or ‘...’ before ‘ol_pid_t’
+  328 |                    ol_pid_t* out_sender, int timeout_ms);
+      |                    ^~~~~~~~
+includes/code/streams/ol_actor_process.h:336:34: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  336 | void ol_process_set_exit_handler(ol_process_t* process,
+      |                                  ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:337:33: error: unknown type name ‘ol_exit_handler_fn’
+  337 |                                 ol_exit_handler_fn handler,
+      |                                 ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:345:36: error: type defaults to ‘int’ in declaration of ‘ol_process_t’ [-Wimplicit-int]
+  345 | ol_arena_t* ol_process_arena(const ol_process_t* process) OL_PURE;
+      |                                    ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:345:48: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  345 | ol_arena_t* ol_process_arena(const ol_process_t* process) OL_PURE;
+      |                                                ^
+includes/code/streams/ol_actor_process.h:352:1: error: expected declaration specifiers before ‘ol_gt_t’
+  352 | ol_gt_t* ol_process_green_thread(const ol_process_t* process) OL_PURE;
+      | ^~~~~~~
+includes/code/streams/ol_actor_process.h:359:1: error: expected declaration specifiers before ‘ol_process_t’
+  359 | ol_process_t* ol_process_parent(const ol_process_t* process) OL_PURE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:366:36: error: type defaults to ‘int’ in declaration of ‘ol_process_t’ [-Wimplicit-int]
+  366 | size_t ol_process_link_count(const ol_process_t* process) OL_PURE;
+      |                                    ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:366:48: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  366 | size_t ol_process_link_count(const ol_process_t* process) OL_PURE;
+      |                                                ^
+includes/code/streams/ol_actor_process.h:373:39: error: type defaults to ‘int’ in declaration of ‘ol_process_t’ [-Wimplicit-int]
+  373 | size_t ol_process_monitor_count(const ol_process_t* process) OL_PURE;
+      |                                       ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:373:51: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  373 | size_t ol_process_monitor_count(const ol_process_t* process) OL_PURE;
+      |                                                   ^
+includes/code/streams/ol_actor_process.h:381:29: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  381 | int ol_process_set_affinity(ol_process_t* process, uint64_t cpu_mask);
+      |                             ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:389:29: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  389 | int ol_process_set_priority(ol_process_t* process, int priority);
+      |                             ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:396:28: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  396 | int ol_process_lock_memory(ol_process_t* process);
+      |                            ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:403:33: error: storage class specified for parameter ‘ol_process_group_t’
+  403 | typedef struct ol_process_group ol_process_group_t;
+      |                                 ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:410:1: error: expected declaration specifiers before ‘ol_process_group_t’
+  410 | ol_process_group_t* ol_process_group_create(const char* name) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:418:26: error: expected declaration specifiers or ‘...’ before ‘ol_process_group_t’
+  418 | int ol_process_group_add(ol_process_group_t* group, ol_process_t* process);
+      |                          ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:418:53: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  418 | int ol_process_group_add(ol_process_group_t* group, ol_process_t* process);
+      |                                                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:426:29: error: expected declaration specifiers or ‘...’ before ‘ol_process_group_t’
+  426 | int ol_process_group_remove(ol_process_group_t* group, ol_process_t* process);
+      |                             ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:426:56: error: expected declaration specifiers or ‘...’ before ‘ol_process_t’
+  426 | int ol_process_group_remove(ol_process_group_t* group, ol_process_t* process);
+      |                                                        ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:436:35: error: expected declaration specifiers or ‘...’ before ‘ol_process_group_t’
+  436 | size_t ol_process_group_broadcast(ol_process_group_t* group,
+      |                                   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:438:34: error: expected declaration specifiers or ‘...’ before ‘ol_pid_t’
+  438 |                                  ol_pid_t sender_pid);
+      |                                  ^~~~~~~~
+includes/code/streams/ol_actor_process.h:446:30: error: expected declaration specifiers or ‘...’ before ‘ol_process_group_t’
+  446 | size_t ol_process_group_stop(ol_process_group_t* group, int timeout_ms);
+      |                              ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:452:31: error: expected declaration specifiers or ‘...’ before ‘ol_process_group_t’
+  452 | void ol_process_group_destroy(ol_process_group_t* group);
+      |                               ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:458:36: error: expected declaration specifiers or ‘...’ before ‘ol_context_x86_64_t’
+  458 | static inline void ol_context_save(ol_context_x86_64_t* ctx) {
+      |                                    ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:474:39: error: expected declaration specifiers or ‘...’ before ‘ol_context_x86_64_t’
+  474 | static inline void ol_context_restore(ol_context_x86_64_t* ctx) {
+      |                                       ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:489:45: error: expected declaration specifiers or ‘...’ before ‘ol_context_x86_64_t’
+  489 | static inline void ol_context_switch_x86_64(ol_context_x86_64_t* from,
+      |                                             ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:490:44: error: expected declaration specifiers or ‘...’ before ‘ol_context_x86_64_t’
+  490 |                                            ol_context_x86_64_t* to) {
+      |                                            ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:599:3: error: storage class specified for parameter ‘ol_process_stats_t’
+  599 | } ol_process_stats_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:607:32: error: type defaults to ‘int’ in declaration of ‘ol_process_t’ [-Wimplicit-int]
+  607 | int ol_process_get_stats(const ol_process_t* process, ol_process_stats_t* stats);
+      |                                ^~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:607:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  607 | int ol_process_get_stats(const ol_process_t* process, ol_process_stats_t* stats);
+      |                                            ^
+includes/code/streams/ol_actor_process.h:614:31: error: storage class specified for parameter ‘ol_ipc_channel_t’
+  614 | typedef struct ol_ipc_channel ol_ipc_channel_t;
+      |                               ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:623:1: error: expected declaration specifiers before ‘ol_ipc_channel_t’
+  623 | ol_ipc_channel_t* ol_ipc_channel_create(ol_process_t* process1,
+      | ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:635:29: error: expected declaration specifiers or ‘...’ before ‘ol_ipc_channel_t’
+  635 | ssize_t ol_ipc_channel_send(ol_ipc_channel_t* channel,
+      |                             ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:647:29: error: expected declaration specifiers or ‘...’ before ‘ol_ipc_channel_t’
+  647 | ssize_t ol_ipc_channel_recv(ol_ipc_channel_t* channel,
+      |                             ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_process.h:655:29: error: expected declaration specifiers or ‘...’ before ‘ol_ipc_channel_t’
+  655 | void ol_ipc_channel_destroy(ol_ipc_channel_t* channel);
+      |                             ^~~~~~~~~~~~~~~~
+In file included from includes/code/streams/ol_actor.h:32:
+includes/code/streams/ol_actor_hashmap.h:53:20: error: storage class specified for parameter ‘ol_hashmap_hash_fn’
+   53 | typedef uint64_t (*ol_hashmap_hash_fn)(const void* key, size_t len, uint64_t seed);
+      |                    ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:58:16: error: storage class specified for parameter ‘ol_hashmap_cmp_fn’
+   58 | typedef bool (*ol_hashmap_cmp_fn)(const void* key1, size_t len1,
+      |                ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:64:16: error: storage class specified for parameter ‘ol_hashmap_key_dtor_fn’
+   64 | typedef void (*ol_hashmap_key_dtor_fn)(void* key, size_t len);
+      |                ^~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:69:16: error: storage class specified for parameter ‘ol_hashmap_val_dtor_fn’
+   69 | typedef void (*ol_hashmap_val_dtor_fn)(void* value);
+      |                ^~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:82:1: warning: ‘pure’ attribute ignored [-Wattributes]
+   82 | uint64_t ol_hash_fast(const void* data, size_t len, uint64_t seed) OL_PURE;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:90:1: warning: ‘pure’ attribute ignored [-Wattributes]
+   90 | uint64_t ol_hash_simd_16(const void* key, uint64_t seed) OL_PURE OL_HOT;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:90:1: warning: ‘hot’ attribute ignored [-Wattributes]
+includes/code/streams/ol_actor_hashmap.h:98:1: warning: ‘pure’ attribute ignored [-Wattributes]
+   98 | uint64_t ol_hash_simd_32(const void* key, uint64_t seed) OL_PURE OL_HOT;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:98:1: warning: ‘hot’ attribute ignored [-Wattributes]
+includes/code/streams/ol_actor_hashmap.h:106:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  106 | uint64_t ol_hash_simd_64(const void* key, uint64_t seed) OL_PURE OL_HOT;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:106:1: warning: ‘hot’ attribute ignored [-Wattributes]
+includes/code/streams/ol_actor_hashmap.h:117:3: error: storage class specified for parameter ‘ol_hashmap_entry_flags_t’
+  117 | } ol_hashmap_entry_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:140:10: error: size of array ‘padding’ is too large
+  140 |     char padding[OL_CACHE_LINE_SIZE - (sizeof(uint64_t) + sizeof(uint32_t) * 3 +
+      |          ^~~~~~~
+includes/code/streams/ol_actor_hashmap.h:143:3: error: storage class specified for parameter ‘ol_hashmap_entry_t’
+  143 | } ol_hashmap_entry_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:145:1: error: expected declaration specifiers before ‘static_assert’
+  145 | static_assert(sizeof(ol_hashmap_entry_t) == OL_CACHE_LINE_SIZE,
+      | ^~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:162:3: error: storage class specified for parameter ‘ol_hashmap_stats_t’
+  162 | } ol_hashmap_stats_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:171:5: error: expected specifier-qualifier-list before ‘ol_hashmap_hash_fn’
+  171 |     ol_hashmap_hash_fn hash_fn;         /**< Custom hash function */
+      |     ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:177:3: error: storage class specified for parameter ‘ol_hashmap_config_t’
+  177 | } ol_hashmap_config_t;
+      |   ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:188:3: error: storage class specified for parameter ‘ol_hashmap_flags_t’
+  188 | } ol_hashmap_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:193:27: error: storage class specified for parameter ‘ol_hashmap_t’
+  193 | typedef struct ol_hashmap ol_hashmap_t;
+      |                           ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:203:1: error: expected declaration specifiers before ‘ol_hashmap_t’
+  203 | ol_hashmap_t* ol_hashmap_create(size_t capacity, ol_arena_t* arena) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:210:1: error: expected declaration specifiers before ‘ol_hashmap_t’
+  210 | ol_hashmap_t* ol_hashmap_create_ex(const ol_hashmap_config_t* config) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:216:25: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  216 | void ol_hashmap_destroy(ol_hashmap_t* map);
+      |                         ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:227:22: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  227 | void* ol_hashmap_put(ol_hashmap_t* map, const void* key, size_t key_len,
+      |                      ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:237:32: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  237 | void* ol_hashmap_put_zero_copy(ol_hashmap_t* map,
+      |                                ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:238:31: error: expected declaration specifiers or ‘...’ before ‘ol_zero_copy_buffer_t’
+  238 |                               ol_zero_copy_buffer_t* key,
+      |                               ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:239:31: error: expected declaration specifiers or ‘...’ before ‘ol_zero_copy_buffer_t’
+  239 |                               ol_zero_copy_buffer_t* value);
+      |                               ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:248:28: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  248 | void* ol_hashmap_get(const ol_hashmap_t* map, const void* key, size_t key_len);
+      |                            ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:248:40: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  248 | void* ol_hashmap_get(const ol_hashmap_t* map, const void* key, size_t key_len);
+      |                                        ^
+includes/code/streams/ol_actor_hashmap.h:258:37: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  258 | void* ol_hashmap_get_prefetch(const ol_hashmap_t* map, const void* key,
+      |                                     ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:258:49: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  258 | void* ol_hashmap_get_prefetch(const ol_hashmap_t* map, const void* key,
+      |                                                 ^
+includes/code/streams/ol_actor_hashmap.h:268:25: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  268 | void* ol_hashmap_remove(ol_hashmap_t* map, const void* key, size_t key_len);
+      |                         ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:277:32: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  277 | bool ol_hashmap_contains(const ol_hashmap_t* map, const void* key, size_t key_len);
+      |                                ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:277:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  277 | bool ol_hashmap_contains(const ol_hashmap_t* map, const void* key, size_t key_len);
+      |                                            ^
+includes/code/streams/ol_actor_hashmap.h:284:30: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  284 | size_t ol_hashmap_size(const ol_hashmap_t* map) OL_PURE;
+      |                              ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:284:42: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  284 | size_t ol_hashmap_size(const ol_hashmap_t* map) OL_PURE;
+      |                                          ^
+includes/code/streams/ol_actor_hashmap.h:291:34: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  291 | size_t ol_hashmap_capacity(const ol_hashmap_t* map) OL_PURE;
+      |                                  ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:291:46: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  291 | size_t ol_hashmap_capacity(const ol_hashmap_t* map) OL_PURE;
+      |                                              ^
+includes/code/streams/ol_actor_hashmap.h:297:23: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  297 | void ol_hashmap_clear(ol_hashmap_t* map);
+      |                       ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:305:23: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  305 | int ol_hashmap_resize(ol_hashmap_t* map, size_t new_capacity);
+      |                       ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:313:32: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  313 | int ol_hashmap_get_stats(const ol_hashmap_t* map, ol_hashmap_stats_t* stats);
+      |                                ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:313:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  313 | int ol_hashmap_get_stats(const ol_hashmap_t* map, ol_hashmap_stats_t* stats);
+      |                                            ^
+includes/code/streams/ol_actor_hashmap.h:322:33: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  322 | size_t ol_hashmap_iterate(const ol_hashmap_t* map,
+      |                                 ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:322:45: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  322 | size_t ol_hashmap_iterate(const ol_hashmap_t* map,
+      |                                             ^
+includes/code/streams/ol_actor_hashmap.h:340:28: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  340 | size_t ol_hashmap_bulk_put(ol_hashmap_t* map,
+      |                            ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:354:34: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  354 | size_t ol_hashmap_bulk_get(const ol_hashmap_t* map,
+      |                                  ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:354:46: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  354 | size_t ol_hashmap_bulk_get(const ol_hashmap_t* map,
+      |                                              ^
+includes/code/streams/ol_actor_hashmap.h:367:31: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  367 | size_t ol_hashmap_bulk_remove(ol_hashmap_t* map,
+      |                               ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:378:41: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_entry_t’
+  378 | static inline bool ol_hashmap_cas_entry(ol_hashmap_entry_t** ptr,
+      |                                         ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:379:40: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_entry_t’
+  379 |                                        ol_hashmap_entry_t* old_val,
+      |                                        ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:380:40: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_entry_t’
+  380 |                                        ol_hashmap_entry_t* new_val) {
+      |                                        ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:388:33: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘*’ token
+  388 | static inline ol_hashmap_entry_t* ol_hashmap_load_entry(ol_hashmap_entry_t** ptr) {
+      |                                 ^
+includes/code/streams/ol_actor_hashmap.h:395:43: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_entry_t’
+  395 | static inline void ol_hashmap_store_entry(ol_hashmap_entry_t** ptr,
+      |                                           ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:396:42: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_entry_t’
+  396 |                                          ol_hashmap_entry_t* val) {
+      |                                          ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:461:5: error: expected specifier-qualifier-list before ‘ol_hashmap_entry_t’
+  461 |     ol_hashmap_entry_t* first;          /**< First entry in bucket */
+      |     ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:468:3: error: storage class specified for parameter ‘ol_hashmap_bucket_t’
+  468 | } ol_hashmap_bucket_t;
+      |   ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:470:1: error: expected declaration specifiers before ‘static_assert’
+  470 | static_assert(sizeof(ol_hashmap_bucket_t) == OL_CACHE_LINE_SIZE,
+      | ^~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:481:1: error: expected declaration specifiers before ‘ol_hashmap_t’
+  481 | ol_hashmap_t* ol_hashmap_create_shared(const char* name, size_t capacity) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:488:1: error: expected declaration specifiers before ‘ol_hashmap_t’
+  488 | ol_hashmap_t* ol_hashmap_attach_shared(const char* name) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:494:31: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_t’
+  494 | void ol_hashmap_detach_shared(ol_hashmap_t* map);
+      |                               ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:502:23: error: expected ‘:’, ‘,’, ‘;’, ‘}’ or ‘__attribute__’ before ‘*’ token
+  502 |     const ol_hashmap_t* map;           /**< Hashmap being iterated */
+      |                       ^
+includes/code/streams/ol_actor_hashmap.h:506:3: error: storage class specified for parameter ‘ol_hashmap_iter_t’
+  506 | } ol_hashmap_iter_t;
+      |   ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:513:33: error: type defaults to ‘int’ in declaration of ‘ol_hashmap_t’ [-Wimplicit-int]
+  513 | void ol_hashmap_iter_init(const ol_hashmap_t* map, ol_hashmap_iter_t* iter);
+      |                                 ^~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:513:45: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  513 | void ol_hashmap_iter_init(const ol_hashmap_t* map, ol_hashmap_iter_t* iter);
+      |                                             ^
+includes/code/streams/ol_actor_hashmap.h:524:27: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_iter_t’
+  524 | bool ol_hashmap_iter_next(ol_hashmap_iter_t* iter,
+      |                           ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_hashmap.h:532:28: error: expected declaration specifiers or ‘...’ before ‘ol_hashmap_iter_t’
+  532 | void ol_hashmap_iter_reset(ol_hashmap_iter_t* iter);
+      |                            ^~~~~~~~~~~~~~~~~
+In file included from includes/code/streams/ol_actor.h:33:
+includes/code/streams/ol_actor_serialization.h:46:3: error: storage class specified for parameter ‘ol_serialize_format_t’
+   46 | } ol_serialize_format_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:58:3: error: storage class specified for parameter ‘ol_serialize_flags_t’
+   58 | } ol_serialize_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:69:3: error: storage class specified for parameter ‘ol_compress_algorithm_t’
+   69 | } ol_compress_algorithm_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:79:3: error: storage class specified for parameter ‘ol_encrypt_algorithm_t’
+   79 | } ol_encrypt_algorithm_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:93:5: error: expected specifier-qualifier-list before ‘ol_pid_t’
+   93 |     ol_pid_t sender_pid;        /**< Sender process ID */
+      |     ^~~~~~~~
+includes/code/streams/ol_actor_serialization.h:102:3: error: storage class specified for parameter ‘ol_serialize_header_t’
+  102 | } ol_serialize_header_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:104:1: error: expected declaration specifiers before ‘static_assert’
+  104 | static_assert(sizeof(ol_serialize_header_t) == 128,
+      | ^~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:111:5: error: expected specifier-qualifier-list before ‘ol_serialize_header_t’
+  111 |     ol_serialize_header_t header;  /**< Message header */
+      |     ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:116:3: error: storage class specified for parameter ‘ol_serialized_msg_t’
+  116 | } ol_serialized_msg_t;
+      |   ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:126:17: error: storage class specified for parameter ‘ol_serialize_callback’
+  126 | typedef void* (*ol_serialize_callback)(void* data, size_t* size);
+      |                 ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:134:17: error: storage class specified for parameter ‘ol_deserialize_callback’
+  134 | typedef void* (*ol_deserialize_callback)(const void* data, size_t size);
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:140:5: error: expected specifier-qualifier-list before ‘ol_serialize_callback’
+  140 |     ol_serialize_callback serialize;    /**< Serialization function */
+      |     ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:143:3: error: storage class specified for parameter ‘ol_serialize_callbacks_t’
+  143 | } ol_serialize_callbacks_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:157:1: error: expected declaration specifiers before ‘ol_serialized_msg_t’
+  157 | ol_serialized_msg_t* ol_serialize(const void* data, size_t size,
+      | ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:174:1: error: expected declaration specifiers before ‘ol_serialized_msg_t’
+  174 | ol_serialized_msg_t* ol_serialize_zero_copy(ol_arena_t* arena,
+      | ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:188:26: error: type defaults to ‘int’ in declaration of ‘ol_serialized_msg_t’ [-Wimplicit-int]
+  188 | int ol_deserialize(const ol_serialized_msg_t* msg,
+      |                          ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:188:45: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  188 | int ol_deserialize(const ol_serialized_msg_t* msg,
+      |                                             ^
+includes/code/streams/ol_actor_serialization.h:197:36: error: type defaults to ‘int’ in declaration of ‘ol_serialized_msg_t’ [-Wimplicit-int]
+  197 | int ol_deserialize_zero_copy(const ol_serialized_msg_t* msg,
+      |                                    ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:197:55: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  197 | int ol_deserialize_zero_copy(const ol_serialized_msg_t* msg,
+      |                                                       ^
+includes/code/streams/ol_actor_serialization.h:204:24: error: expected declaration specifiers or ‘...’ before ‘ol_serialized_msg_t’
+  204 | void ol_serialize_free(ol_serialized_msg_t* msg);
+      |                        ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:211:1: error: expected declaration specifiers before ‘ol_serialized_msg_t’
+  211 | ol_serialized_msg_t* ol_serialize_clone(const ol_serialized_msg_t* msg) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:218:1: error: expected declaration specifiers before ‘ol_serialize_format_t’
+  218 | ol_serialize_format_t ol_serialize_get_format(const ol_serialized_msg_t* msg) OL_PURE;
+      | ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:225:36: error: type defaults to ‘int’ in declaration of ‘ol_serialized_msg_t’ [-Wimplicit-int]
+  225 | size_t ol_serialize_get_size(const ol_serialized_msg_t* msg) OL_PURE;
+      |                                    ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:225:55: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  225 | size_t ol_serialize_get_size(const ol_serialized_msg_t* msg) OL_PURE;
+      |                                                       ^
+includes/code/streams/ol_actor_serialization.h:232:34: error: type defaults to ‘int’ in declaration of ‘ol_serialized_msg_t’ [-Wimplicit-int]
+  232 | bool ol_serialize_validate(const ol_serialized_msg_t* msg) OL_PURE;
+      |                                  ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:232:53: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  232 | bool ol_serialize_validate(const ol_serialized_msg_t* msg) OL_PURE;
+      |                                                     ^
+includes/code/streams/ol_actor_serialization.h:238:39: error: type defaults to ‘int’ in declaration of ‘ol_serialize_callbacks_t’ [-Wimplicit-int]
+  238 | void ol_serialize_set_callbacks(const ol_serialize_callbacks_t* callbacks);
+      |                                       ^~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:238:63: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  238 | void ol_serialize_set_callbacks(const ol_serialize_callbacks_t* callbacks);
+      |                                                               ^
+includes/code/streams/ol_actor_serialization.h:251:18: error: expected declaration specifiers or ‘...’ before ‘ol_compress_algorithm_t’
+  251 |                  ol_compress_algorithm_t algorithm,
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:264:42: error: expected declaration specifiers or ‘...’ before ‘ol_compress_algorithm_t’
+  264 |                    size_t original_size, ol_compress_algorithm_t algorithm,
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:276:28: warning: ‘hot’ attribute ignored [-Wattributes]
+  276 |                            void* dst, size_t dst_capacity) OL_HOT;
+      |                            ^~~~
+includes/code/streams/ol_actor_serialization.h:287:30: warning: ‘hot’ attribute ignored [-Wattributes]
+  287 |                              void* dst, size_t dst_capacity) OL_HOT;
+      |                              ^~~~
+includes/code/streams/ol_actor_serialization.h:305:17: error: expected declaration specifiers or ‘...’ before ‘ol_encrypt_algorithm_t’
+  305 |                 ol_encrypt_algorithm_t algorithm,
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:323:17: error: expected declaration specifiers or ‘...’ before ‘ol_encrypt_algorithm_t’
+  323 |                 ol_encrypt_algorithm_t algorithm,
+      |                 ^~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:344:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  344 | uint32_t ol_crc32c(const void* data, size_t size, uint32_t seed) OL_PURE;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_serialization.h:353:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  353 | uint64_t ol_crc64(const void* data, size_t size, uint64_t seed) OL_PURE;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_serialization.h:361:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  361 | void ol_sha256(const void* data, size_t size, uint8_t out_hash[32]) OL_PURE;
+      | ^~~~
+includes/code/streams/ol_actor_serialization.h:370:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  370 | uint64_t ol_hash_fast64(const void* data, size_t size, uint64_t seed) OL_PURE;
+      | ^~~~~~~~
+includes/code/streams/ol_actor_serialization.h:382:21: warning: ‘hot’ attribute ignored [-Wattributes]
+  382 |                     size_t n) OL_HOT;
+      |                     ^~~~~~
+includes/code/streams/ol_actor_serialization.h:391:1: warning: ‘pure’ attribute ignored [-Wattributes]
+  391 | int ol_memcmp_simd(const void* s1, const void* s2, size_t n) OL_PURE OL_HOT;
+      | ^~~
+includes/code/streams/ol_actor_serialization.h:391:1: warning: ‘hot’ attribute ignored [-Wattributes]
+includes/code/streams/ol_actor_serialization.h:400:1: warning: ‘hot’ attribute ignored [-Wattributes]
+  400 | void* ol_memset_simd(void* dest, int c, size_t n) OL_HOT;
+      | ^~~~
+includes/code/streams/ol_actor_serialization.h:407:35: error: storage class specified for parameter ‘ol_serialize_queue_t’
+  407 | typedef struct ol_serialize_queue ol_serialize_queue_t;
+      |                                   ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:415:1: error: expected declaration specifiers before ‘ol_serialize_queue_t’
+  415 | ol_serialize_queue_t* ol_serialize_queue_create(size_t capacity,
+      | ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:425:32: error: expected declaration specifiers or ‘...’ before ‘ol_serialize_queue_t’
+  425 | int ol_serialize_queue_enqueue(ol_serialize_queue_t* queue,
+      |                                ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:426:31: error: expected declaration specifiers or ‘...’ before ‘ol_serialized_msg_t’
+  426 |                               ol_serialized_msg_t* msg,
+      |                               ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:435:1: error: expected declaration specifiers before ‘ol_serialized_msg_t’
+  435 | ol_serialized_msg_t* ol_serialize_queue_dequeue(ol_serialize_queue_t* queue,
+      | ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:446:41: error: expected declaration specifiers or ‘...’ before ‘ol_serialize_queue_t’
+  446 | size_t ol_serialize_queue_enqueue_batch(ol_serialize_queue_t* queue,
+      |                                         ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:447:40: error: expected declaration specifiers or ‘...’ before ‘ol_serialized_msg_t’
+  447 |                                        ol_serialized_msg_t** msgs,
+      |                                        ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:458:41: error: expected declaration specifiers or ‘...’ before ‘ol_serialize_queue_t’
+  458 | size_t ol_serialize_queue_dequeue_batch(ol_serialize_queue_t* queue,
+      |                                         ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:459:40: error: expected declaration specifiers or ‘...’ before ‘ol_serialized_msg_t’
+  459 |                                        ol_serialized_msg_t** out_msgs,
+      |                                        ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:466:33: error: expected declaration specifiers or ‘...’ before ‘ol_serialize_queue_t’
+  466 | void ol_serialize_queue_destroy(ol_serialize_queue_t* queue);
+      |                                 ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:473:38: error: storage class specified for parameter ‘ol_msgpack_serializer_t’
+  473 | typedef struct ol_msgpack_serializer ol_msgpack_serializer_t;
+      |                                      ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:480:1: error: expected declaration specifiers before ‘ol_msgpack_serializer_t’
+  480 | ol_msgpack_serializer_t* ol_msgpack_serializer_create(ol_arena_t* arena) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:490:28: error: expected declaration specifiers or ‘...’ before ‘ol_msgpack_serializer_t’
+  490 | void* ol_msgpack_serialize(ol_msgpack_serializer_t* serializer,
+      |                            ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:555:3: error: storage class specified for parameter ‘ol_serialize_stats_t’
+  555 | } ol_serialize_stats_t;
+      |   ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_serialization.h:561:29: error: expected declaration specifiers or ‘...’ before ‘ol_serialize_stats_t’
+  561 | void ol_serialize_get_stats(ol_serialize_stats_t* stats);
+      |                             ^~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:71:15: error: storage class specified for parameter ‘ol_actor_behavior’
+   71 | typedef int (*ol_actor_behavior)(void* actor, void* msg);
+      |               ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:77:16: error: storage class specified for parameter ‘ol_actor_msg_destructor’
+   77 | typedef void (*ol_actor_msg_destructor)(void* msg);
+      |                ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:83:16: error: storage class specified for parameter ‘ol_actor_value_destructor’
+   83 | typedef void (*ol_actor_value_destructor)(void* value);
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:90:27: error: storage class specified for parameter ‘ol_promise_t’
+   90 | typedef struct ol_promise ol_promise_t;
+      |                           ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:95:26: error: storage class specified for parameter ‘ol_future_t’
+   95 | typedef struct ol_future ol_future_t;
+      |                          ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:102:5: error: expected specifier-qualifier-list before ‘ol_promise_t’
+  102 |     ol_promise_t* reply;            /**< Promise for response */
+      |     ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:106:3: error: storage class specified for parameter ‘ol_ask_envelope_t’
+  106 | } ol_ask_envelope_t;
+      |   ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:124:3: error: storage class specified for parameter ‘ol_actor_stats_t’
+  124 | } ol_actor_stats_t;
+      |   ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:140:3: error: storage class specified for parameter ‘actor_state_flags_t’
+  140 | } actor_state_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:163:5: error: unknown type name ‘ol_mutex_t’
+  163 |     ol_mutex_t mutex;
+      |     ^~~~~~~~~~
+includes/code/streams/ol_actor.h:164:5: error: unknown type name ‘ol_cond_t’
+  164 |     ol_cond_t not_empty;
+      |     ^~~~~~~~~
+includes/code/streams/ol_actor.h:165:5: error: unknown type name ‘ol_cond_t’
+  165 |     ol_cond_t not_full;
+      |     ^~~~~~~~~
+includes/code/streams/ol_actor.h:172:3: error: storage class specified for parameter ‘ol_actor_mailbox_t’
+  172 | } ol_actor_mailbox_t;
+      |   ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:179:5: error: expected specifier-qualifier-list before ‘ol_process_t’
+  179 |     ol_process_t* process;           /**< Isolated process */
+      |     ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:214:3: error: storage class specified for parameter ‘ol_actor_t’
+  214 | } ol_actor_t;
+      |   ^~~~~~~~~~
+includes/code/streams/ol_actor.h:216:1: error: expected declaration specifiers before ‘static_assert’
+  216 | static_assert(sizeof(ol_actor_t) == ACTOR_STRUCT_SIZE,
+      | ^~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:229:1: error: expected declaration specifiers before ‘ol_actor_t’
+  229 | ol_actor_t* ol_actor_create(size_t capacity,
+      | ^~~~~~~~~~
+includes/code/streams/ol_actor.h:239:20: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  239 | int ol_actor_start(ol_actor_t* actor);
+      |                    ^~~~~~~~~~
+includes/code/streams/ol_actor.h:246:19: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  246 | int ol_actor_stop(ol_actor_t* actor);
+      |                   ^~~~~~~~~~
+includes/code/streams/ol_actor.h:253:20: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  253 | int ol_actor_close(ol_actor_t* actor);
+      |                    ^~~~~~~~~~
+includes/code/streams/ol_actor.h:259:23: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  259 | void ol_actor_destroy(ol_actor_t* actor);
+      |                       ^~~~~~~~~~
+includes/code/streams/ol_actor.h:267:19: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  267 | int ol_actor_send(ol_actor_t* actor, void* msg);
+      |                   ^~~~~~~~~~
+includes/code/streams/ol_actor.h:275:29: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  275 | int ol_actor_send_zero_copy(ol_actor_t* actor, ol_zero_copy_buffer_t* buffer);
+      |                             ^~~~~~~~~~
+includes/code/streams/ol_actor.h:275:48: error: expected declaration specifiers or ‘...’ before ‘ol_zero_copy_buffer_t’
+  275 | int ol_actor_send_zero_copy(ol_actor_t* actor, ol_zero_copy_buffer_t* buffer);
+      |                                                ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:284:27: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  284 | int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms);
+      |                           ^~~~~~~~~~
+includes/code/streams/ol_actor.h:292:23: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  292 | int ol_actor_try_send(ol_actor_t* actor, void* msg);
+      |                       ^~~~~~~~~~
+includes/code/streams/ol_actor.h:301:1: error: expected declaration specifiers before ‘ol_future_t’
+  301 | ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg, uint32_t timeout_ms);
+      | ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:309:21: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  309 | int ol_actor_become(ol_actor_t* actor, ol_actor_behavior behavior);
+      |                     ^~~~~~~~~~
+includes/code/streams/ol_actor.h:309:40: error: expected declaration specifiers or ‘...’ before ‘ol_actor_behavior’
+  309 | int ol_actor_become(ol_actor_t* actor, ol_actor_behavior behavior);
+      |                                        ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:316:34: error: type defaults to ‘int’ in declaration of ‘ol_actor_t’ [-Wimplicit-int]
+  316 | void* ol_actor_get_context(const ol_actor_t* actor) OL_PURE;
+      |                                  ^~~~~~~~~~
+includes/code/streams/ol_actor.h:316:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  316 | void* ol_actor_get_context(const ol_actor_t* actor) OL_PURE;
+      |                                            ^
+includes/code/streams/ol_actor.h:323:27: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  323 | void ol_actor_set_context(ol_actor_t* actor, void* context);
+      |                           ^~~~~~~~~~
+includes/code/streams/ol_actor.h:331:24: error: expected declaration specifiers or ‘...’ before ‘ol_ask_envelope_t’
+  331 | void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value,
+      |                        ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:332:23: error: expected declaration specifiers or ‘...’ before ‘ol_actor_value_destructor’
+  332 |                       ol_actor_value_destructor dtor);
+      |                       ^~~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:339:27: error: expected declaration specifiers or ‘...’ before ‘ol_ask_envelope_t’
+  339 | void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code);
+      |                           ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:345:28: error: expected declaration specifiers or ‘...’ before ‘ol_ask_envelope_t’
+  345 | void ol_actor_reply_cancel(ol_ask_envelope_t* envelope);
+      |                            ^~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:352:32: error: type defaults to ‘int’ in declaration of ‘ol_actor_t’ [-Wimplicit-int]
+  352 | bool ol_actor_is_running(const ol_actor_t* actor) OL_PURE;
+      |                                ^~~~~~~~~~
+includes/code/streams/ol_actor.h:352:42: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  352 | bool ol_actor_is_running(const ol_actor_t* actor) OL_PURE;
+      |                                          ^
+includes/code/streams/ol_actor.h:359:38: error: type defaults to ‘int’ in declaration of ‘ol_actor_t’ [-Wimplicit-int]
+  359 | size_t ol_actor_mailbox_length(const ol_actor_t* actor) OL_PURE;
+      |                                      ^~~~~~~~~~
+includes/code/streams/ol_actor.h:359:48: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  359 | size_t ol_actor_mailbox_length(const ol_actor_t* actor) OL_PURE;
+      |                                                ^
+includes/code/streams/ol_actor.h:366:40: error: type defaults to ‘int’ in declaration of ‘ol_actor_t’ [-Wimplicit-int]
+  366 | size_t ol_actor_mailbox_capacity(const ol_actor_t* actor) OL_PURE;
+      |                                        ^~~~~~~~~~
+includes/code/streams/ol_actor.h:366:50: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  366 | size_t ol_actor_mailbox_capacity(const ol_actor_t* actor) OL_PURE;
+      |                                                  ^
+includes/code/streams/ol_actor.h:372:1: error: expected declaration specifiers before ‘ol_actor_t’
+  372 | ol_actor_t* ol_actor_self(void) OL_PURE;
+      | ^~~~~~~~~~
+includes/code/streams/ol_actor.h:380:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  380 | size_t ol_actor_process_batch(ol_actor_t* actor, size_t max_batch_size);
+      |                               ^~~~~~~~~~
+includes/code/streams/ol_actor.h:388:30: error: type defaults to ‘int’ in declaration of ‘ol_actor_t’ [-Wimplicit-int]
+  388 | int ol_actor_get_stats(const ol_actor_t* actor, ol_actor_stats_t* stats);
+      |                              ^~~~~~~~~~
+includes/code/streams/ol_actor.h:388:40: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  388 | int ol_actor_get_stats(const ol_actor_t* actor, ol_actor_stats_t* stats);
+      |                                        ^
+includes/code/streams/ol_actor.h:401:3: error: storage class specified for parameter ‘ol_actor_system_config_t’
+  401 | } ol_actor_system_config_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:412:3: error: storage class specified for parameter ‘ol_actor_system_flags_t’
+  412 | } ol_actor_system_flags_t;
+      |   ^~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:419:32: error: type defaults to ‘int’ in declaration of ‘ol_actor_system_config_t’ [-Wimplicit-int]
+  419 | int ol_actor_system_init(const ol_actor_system_config_t* config);
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:419:56: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  419 | int ol_actor_system_init(const ol_actor_system_config_t* config);
+      |                                                        ^
+includes/code/streams/ol_actor.h:433:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_stats_t’
+  433 | int ol_actor_system_get_stats(ol_actor_stats_t* stats);
+      |                               ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:440:31: error: storage class specified for parameter ‘ol_actor_group_t’
+  440 | typedef struct ol_actor_group ol_actor_group_t;
+      |                               ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:447:1: error: expected declaration specifiers before ‘ol_actor_group_t’
+  447 | ol_actor_group_t* ol_actor_group_create(const char* name) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:455:24: error: expected declaration specifiers or ‘...’ before ‘ol_actor_group_t’
+  455 | int ol_actor_group_add(ol_actor_group_t* group, ol_actor_t* actor);
+      |                        ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:455:49: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  455 | int ol_actor_group_add(ol_actor_group_t* group, ol_actor_t* actor);
+      |                                                 ^~~~~~~~~~
+includes/code/streams/ol_actor.h:463:27: error: expected declaration specifiers or ‘...’ before ‘ol_actor_group_t’
+  463 | int ol_actor_group_remove(ol_actor_group_t* group, ol_actor_t* actor);
+      |                           ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:463:52: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  463 | int ol_actor_group_remove(ol_actor_group_t* group, ol_actor_t* actor);
+      |                                                    ^~~~~~~~~~
+includes/code/streams/ol_actor.h:471:33: error: expected declaration specifiers or ‘...’ before ‘ol_actor_group_t’
+  471 | size_t ol_actor_group_broadcast(ol_actor_group_t* group, void* msg);
+      |                                 ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:477:29: error: expected declaration specifiers or ‘...’ before ‘ol_actor_group_t’
+  477 | void ol_actor_group_destroy(ol_actor_group_t* group);
+      |                             ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:486:1: error: expected declaration specifiers before ‘ol_promise_t’
+  486 | ol_promise_t* ol_promise_create(ol_actor_value_destructor dtor) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:493:1: error: expected declaration specifiers before ‘ol_future_t’
+  493 | ol_future_t* ol_promise_get_future(ol_promise_t* promise) OL_MALLOC_LIKE;
+      | ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:501:25: error: expected declaration specifiers or ‘...’ before ‘ol_promise_t’
+  501 | void ol_promise_fulfill(ol_promise_t* promise, void* value,
+      |                         ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:502:24: error: expected declaration specifiers or ‘...’ before ‘ol_actor_value_destructor’
+  502 |                        ol_actor_value_destructor dtor);
+      |                        ^~~~~~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:509:24: error: expected declaration specifiers or ‘...’ before ‘ol_promise_t’
+  509 | void ol_promise_reject(ol_promise_t* promise, int error_code);
+      |                        ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:515:24: error: expected declaration specifiers or ‘...’ before ‘ol_promise_t’
+  515 | void ol_promise_cancel(ol_promise_t* promise);
+      |                        ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:521:25: error: expected declaration specifiers or ‘...’ before ‘ol_promise_t’
+  521 | void ol_promise_destroy(ol_promise_t* promise);
+      |                         ^~~~~~~~~~~~
+includes/code/streams/ol_actor.h:529:20: error: expected declaration specifiers or ‘...’ before ‘ol_future_t’
+  529 | int ol_future_wait(ol_future_t* future, int timeout_ms);
+      |                    ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:536:21: error: expected declaration specifiers or ‘...’ before ‘ol_future_t’
+  536 | void* ol_future_get(ol_future_t* future);
+      |                     ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:543:31: error: type defaults to ‘int’ in declaration of ‘ol_future_t’ [-Wimplicit-int]
+  543 | bool ol_future_is_ready(const ol_future_t* future) OL_PURE;
+      |                               ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:543:42: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  543 | bool ol_future_is_ready(const ol_future_t* future) OL_PURE;
+      |                                          ^
+includes/code/streams/ol_actor.h:549:24: error: expected declaration specifiers or ‘...’ before ‘ol_future_t’
+  549 | void ol_future_destroy(ol_future_t* future);
+      |                        ^~~~~~~~~~~
+includes/code/streams/ol_actor.h:558:49: error: expected declaration specifiers or ‘...’ before ‘ol_actor_mailbox_t’
+  558 | static inline bool ol_actor_mailbox_enqueue_x86(ol_actor_mailbox_t* mb,
+      |                                                 ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:611:33: error: storage class specified for parameter ‘ol_actor_channel_t’
+  611 | typedef struct ol_actor_channel ol_actor_channel_t;
+      |                                 ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:620:1: error: expected declaration specifiers before ‘ol_actor_channel_t’
+  620 | ol_actor_channel_t* ol_actor_channel_create(ol_actor_t* actor1,
+      | ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:632:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_channel_t’
+  632 | ssize_t ol_actor_channel_send(ol_actor_channel_t* channel,
+      |                               ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:644:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_channel_t’
+  644 | ssize_t ol_actor_channel_recv(ol_actor_channel_t* channel,
+      |                               ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:652:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_channel_t’
+  652 | void ol_actor_channel_destroy(ol_actor_channel_t* channel);
+      |                               ^~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:659:36: error: storage class specified for parameter ‘ol_actor_supervisor_t’
+  659 | typedef struct ol_actor_supervisor ol_actor_supervisor_t;
+      |                                    ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:667:1: error: expected declaration specifiers before ‘ol_actor_supervisor_t’
+  667 | ol_actor_supervisor_t* ol_actor_supervisor_create(int max_restarts,
+      | ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:677:29: error: expected declaration specifiers or ‘...’ before ‘ol_actor_supervisor_t’
+  677 | int ol_actor_supervisor_add(ol_actor_supervisor_t* supervisor,
+      |                             ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:678:28: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  678 |                            ol_actor_t* actor, int restart_policy);
+      |                            ^~~~~~~~~~
+includes/code/streams/ol_actor.h:686:32: error: expected declaration specifiers or ‘...’ before ‘ol_actor_supervisor_t’
+  686 | int ol_actor_supervisor_remove(ol_actor_supervisor_t* supervisor,
+      |                                ^~~~~~~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor.h:687:31: error: expected declaration specifiers or ‘...’ before ‘ol_actor_t’
+  687 |                               ol_actor_t* actor);
+      |                               ^~~~~~~~~~
+includes/code/streams/ol_actor.h:693:34: error: expected declaration specifiers or ‘...’ before ‘ol_actor_supervisor_t’
+  693 | void ol_actor_supervisor_destroy(ol_actor_supervisor_t* supervisor);
+      |                                  ^~~~~~~~~~~~~~~~~~~~~
+In file included from src/code/streams/ol_actor.c:26:
+includes/code/streams/ol_actor_arena.h:40:25: error: storage class specified for parameter ‘ol_arena_t’
+   40 | typedef struct ol_arena ol_arena_t;
+      |                         ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:51:3: error: storage class specified for parameter ‘ol_arena_stats_t’
+   51 | } ol_arena_stats_t;
+      |   ^~~~~~~~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:67:1: error: expected declaration specifiers before ‘ol_arena_t’
+   67 | ol_arena_t* ol_arena_create(size_t size, bool is_shared);
+      | ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:83:23: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+   83 | void ol_arena_destroy(ol_arena_t* arena);
+      |                       ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:100:22: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+  100 | void* ol_arena_alloc(ol_arena_t* arena, size_t size);
+      |                      ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:116:30: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+  116 | void* ol_arena_alloc_aligned(ol_arena_t* arena, size_t alignment, size_t size);
+      |                              ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:133:20: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+  133 | void ol_arena_free(ol_arena_t* arena, void* ptr);
+      |                    ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:147:21: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+  147 | void ol_arena_reset(ol_arena_t* arena);
+      |                     ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:156:30: error: type defaults to ‘int’ in declaration of ‘ol_arena_t’ [-Wimplicit-int]
+  156 | int ol_arena_get_stats(const ol_arena_t* arena, ol_arena_stats_t* stats);
+      |                              ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:156:40: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  156 | int ol_arena_get_stats(const ol_arena_t* arena, ol_arena_stats_t* stats);
+      |                                        ^
+includes/code/streams/ol_actor_arena.h:167:30: error: type defaults to ‘int’ in declaration of ‘ol_arena_t’ [-Wimplicit-int]
+  167 | bool ol_arena_contains(const ol_arena_t* arena, const void* ptr);
+      |                              ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:167:40: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  167 | bool ol_arena_contains(const ol_arena_t* arena, const void* ptr);
+      |                                        ^
+includes/code/streams/ol_actor_arena.h:175:34: error: type defaults to ‘int’ in declaration of ‘ol_arena_t’ [-Wimplicit-int]
+  175 | size_t ol_arena_total_size(const ol_arena_t* arena);
+      |                                  ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:175:44: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  175 | size_t ol_arena_total_size(const ol_arena_t* arena);
+      |                                            ^
+includes/code/streams/ol_actor_arena.h:183:33: error: type defaults to ‘int’ in declaration of ‘ol_arena_t’ [-Wimplicit-int]
+  183 | size_t ol_arena_used_size(const ol_arena_t* arena);
+      |                                 ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:183:43: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  183 | size_t ol_arena_used_size(const ol_arena_t* arena);
+      |                                           ^
+includes/code/streams/ol_actor_arena.h:198:21: error: expected declaration specifiers or ‘...’ before ‘ol_arena_t’
+  198 | int ol_arena_expand(ol_arena_t* arena, size_t additional_size);
+      |                     ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:214:1: error: expected declaration specifiers before ‘ol_arena_t’
+  214 | ol_arena_t* ol_arena_create_sub(ol_arena_t* parent, size_t size);
+      | ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:225:31: error: type defaults to ‘int’ in declaration of ‘ol_arena_t’ [-Wimplicit-int]
+  225 | bool ol_arena_is_shared(const ol_arena_t* arena);
+      |                               ^~~~~~~~~~
+includes/code/streams/ol_actor_arena.h:225:41: error: expected ‘;’, ‘,’ or ‘)’ before ‘*’ token
+  225 | bool ol_arena_is_shared(const ol_arena_t* arena);
+      |                                         ^
+src/code/streams/ol_actor.c:27:10: fatal error: ol_actor_serialize.h: No such file or directory
+   27 | #include "ol_actor_serialize.h"
+      |          ^~~~~~~~~~~~~~~~~~~~~~
+compilation terminated.
+make: *** [Makefile:85: build/linux/x86_64/code/streams/ol_actor.o] Error 1
