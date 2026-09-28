@@ -66,3 +66,57 @@ htmlcov/
 *.tar.xz
 *.tar.zst
 ```
+# Backups created by fix scripts
+*.orig
+*.orig2
+*.save
+
+# Local build configs
+build_wave1_config.py
+
+# Wave 1 local tools and backups
+*.orig
+*.orig2
+*.orig3
+*.save
+*.bak
+*~
+__pycache__/
+*.py[cod]
+
+# Personal scripts (not part of the library)
+apply_patches.py
+add_tcp_udp_patches.py
+fix_*.py
+verify.py
+verify.py.orig
+verify.sh
+build_wave1_config.py
+
+# Personal notes
+BUGS.txt
+FOUND_BUG.txt
+TEMP.txt
+dump.txt
+log.txt
+errors.txt
+bash.sh
+
+# Accidental shell outputs
+Building
+compiler:
+workdir:
+OLSRT
+
+# Local build outputs
+build/
+bin/
+html/
+docu/
+workspace.tar
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store

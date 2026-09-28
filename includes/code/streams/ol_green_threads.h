@@ -62,7 +62,7 @@ extern "C" {
         #define OL_LIKELY(x)   __builtin_expect(!!(x), 1)
         #define OL_UNLIKELY(x) __builtin_expect(!!(x), 0)
         #define OL_NOINLINE __attribute__((noinline))
-        #define OL_ALWAYS_INLINE inline
+        #define OL_ALWAYS_INLINE __attribute__((always_inline)) inline
         #define OL_ALIGNED(x) __attribute__((aligned(x)))
         #define OL_PACKED __attribute__((packed))
         #define OL_COLD __attribute__((cold))
@@ -321,9 +321,7 @@ int ol_gt_get_numa_topology(ol_numa_node_t* nodes, int max_nodes);
 typedef struct ol_gt_statistics {
     /* Thread-specific stats */
     uint64_t spawn_count;           /**< Number of times spawned */
-    uint64_t total_spawned;         /**< Total threads spawned (global) */
     uint64_t destroy_count;         /**< Number of times destroyed */
-    uint64_t total_destroyed;       /**< Total threads destroyed (global) */
     uint64_t context_switches;      /**< Context switches */
     uint64_t voluntary_yields;      /**< Voluntary yields */
     uint64_t preemptive_yields;     /**< Preemptive yields */
@@ -470,9 +468,6 @@ struct ol_gt_scheduler {
     uint64_t preemption_slice_ns;
     atomic_uint_fast64_t last_preemption;
     
-    /* Linked list for work stealing */
-    struct ol_gt_scheduler* next;
-    
     /* Configuration */
     bool work_stealing_enabled;
     bool lazy_allocation_enabled;
@@ -506,6 +501,16 @@ struct ol_gt_scheduler {
     #define OL_EXPECT_FALSE(x) (x)
 #endif
 
+/* Cache line size detection - only if not already defined in ol_common.h */
+#ifndef OL_CACHE_LINE_SIZE
+    #if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
+        #define OL_CACHE_LINE_SIZE 64
+    #elif defined(__arm__)
+        #define OL_CACHE_LINE_SIZE 32
+    #else
+        #define OL_CACHE_LINE_SIZE 64
+    #endif
+#endif
 
 /* Force inlining of critical functions - only define if not already defined */
 #ifndef OL_CRITICAL_SECTION_BEGIN
