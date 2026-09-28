@@ -1,11 +1,40 @@
-### NOTE For OLSRT v1.3.0 Atom
-In this release, we have many new interesting features:
+### NOTE For OLSRT v1.3.1 (Wave 1 Stabilization)
 
-> New sub-modules for Actors and Supervisors.
-> Full isolation, serializing and so on features are included in Actors and Supervisors.
-> Performance optimized in Actors and Supervisors.
-> Many new optimizations added for Coroutines.
-> Oroutines (OLSRT Coroutines) added.
-> Cross-platform module (`platform`) added.
-> Many new interesting features added and note in `CHANGELOG.md`.
-> Some bugs fixed.
+Stabilization release on top of v1.3.0 (Atom).
+
+### Fixed
+
+- Actor (`ol_actor.c`):
+  - Removed `pending_asks` hashmap leak in `ol_actor_ask`
+  - Replaced busy-wait in `ol_actor_send_timeout` with cond_wait_until
+  - Use `__atomic_load_n` / `__atomic_store_n` in mailbox lock-free ring buffer
+  - Fixed heap-use-after-free in `ol_actor_ask` error path
+  - `ol_actor_try_send` now falls back to the overflow list
+
+- Actor arena (`ol_actor_arena.c`):
+  - `ol_arena_free` validates pointer ownership before touching the header
+
+- Supervisor (`ol_supervisor.c`):
+  - Bounded shutdown timeout; stuck children no longer block teardown
+  - Added `shutdown_timeout_ms`, `arena_size`, and `ol_supervisor_stats_t`
+
+- Green threads (`ol_green_threads.{c,h}`):
+  - Header and source structs are now consistent
+  - Fixed negative-size padding bug on 64-bit
+  - NUMA support is optional via `__has_include(<numa.h>)`
+
+- Build:
+  - Restored missing `src/code/streams/ol_actor_hashmap.c`
+
+### Verified
+
+- ASan + UBSan: clean
+- TSan: clean
+- Regression tests: 22 assertions, all passing
+- Demo 01 (`demos/01_hello_actor.c`): working
+
+### Known issues (Wave 2)
+
+- The actor main loop is not yet driven by the green-thread scheduler;
+  mailbox must be pumped manually via `ol_actor_process_batch()`.
+- LSan is disabled in `verify.py` because of the above.
