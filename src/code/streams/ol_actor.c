@@ -277,25 +277,30 @@ static void actor_mailbox_destroy(actor_mailbox_t* mb) {
  *       Returns false immediately if the ring buffer is full.
  */
 static bool actor_mailbox_try_send_fast(actor_mailbox_t* mb, void* msg) {
-    size_t current_tail = mb->tail;
-    size_t next_tail = (current_tail + 1) % mb->capacity;
+    /* All shared fields must be read with proper memory ordering to avoid
+     * torn reads and stale values on weakly-ordered CPUs (ARM64, POWER,
+     * RISC-V). The producer is single-writer for 'tail', so RELAXED is
+     * sufficient for the local read; the consumer's 'head' must be ACQUIRE
+     * to observe a consistent view before we decide the buffer is full. */
+    size_t current_tail = __atomic_load_n(&mb->tail, __ATOMIC_RELAXED);
+    size_t head         = __atomic_load_n(&mb->head, __ATOMIC_ACQUIRE);
+    size_t next_tail    = (current_tail + 1) % mb->capacity;
     
-    /* Check if buffer has space (lock-free read of head) */
-    if (next_tail == mb->head) {
+    /* Buffer full? */
+    if (next_tail == head) {
         return false;
     }
     
-    /* Store message in ring buffer */
+    /* Store message first, then publish tail with RELEASE so the consumer
+     * observes the message before the updated tail. */
     mb->ring_buffer[current_tail] = msg;
-    
-    /* Atomic update of tail (release semantics for visibility) */
     __atomic_store_n(&mb->tail, next_tail, __ATOMIC_RELEASE);
     
-    /* Update statistics */
+    /* Non-atomic stats - producer is single-writer for these */
     mb->total_messages++;
-    size_t size = (next_tail > mb->head) ? 
-                 (next_tail - mb->head) : 
-                 (mb->capacity - mb->head + next_tail);
+    size_t size = (next_tail > head)
+                  ? (next_tail - head)
+                  : (mb->capacity - head + next_tail);
     if (size > mb->peak_size) mb->peak_size = size;
     
     return true;
@@ -322,19 +327,22 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
     ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms);
     
     while (count < capacity) {
-        /* Try fast path first (lock-free ring buffer) */
-        size_t current_head = mb->head;
-        if (current_head != mb->tail) {
+        /* Try fast path first (lock-free ring buffer).
+         * Consumer is single-writer for 'head'. Producer's 'tail' must be
+         * read with ACQUIRE to ensure the message payload written by the
+         * producer is visible before we copy it out. */
+        size_t current_head = __atomic_load_n(&mb->head, __ATOMIC_RELAXED);
+        size_t current_tail = __atomic_load_n(&mb->tail, __ATOMIC_ACQUIRE);
+        if (current_head != current_tail) {
             /* Messages available in ring buffer */
             buffer[count++] = mb->ring_buffer[current_head];
             mb->ring_buffer[current_head] = NULL;
             
-            /* Update head atomically (release semantics) */
             size_t next_head = (current_head + 1) % mb->capacity;
             __atomic_store_n(&mb->head, next_head, __ATOMIC_RELEASE);
             
-            /* Signal not_full if needed (buffer now has space) */
-            if ((next_head + 1) % mb->capacity == mb->tail) {
+            /* Signal not_full if we just freed a slot */
+            if ((next_head + 1) % mb->capacity == current_tail) {
                 ol_cond_signal(&mb->not_full);
             }
             
@@ -825,32 +833,72 @@ int ol_actor_send(ol_actor_t* actor, void* msg) {
  *       For blocking send without timeout, use ol_actor_send().
  */
 int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
-    if (actor == NULL) {
+    if (actor == NULL || msg == NULL) {
+        if (actor && actor->msg_dtor && msg) {
+            actor->msg_dtor(msg);
+        }
         return -1;
     }
     
-    ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms);
+    /* Fast-path state check */
+    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        if (actor->msg_dtor) actor->msg_dtor(msg);
+        return -1;
+    }
     
-    while (!ol_deadline_expired(deadline)) {
-        /* Try to send (non-blocking) */
-        int result = ol_actor_try_send(actor, msg);
-        if (result != 0) {
-            return result; /* Success or permanent error */
+    /* timeout_ms == 0 means infinite wait (matches ol_actor_send semantics) */
+    const bool infinite = (timeout_ms == 0);
+    ol_deadline_t deadline;
+    if (infinite) {
+        deadline.when_ns = 0;
+    } else {
+        deadline = ol_deadline_from_ms(timeout_ms);
+    }
+    
+    for (;;) {
+        /* Try lock-free ring buffer first */
+        if (actor_mailbox_try_send_fast(actor->mailbox, msg)) {
+            return 0;
         }
         
-        /* Wait a short time and retry */
-#if defined(_WIN32)
-        Sleep(1);
-#else
-        usleep(1000);
-#endif
+        ol_mutex_lock(&actor->mailbox->mutex);
+        
+        /* Re-check state under lock (actor may have been closed) */
+        if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+            ol_mutex_unlock(&actor->mailbox->mutex);
+            if (actor->msg_dtor) actor->msg_dtor(msg);
+            return -1;
+        }
+        
+        /* Slow path: overflow list has space? */
+        if (actor->mailbox->overflow_count < actor->mailbox->capacity) {
+            actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
+            actor->mailbox->overflow_events++;
+            actor->mailbox->total_messages++;
+            ol_cond_signal(&actor->mailbox->not_empty);
+            ol_mutex_unlock(&actor->mailbox->mutex);
+            return 0;
+        }
+        
+        /* Mailbox full - wait for space with proper deadline */
+        if (!infinite && ol_deadline_expired(deadline)) {
+            ol_mutex_unlock(&actor->mailbox->mutex);
+            if (actor->msg_dtor) actor->msg_dtor(msg);
+            return -3; /* OL_TIMEOUT */
+        }
+        
+        int r = ol_cond_wait_until(&actor->mailbox->not_full,
+                                   &actor->mailbox->mutex,
+                                   infinite ? 0 : deadline.when_ns);
+        ol_mutex_unlock(&actor->mailbox->mutex);
+        
+        if (r == 0) {
+            /* Timed out while waiting */
+            if (actor->msg_dtor) actor->msg_dtor(msg);
+            return -3;
+        }
+        /* r == 1 (signaled) or r < 0 (spurious): loop and retry */
     }
-    
-    /* Timeout expired - clean up message */
-    if (actor->msg_dtor) {
-        actor->msg_dtor(msg);
-    }
-    return 0; /* Would block (timeout) */
 }
 
 /**
@@ -885,12 +933,35 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
         return 1;
     }
     
-    /* Check overflow capacity without blocking */
+    /* Slow path: try the overflow list. The ring buffer is full, but
+     * the overflow list often has capacity left. If we did not add here,
+     * callers would think the mailbox is full while it is only 3/4 full. */
     ol_mutex_lock(&actor->mailbox->mutex);
-    bool has_space = (actor->mailbox->overflow_count < actor->mailbox->capacity);
+    
+    /* Re-check state under the lock: the actor may have been closed
+     * between the fast-path attempt and now. */
+    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        ol_mutex_unlock(&actor->mailbox->mutex);
+        if (actor->msg_dtor) {
+            actor->msg_dtor(msg);
+        }
+        return -1;
+    }
+    
+    /* Truly full? Both ring buffer and overflow list must be exhausted. */
+    if (actor->mailbox->overflow_count >= actor->mailbox->capacity) {
+        ol_mutex_unlock(&actor->mailbox->mutex);
+        return 0; /* would block */
+    }
+    
+    /* Add to overflow list */
+    actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
+    actor->mailbox->overflow_events++;
+    actor->mailbox->total_messages++;
+    ol_cond_signal(&actor->mailbox->not_empty);
     ol_mutex_unlock(&actor->mailbox->mutex);
     
-    return has_space ? 0 : -1; /* 0 = would block, -1 = error */
+    return 1;
 }
 
 /**
@@ -942,22 +1013,30 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
     envelope->sender = ol_actor_self();
     envelope->ask_id = ol_monotonic_now_ns();
     
-    /* Store in pending asks for timeout handling (future enhancement) */
-    ol_mutex_lock(&actor->ask_mutex);
-    ol_hashmap_put(actor->pending_asks, &envelope->ask_id, 
-                  sizeof(uint64_t), envelope);
-    ol_mutex_unlock(&actor->ask_mutex);
+    /* NOTE(v1.3.1): The previous implementation inserted the envelope into
+     * actor->pending_asks for "future timeout handling", but no code path
+     * ever removed entries from that hashmap. Every ol_actor_ask() therefore
+     * leaked one envelope + one promise. Since nothing functional read from
+     * the map, it has been removed.
+     *
+     * When ask-timeout support is reintroduced, ownership must be transferred
+     * through the reply promise with an ol_future_then() continuation that
+     * cancels the promise and frees the envelope exactly once.
+     */
     
     /* Send envelope to actor */
     int send_result = ol_actor_send(actor, envelope);
     if (send_result != 0) {
-        /* Failed to send - clean up */
-        ol_mutex_lock(&actor->ask_mutex);
-        ol_hashmap_remove(actor->pending_asks, &envelope->ask_id, 
-                         sizeof(uint64_t));
-        ol_mutex_unlock(&actor->ask_mutex);
-        
-        ol_actor_reply_cancel(envelope);
+        /* Failed to send. ol_actor_send may have already invoked the
+         * message destructor, which frees the envelope. We must NOT
+         * touch the envelope here.
+         *
+         * The promise is still owned by us (ol_future_get_future only
+         * incremented the shared core's refcount, it did not transfer
+         * ownership). Cancel and destroy the promise, then destroy the
+         * future to release the final reference to the shared core. */
+        (void)ol_promise_cancel(promise);
+        ol_promise_destroy(promise);
         ol_future_destroy(future);
         return NULL;
     }

@@ -196,6 +196,40 @@ static child_info_t* supervisor_create_child_info(const ol_child_spec_t* spec,
 /**
  * @brief Create child process from spec
  */
+/* File-scope child process entry.
+ * Hoisted from a nested function inside supervisor_create_child_process
+ * for clang compatibility. */
+static void supervisor_child_process_entry(ol_process_t* process, void* arg) {
+    (void)process;
+    child_info_t* child = (child_info_t*)arg;
+    if (!child || !child->spec.fn) return;
+    
+    /* Update child state */
+    child->state = CHILD_STATE_RUNNING;
+    child->start_time = ol_monotonic_now_ns();
+    
+    /* Execute child function */
+    int result = child->spec.fn(child->spec.arg);
+    
+    /* Update exit status */
+    child->exit_status = result;
+    
+    /* Update state */
+    if (result == 0) {
+        child->state = CHILD_STATE_STOPPED;
+    } else {
+        child->state = CHILD_STATE_CRASHED;
+        child->last_crash_time = ol_monotonic_now_ns();
+        child->crash_count++;
+    }
+    
+    /* Update uptime statistics */
+    if (child->start_time > 0) {
+        uint64_t uptime_ms = (ol_monotonic_now_ns() - child->start_time) / 1000000;
+        child->total_uptime_ms += uptime_ms;
+    }
+}
+
 static ol_process_t* supervisor_create_child_process(
     ol_supervisor_t* supervisor,
     const ol_child_spec_t* spec,
@@ -205,40 +239,12 @@ static ol_process_t* supervisor_create_child_process(
         return NULL;
     }
     
-    /* Process entry function wrapper */
-    static void child_process_entry(ol_process_t* process, void* arg) {
-        child_info_t* child = (child_info_t*)arg;
-        if (!child || !child->spec.fn) return;
-        
-        /* Update child state */
-        child->state = CHILD_STATE_RUNNING;
-        child->start_time = ol_monotonic_now_ns();
-        
-        /* Execute child function */
-        int result = child->spec.fn(child->spec.arg);
-        
-        /* Update exit status */
-        child->exit_status = result;
-        
-        /* Update state */
-        if (result == 0) {
-            child->state = CHILD_STATE_STOPPED;
-        } else {
-            child->state = CHILD_STATE_CRASHED;
-            child->last_crash_time = ol_monotonic_now_ns();
-            child->crash_count++;
-        }
-        
-        /* Update uptime statistics */
-        if (child->start_time > 0) {
-            uint64_t uptime_ms = (ol_monotonic_now_ns() - child->start_time) / 1000000;
-            child->total_uptime_ms += uptime_ms;
-        }
-    }
-    
-    /* Create child process with isolation */
+    /* Create child process with isolation.
+     * NOTE: the process entry function has been hoisted to file scope
+     * (supervisor_child_process_entry) because nested functions are a
+     * GCC extension not supported by clang. */
     ol_process_t* process = ol_process_create(
-        child_process_entry,
+        supervisor_child_process_entry,
         child_info,
         supervisor->process,  /* Parent is supervisor process */
         0,                    /* No special flags */
@@ -766,12 +772,17 @@ int ol_supervisor_stop(ol_supervisor_t* supervisor, bool graceful) {
     /* Wake up event processor */
     ol_cond_signal(&supervisor->event_cond);
     
-    /* Wait for shutdown */
-    ol_deadline_t deadline = ol_deadline_from_ms(
-        graceful ? supervisor->config.shutdown_timeout_ms : 1000);
+    /* Wait for shutdown, but never longer than the configured timeout plus
+     * a small grace period. A stuck child must not block supervisor teardown
+     * indefinitely. After the deadline we forcibly destroy the supervisor
+     * process and mark the supervisor as stopped. */
+    int64_t timeout_ms = graceful ? supervisor->config.shutdown_timeout_ms : 1000;
+    if (timeout_ms <= 0) timeout_ms = 1000; /* never wait forever */
+    ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms + 500 /* grace */);
     
     while (supervisor->state != SUPERVISOR_STATE_STOPPED) {
         if (ol_deadline_expired(deadline)) {
+            /* Hard timeout - escalate by killing the process directly. */
             break;
         }
 #if defined(_WIN32)
@@ -781,9 +792,9 @@ int ol_supervisor_stop(ol_supervisor_t* supervisor, bool graceful) {
 #endif
     }
     
-    /* Destroy supervisor process */
+    /* Destroy supervisor process (idempotent on already-dead process) */
     if (supervisor->process) {
-        ol_process_destroy(supervisor->process, OL_EXIT_NORMAL);
+        ol_process_destroy(supervisor->process, OL_EXIT_KILL);
         supervisor->process = NULL;
     }
     
