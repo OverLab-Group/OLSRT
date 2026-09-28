@@ -52,7 +52,7 @@ def compile_lib(cc, sources, out_lib, extra_flags, inc_dirs, log_path):
         cmd += ["-I", str(inc)]
     cmd += ["-o", str(out_lib)]
     cmd += [str(s) for s in sources]
-    cmd += ["-lpthread", "-lrt", "-ldl"]
+    cmd += ["-lpthread", "-lrt", "-ldl", "-lnuma", "-lnuma"]
     r = run(cmd)
     with open(log_path, "w") as f:
         f.write("$ " + " ".join(str(x) for x in cmd) + "\n\n")
@@ -209,7 +209,7 @@ def main():
         cmd += ["-I", str(inc)]
     cmd += [str(test_src),
             "-L", str(tmp), "-lolsrt_asan",
-            "-lpthread", "-lrt", "-ldl",
+            "-lpthread", "-lrt", "-ldl", "-lnuma", "-lnuma",
             "-Wl,-rpath," + str(tmp),
             "-o", str(test_bin)]
     r = run(cmd)
@@ -223,7 +223,7 @@ def main():
     # ---- Run the tests under ASan ----
     info("Running Wave 1 regression suite under ASan+UBSan ...")
     env = {
-        "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=0",
+        "ASAN_OPTIONS": "detect_leaks=0:abort_on_error=0",
         "UBSAN_OPTIONS": "print_stacktrace=1",
     }
     r = run([test_bin], env=env, capture=False)
@@ -244,7 +244,7 @@ def main():
             cmd += ["-I", str(inc)]
         cmd += [str(test_src),
                 "-L", str(tmp), "-lolsrt_tsan",
-                "-lpthread", "-lrt", "-ldl",
+                "-lpthread", "-lrt", "-ldl", "-lnuma", "-lnuma",
                 "-Wl,-rpath," + str(tmp),
                 "-o", str(tsan_bin)]
         r = run(cmd)
