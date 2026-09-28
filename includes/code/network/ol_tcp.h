@@ -12,7 +12,6 @@ extern "C" {
     /* Forward decls for OLSRT core types */
     typedef struct ol_event_loop ol_event_loop_t;
     typedef struct ol_future      ol_future_t;
-    typedef struct ol_mutex       ol_mutex_t;
 
     /* Poll masks (must match ol_poller.h) */
     #ifndef OL_POLL_IN

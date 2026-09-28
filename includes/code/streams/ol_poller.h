@@ -27,10 +27,16 @@ typedef struct {
     uint64_t tag;     /**< User tag associated with fd */
 } ol_poll_event_t;
 
-/** @brief Poll event masks */
+/** @brief Poll event masks (guarded to coexist with ol_tcp.h) */
+#ifndef OL_POLL_IN
 #define OL_POLL_IN  0x01  /**< Readable */
+#endif
+#ifndef OL_POLL_OUT
 #define OL_POLL_OUT 0x02  /**< Writable */
+#endif
+#ifndef OL_POLL_ERR
 #define OL_POLL_ERR 0x04  /**< Error condition */
+#endif
 
 /**
  * @brief Create a new poller instance

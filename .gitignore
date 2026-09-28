@@ -126,3 +126,19 @@ demos/01_hello_actor
 demos/*.o
 demos/*.so
 demos/libolsrt.so
+
+# Demo build artifacts
+demos/01_hello_actor
+demos/02_channel
+demos/03_parallel
+demos/04_timers
+demos/05_promise
+demos/06_dataflow
+demos/07_http_server
+demos/libolsrt.so
+demos/*.o
+
+# Network fix backups
+src/code/network/*.orig
+includes/code/network/*.orig
+includes/code/streams/ol_poller.h.orig

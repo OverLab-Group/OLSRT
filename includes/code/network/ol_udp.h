@@ -11,7 +11,6 @@ extern "C" {
 
     typedef struct ol_event_loop ol_event_loop_t;
     typedef struct ol_future      ol_future_t;
-    typedef struct ol_mutex       ol_mutex_t;
 
     typedef struct ol_endpoint {
         char     host[256];

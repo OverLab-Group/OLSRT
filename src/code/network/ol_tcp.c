@@ -1,5 +1,8 @@
 #include "network/ol_tcp.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "ol_event_loop.h"
 #include "ol_promise.h"
 #include "ol_lock_mutex.h"
