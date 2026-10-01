@@ -20,7 +20,7 @@
 #include <sys/socket.h>
 
 #define PORT      8080
-#define MAX_REQ   3
+#define MAX_REQ   100
 
 static ol_event_loop_t* g_loop = NULL;
 
@@ -76,7 +76,7 @@ int main(void) {
     }
 
     printf("listening on 0.0.0.0:%d, will serve %d request(s)\n", PORT, MAX_REQ);
-    printf("run ./07_test.sh from another terminal, or:\n");
+    printf("run following command for test:\n");
     printf("  curl -s http://127.0.0.1:%d/\n\n", PORT);
 
     pthread_t th;
