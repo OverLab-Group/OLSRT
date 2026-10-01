@@ -65,14 +65,40 @@ def param_names(param_string):
     """Extract parameter names from a C parameter list."""
     if not param_string.strip() or param_string.strip() == "void":
         return []
+    # Split on commas at parenthesis depth zero, so that
+    # function-pointer parameters stay intact.
+    chunks = []
+    depth = 0
+    current = ""
+    for c in param_string:
+        if c == "(":
+            depth += 1
+            current += c
+        elif c == ")":
+            depth -= 1
+            current += c
+        elif c == "," and depth == 0:
+            chunks.append(current)
+            current = ""
+        else:
+            current += c
+    if current.strip():
+        chunks.append(current)
+
     names = []
-    for chunk in param_string.split(","):
+    for chunk in chunks:
         chunk = chunk.strip()
         if not chunk:
             continue
-        m = re.findall(r"[A-Za-z_]\w*", chunk)
+        # Function pointer: `void (*name)(...)`.
+        m = re.search(r"\(\s*\*\s*(\w+)\s*\)", chunk)
         if m:
-            names.append(m[-1])
+            names.append(m.group(1))
+            continue
+        # Regular parameter: last identifier.
+        ids = re.findall(r"[A-Za-z_]\w*", chunk)
+        if ids:
+            names.append(ids[-1])
     return names
 
 def classify(block, params, has_return):

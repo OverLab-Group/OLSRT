@@ -86,6 +86,13 @@ int ol_df_push(ol_df_graph_t *g, ol_df_node_t *to, void *item);
 int ol_df_emit(ol_df_node_t *from, int port_index, void *item);
 
 /* Introspection */
+/**
+ * @brief Return the number of outbound ports on a node.
+ *
+ * @param n Node handle; NULL is tolerated.
+ * @return Port count, or 0 if @p n is NULL.
+ */
+
 size_t ol_df_node_out_ports(const ol_df_node_t *n);
 size_t ol_df_graph_node_count(const ol_df_graph_t *g);
 size_t ol_df_graph_edge_count(const ol_df_graph_t *g);
