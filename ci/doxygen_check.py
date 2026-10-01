@@ -5,17 +5,22 @@ ci/doxygen_check.py — strict Doxygen coverage check.
 Two passes:
 
 1. Structural. For every function prototype declared in a public header
-   under includes/code/streams/, locate its definition in the matching
-   source file and inspect the comment block immediately above it.
+   under includes/code/streams/, find the Doxygen comment block that
+   documents it. In C, the convention is to write the block above the
+   prototype in the header; Doxygen merges that with the definition.
+   The check therefore looks first at the header, and falls back to the
+   definition in the .c file only when the header carries no block.
+
    Classification:
-       MISSING  no @brief
+       MISSING  no @brief anywhere
        PARTIAL  has @brief but is missing @param / @return (as applicable)
        RICH     @brief plus every applicable tag
+
    The tool fails if any public prototype is MISSING or PARTIAL.
 
-2. Doxygen build. Run `doxygen Doxyfile` and count warnings. Any
-   warning is reported but does not fail the check by itself, because
-   the structural pass is the source of truth.
+2. Doxygen build. Run `doxygen Doxyfile` and count warnings. Warnings
+   are reported but do not fail the check by themselves; the
+   structural pass is the source of truth.
 """
 
 import argparse
@@ -65,7 +70,6 @@ def param_names(param_string):
         chunk = chunk.strip()
         if not chunk:
             continue
-        # Remove array suffixes and pointers, take the last identifier.
         m = re.findall(r"[A-Za-z_]\w*", chunk)
         if m:
             names.append(m[-1])
@@ -84,7 +88,7 @@ def classify(block, params, has_return):
     return "RICH" if not missing else "PARTIAL"
 
 def collect_declarations():
-    """Return a dict name -> (header, params, has_return)."""
+    """Return name -> (header, params, has_return)."""
     decls = {}
     for hdir in HEADER_DIRS:
         for hpath in sorted(Path(hdir).glob("*.h")):
@@ -94,8 +98,6 @@ def collect_declarations():
                 if name in decls:
                     continue
                 params = param_names(m.group("params"))
-                # Heuristic: a return tag is expected unless the
-                # prototype starts with `void`.
                 line = text[m.start():text.find("\n", m.start())]
                 head = line.split(name, 1)[0]
                 has_return = "void" not in head
@@ -103,7 +105,7 @@ def collect_declarations():
     return decls
 
 def collect_definitions():
-    """Return a dict name -> (source_path, text, position)."""
+    """Return name -> (source_path, text, position)."""
     defs = {}
     for src in sorted(Path("src/code/streams").glob("*.c")):
         text = src.read_text(encoding="utf-8")
@@ -114,22 +116,62 @@ def collect_definitions():
             defs[name] = (str(src), text, m.start())
     return defs
 
+def find_documentation(header_path, header_pos, c_path, c_pos):
+    """Look for a Doxygen block first in the header, then in the .c.
+
+    Returns (block_text, where) where `where` is 'header', 'source', or
+    None if no block was found.
+    """
+    # Try header first.
+    htext = Path(header_path).read_text(encoding="utf-8")
+    loc = find_comment_above(htext, header_pos)
+    if loc is not None:
+        block = htext[loc[0]:loc[1]]
+        if "@brief" in block:
+            return block, "header"
+
+    # Fall back to source.
+    if c_path and c_pos is not None:
+        ctext = Path(c_path).read_text(encoding="utf-8")
+        loc = find_comment_above(ctext, c_pos)
+        if loc is not None:
+            block = ctext[loc[0]:loc[1]]
+            if "@brief" in block:
+                return block, "source"
+
+    return None, None
+
+def collect_header_positions():
+    """Return name -> (header, position_in_header)."""
+    positions = {}
+    for hdir in HEADER_DIRS:
+        for hpath in sorted(Path(hdir).glob("*.h")):
+            text = hpath.read_text(encoding="utf-8")
+            for m in PROTOTYPE_PATTERN.finditer(text):
+                name = m.group("name")
+                if name in positions:
+                    continue
+                positions[name] = (str(hpath), m.start())
+    return positions
+
 def structural_pass(reporter, verbose):
     decls = collect_declarations()
     defs = collect_definitions()
+    header_pos = collect_header_positions()
+
     reporter.info("public prototypes: %d" % len(decls))
     reporter.info("definitions found: %d" % len(defs))
     print()
 
     for name, (hdr, params, has_return) in sorted(decls.items()):
-        if name not in defs:
-            reporter.fail("%s (defined in %s)" % (name, hdr),
-                          "no definition found")
-            continue
-        src, text, pos = defs[name]
-        block_loc = find_comment_above(text, pos)
-        block = text[block_loc[0]:block_loc[1]] if block_loc else None
+        hpos = header_pos.get(name, (hdr, None))[1]
+        c_path, c_pos = None, None
+        if name in defs:
+            c_path, _, c_pos = defs[name]
+
+        block, where = find_documentation(hdr, hpos, c_path, c_pos)
         state = classify(block, params, has_return)
+
         if state == "RICH":
             reporter.ok(name)
         elif state == "PARTIAL":
@@ -157,7 +199,6 @@ def doxygen_pass(reporter, verbose):
                 print("    " + ln)
         return
     if warnings:
-        # Warnings are reported but do not fail.
         reporter.info("doxygen emitted %d warning(s)" % len(warnings))
         if verbose:
             for ln in warnings[:20]:
