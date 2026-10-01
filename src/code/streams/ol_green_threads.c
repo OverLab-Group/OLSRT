@@ -1388,7 +1388,23 @@ static OL_NO_INLINE ol_gt_t* ol_gt_scheduler_select_next(void) {
 /* ==================== Original API Implementation ==================== */
 
 /**
- * @brief Initialize the green thread scheduler
+ * @brief Initialize the green-thread scheduler for the calling OS thread.
+ *
+ * @details
+ * Allocates a per-thread scheduler instance, initializes its
+ * work-stealing deques, stack pool, NUMA metadata, and default
+ * scheduling parameters. The instance is stored in thread-local
+ * storage and released by @ref ol_gt_scheduler_shutdown.
+ *
+ * Must be called once per OS thread that intends to run green
+ * threads. Subsequent calls on the same thread are no-ops.
+ *
+ * @return 0 on success, -1 on allocation failure.
+ *
+ * @note The actor subsystem calls this automatically from
+ *       @ref ol_gt_run_to_completion. User code that drives green
+ *       threads directly must call it explicitly.
+ * @see ol_gt_scheduler_shutdown, ol_gt_spawn, ol_gt_run_to_completion
  */
 int ol_gt_scheduler_init(void) {
     /* Initialize page size */
@@ -1408,7 +1424,17 @@ int ol_gt_scheduler_init(void) {
 }
 
 /**
- * @brief Shutdown the green thread scheduler
+ * @brief Release the calling thread's green-thread scheduler.
+ *
+ * @details
+ * Destroys the work-stealing deques, drains the stack pool, and frees
+ * the scheduler instance. Every green thread created on this OS
+ * thread must already be destroyed.
+ *
+ * @warning Any green thread still referencing this scheduler after
+ *          shutdown holds a dangling pointer. The function logs a
+ *          warning in debug builds and proceeds silently in release.
+ * @see ol_gt_scheduler_init
  */
 void ol_gt_scheduler_shutdown(void) {
     if (!g_thread_scheduler) {
@@ -1600,7 +1626,20 @@ static int ol_gt_materialize(ol_gt_t* gt, size_t stack_size) {
 }
 
 /**
- * @brief Create a new green thread
+ * @brief Create a new green thread with default configuration.
+ *
+ * @param entry      Entry point. Runs on the green thread's own stack.
+ * @param arg        Opaque argument passed to @p entry.
+ * @param stack_size Requested stack size in bytes; 0 selects the
+ *                   default (see @ref OL_DEFAULT_STACK_SIZE).
+ *
+ * @return A green-thread handle, or NULL on allocation failure.
+ *
+ * @note The thread is created in the READY state and is enqueued on
+ *       the calling thread's scheduler. Use
+ *       @ref ol_gt_run_to_completion (or a custom driver built on
+ *       @ref ol_gt_resume and @ref ol_gt_yield) to execute it.
+ * @see ol_gt_spawn_ex, ol_gt_destroy, ol_gt_run_to_completion
  */
 ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void* arg, size_t stack_size) {
     /* Check if scheduler is initialized */
@@ -1622,7 +1661,20 @@ ol_gt_t* ol_gt_spawn(ol_gt_entry_fn entry, void* arg, size_t stack_size) {
 }
 
 /**
- * @brief Create green thread with advanced configuration
+ * @brief Create a green thread with advanced configuration.
+ *
+ * @details
+ * Accepts a full @ref ol_gt_config_t block, allowing the caller to
+ * set priority, scheduling policy, NUMA affinity, lazy allocation,
+ * and statistics collection. See @ref ol_gt_spawn for the default
+ * configuration used by the simpler API.
+ *
+ * @param entry  Entry point.
+ * @param arg    Argument passed to @p entry.
+ * @param config Configuration block; NULL selects defaults.
+ *
+ * @return Green-thread handle, or NULL on failure.
+ * @see ol_gt_spawn, ol_gt_destroy
  */
 ol_gt_t* ol_gt_spawn_ex(ol_gt_entry_fn entry, void* arg, const ol_gt_config_t* config) {
     if (!entry) {
@@ -1677,7 +1729,18 @@ ol_gt_t* ol_gt_spawn_ex(ol_gt_entry_fn entry, void* arg, const ol_gt_config_t* c
 }
 
 /**
- * @brief Resume execution of a green thread
+ * @brief Enqueue a green thread for execution.
+ *
+ * @param gt Green thread previously created by @ref ol_gt_spawn.
+ * @return 0 on success, -1 on error (NULL handle, dead thread, or
+ *         scheduler not initialized).
+ *
+ * @note As of v1.3.2 this only queues the thread. A driver is
+ *       required to actually execute it. Use
+ *       @ref ol_gt_run_to_completion for a self-contained driver,
+ *       or call this function in a loop together with
+ *       @ref ol_gt_yield from a custom driver.
+ * @see ol_gt_run_to_completion, ol_gt_yield
  */
 int ol_gt_resume(ol_gt_t* gt) {
     if (!gt) {
@@ -1781,7 +1844,15 @@ void ol_gt_yield(void) {
 }
 
 /**
- * @brief Wait for a green thread to complete
+ * @brief Wait for a green thread to reach a terminal state.
+ *
+ * @param gt Green thread to wait on.
+ * @return 0 on success, -1 on error.
+ *
+ * @note Cooperatively yields to other ready threads while waiting.
+ *       Must not be called from within the green thread being
+ *       joined.
+ * @see ol_gt_destroy, ol_gt_is_alive
  */
 int ol_gt_join(ol_gt_t* gt) {
     if (!gt) {
@@ -1816,7 +1887,19 @@ int ol_gt_join(ol_gt_t* gt) {
 }
 
 /**
- * @brief Destroy a green thread
+ * @brief Destroy a green thread and release its resources.
+ *
+ * @details
+ * Cancels the thread if still alive, joins it, returns its stack to
+ * the pool, and frees the thread descriptor. Safe to call on a
+ * thread that has already reached DONE or CANCELED.
+ *
+ * @param gt Green thread to destroy; NULL is a no-op.
+ *
+ * @warning Do not destroy a green thread from inside its own entry
+ *          function. The stack being freed is the one currently in
+ *          use. Let the driver destroy it after the yield.
+ * @see ol_gt_spawn, ol_gt_cancel, ol_gt_join
  */
 void ol_gt_destroy(ol_gt_t* gt) {
     if (!gt) {
@@ -1852,7 +1935,16 @@ void ol_gt_destroy(ol_gt_t* gt) {
 }
 
 /**
- * @brief Cancel a green thread
+ * @brief Request cooperative cancellation of a green thread.
+ *
+ * @details
+ * Sets the cancellation flag. The thread must check
+ * @ref ol_gt_is_canceled at safe points and return on its own; the
+ * runtime does not forcibly interrupt a running thread.
+ *
+ * @param gt Green thread to cancel.
+ * @return 0 on success, -1 on error.
+ * @see ol_gt_is_canceled, ol_gt_destroy
  */
 int ol_gt_cancel(ol_gt_t* gt) {
     if (!gt) {
@@ -1874,7 +1966,12 @@ int ol_gt_cancel(ol_gt_t* gt) {
 }
 
 /**
- * @brief Check if a green thread is alive
+ * @brief Return true if a green thread has not reached a terminal
+ *        state.
+ *
+ * @param gt Green thread handle; NULL returns false.
+ * @return true if the thread is NEW, READY, RUNNING, WAITING, or
+ *         SLEEPING; false if DONE or CANCELED.
  */
 bool ol_gt_is_alive(const ol_gt_t* gt) {
     if (!gt) {
@@ -1886,7 +1983,10 @@ bool ol_gt_is_alive(const ol_gt_t* gt) {
 }
 
 /**
- * @brief Check if a green thread is canceled
+ * @brief Return true if cancellation has been requested.
+ *
+ * @param gt Green thread handle; NULL returns false.
+ * @return true if @ref ol_gt_cancel has been called on this thread.
  */
 bool ol_gt_is_canceled(const ol_gt_t* gt) {
     if (!gt) {
@@ -1897,7 +1997,14 @@ bool ol_gt_is_canceled(const ol_gt_t* gt) {
 }
 
 /**
- * @brief Get current running green thread
+ * @brief Return the green thread currently executing on the calling
+ *        OS thread.
+ *
+ * @return Running green thread, or NULL if the calling thread is not
+ *         inside a green thread.
+ *
+ * @note Uses thread-local state; results are undefined if the
+ *       scheduler on this OS thread has been shut down.
  */
 ol_gt_t* ol_gt_current(void) {
     if (!g_thread_scheduler) {
@@ -1910,7 +2017,14 @@ ol_gt_t* ol_gt_current(void) {
 /* ==================== Enhanced API Implementation ==================== */
 
 /**
- * @brief Get green thread statistics
+ * @brief Copy per-thread statistics into @p stats.
+ *
+ * @param gt    Green thread to query.
+ * @param stats Output structure; must not be NULL.
+ * @return 0 on success, -1 on invalid argument.
+ *
+ * @note The counters are read atomically and may be slightly stale.
+ * @see ol_gt_get_global_statistics
  */
 int ol_gt_get_statistics(const ol_gt_t* gt, ol_gt_statistics_t* stats) {
     if (!gt || !stats) {
@@ -1956,7 +2070,11 @@ int ol_gt_get_statistics(const ol_gt_t* gt, ol_gt_statistics_t* stats) {
 }
 
 /**
- * @brief Get global scheduler statistics
+ * @brief Copy process-wide statistics into @p stats.
+ *
+ * @param stats Output structure; must not be NULL.
+ * @return 0 on success, -1 on invalid argument.
+ * @see ol_gt_get_statistics
  */
 int ol_gt_get_global_statistics(ol_gt_statistics_t* stats) {
     if (!stats) {
@@ -1978,7 +2096,11 @@ int ol_gt_get_global_statistics(ol_gt_statistics_t* stats) {
 }
 
 /**
- * @brief Enable work stealing for current scheduler
+ * @brief Enable or disable work stealing for the calling thread's
+ *        scheduler.
+ *
+ * @param enabled true to enable, false to disable.
+ * @note Has no effect if the scheduler has not been initialized.
  */
 void ol_gt_enable_work_stealing(bool enabled) {
     if (g_thread_scheduler) {
@@ -1987,7 +2109,12 @@ void ol_gt_enable_work_stealing(bool enabled) {
 }
 
 /**
- * @brief Set preemption time slice
+ * @brief Set the preemption time slice for hybrid scheduling.
+ *
+ * @param microseconds Time slice in microseconds. The value is
+ *                     converted internally to nanoseconds.
+ * @note Only affects threads whose policy is
+ *       @ref OL_GT_SCHED_HYBRID.
  */
 void ol_gt_set_preemption_slice(uint64_t microseconds) {
     if (g_thread_scheduler) {
@@ -2067,14 +2194,20 @@ int ol_gt_get_numa_topology(ol_numa_node_t* nodes, int max_nodes) {
 }
 
 /**
- * @brief Get last error code
+ * @brief Return the last error code set on the calling OS thread.
+ *
+ * @return One of the values from @ref ol_gt_error_t.
+ * @see ol_gt_error_string
  */
 ol_gt_error_t ol_gt_last_error(void) {
     return (ol_gt_error_t)atomic_load_explicit(&g_last_error, memory_order_relaxed);
 }
 
 /**
- * @brief Get error string
+ * @brief Convert an error code to a human-readable string.
+ *
+ * @param error Error code from @ref ol_gt_error_t.
+ * @return Static string; never NULL.
  */
 const char* ol_gt_error_string(ol_gt_error_t error) {
     switch (error) {
@@ -2102,7 +2235,11 @@ const char* ol_gt_error_string(ol_gt_error_t error) {
 }
 
 /**
- * @brief Get library version
+ * @brief Write the library version into the three output parameters.
+ *
+ * @param major Output: major version. May be NULL.
+ * @param minor Output: minor version. May be NULL.
+ * @param patch Output: patch version. May be NULL.
  */
 void ol_gt_get_version(int* major, int* minor, int* patch) {
     if (major) *major = OL_GT_VERSION_MAJOR;
@@ -2111,7 +2248,10 @@ void ol_gt_get_version(int* major, int* minor, int* patch) {
 }
 
 /**
- * @brief Get build configuration
+ * @brief Return a static string describing the build configuration.
+ *
+ * @return Human-readable description of platform, architecture,
+ *         NUMA support, and cache-line size. Never NULL.
  */
 const char* ol_gt_get_build_config(void) {
     static char config[256];
