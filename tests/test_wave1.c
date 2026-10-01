@@ -83,11 +83,13 @@ static void test_actor_send_timeout(void)
      * buffer + overflow list; we just fill it. */
     int sent = 0;
     for (int i = 0; i < 64; i++) {
-        if (ol_actor_try_send(a, strdup("x")) == 1) {
-            sent++;
-        } else {
-            break;
-        }
+        char* m = strdup("x");
+            if (ol_actor_try_send(a, m) == 1) {
+                sent++;
+            } else {
+                free(m);   /* try_send did not take ownership */
+                break;
+            }
     }
     printf("    (filled mailbox with %d messages)\n", sent);
     EXPECT(sent > 0, "at least one message fit before full");

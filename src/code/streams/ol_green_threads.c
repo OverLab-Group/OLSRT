@@ -945,7 +945,7 @@ static OL_FORCE_INLINE void ol_stack_pool_destroy(ol_stack_pool_t* pool) {
 #if OL_PLATFORM_POSIX
                     size_t total_size = bucket->stack_size + 2 * OL_PAGE_SIZE;
                     void* stack_area = (char*)stack - OL_PAGE_SIZE;
-                    munmap(stack_area, total_size);
+                    ol_numa_free(stack_area, total_size);
 #elif OL_PLATFORM_WINDOWS
                     VirtualFree(stack, 0, MEM_RELEASE);
 #endif
@@ -1086,7 +1086,7 @@ static OL_FORCE_INLINE void ol_stack_pool_free(ol_stack_pool_t* pool,
 #if OL_PLATFORM_POSIX
         size_t total_size = stack_size + 2 * OL_PAGE_SIZE;
         void* stack_area = (char*)stack - OL_PAGE_SIZE;
-        munmap(stack_area, total_size);
+        ol_numa_free(stack_area, total_size);
 #elif OL_PLATFORM_WINDOWS
         size_t total_size = stack_size + 2 * OL_PAGE_SIZE;
         void* stack_area = (char*)stack - OL_PAGE_SIZE;
@@ -1114,7 +1114,7 @@ static OL_FORCE_INLINE void ol_stack_pool_free(ol_stack_pool_t* pool,
 #if OL_PLATFORM_POSIX
         size_t total_size = bucket->stack_size + 2 * OL_PAGE_SIZE;
         void* stack_area = (char*)stack - OL_PAGE_SIZE;
-        munmap(stack_area, total_size);
+        ol_numa_free(stack_area, total_size);
 #elif OL_PLATFORM_WINDOWS
         size_t total_size = bucket->stack_size + 2 * OL_PAGE_SIZE;
         void* stack_area = (char*)stack - OL_PAGE_SIZE;
