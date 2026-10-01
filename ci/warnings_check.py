@@ -22,6 +22,17 @@ INCLUDES = ["includes", "includes/code", "includes/code/streams",
 
 WARNING_PATTERN = re.compile(r":\s+warning:\s")
 
+
+def read_budget():
+    """Read the warning budget from .warnings-budget or 0."""
+    p = Path(".warnings-budget")
+    if not p.exists():
+        return 0
+    try:
+        return int(p.read_text(encoding="utf-8").strip())
+    except (ValueError, OSError):
+        return 0
+
 def main(argv=None):
     chdir_to_root()
     ap = argparse.ArgumentParser(description=__doc__)
@@ -63,19 +74,16 @@ def main(argv=None):
         print()
 
     if args.zero:
-        if total == 0:
-            r.ok("zero warnings")
-        else:
-            r.fail("zero warnings", "%d warning(s)" % total)
+        budget = 0
     elif args.budget is not None:
-        if total <= args.budget:
-            r.ok("within budget", "%d <= %d" % (total, args.budget))
-        else:
-            r.fail("within budget",
-                   "%d > %d" % (total, args.budget))
+        budget = args.budget
     else:
-        r.info("warning count: %d (no budget set)" % total)
-        r.ok("compile succeeded")
+        budget = read_budget()
+    r.info("budget: %d" % budget)
+    if total <= budget:
+        r.ok("within budget", "%d <= %d" % (total, budget))
+    else:
+        r.fail("within budget", "%d > %d" % (total, budget))
 
     return r.exit_code()
 

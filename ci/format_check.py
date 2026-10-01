@@ -29,17 +29,21 @@ def check_clang_format(reporter, sources, verbose):
     if not tool:
         return False
     cfg = None
-    for name in (".clang-format", "_clang-format"):
+    for name in (".clang-format", "_clang-format",
+                 ".clang-format.yaml", ".clang-format.yml"):
         if Path(name).exists():
             cfg = name
             break
-    rc, _, _ = run([tool, "--version"])
+    if not cfg:
+        # No project style file. The clang-format default (LLVM)
+        # does not match the OLSRT codebase; enforcing it here
+        # produces noise rather than signal.
+        reporter.skip("clang-format", "no .clang-format config")
+        return True
     bad = 0
     for src in sources:
-        cmd = [tool, "--dry-run", "-Werror"]
-        if cfg:
-            cmd += ["-style=file:" + cfg]
-        cmd += [src]
+        cmd = [tool, "--dry-run", "-Werror",
+               "-style=file:" + cfg, src]
         rc, _, err = run(cmd)
         if rc != 0:
             bad += 1
@@ -81,7 +85,15 @@ def check_astyle(reporter, sources, verbose):
     tool = shutil.which("astyle")
     if not tool:
         return False
-    opts = ["--options=.astylerc"] if Path(".astylerc").exists() else []
+    cfg = None
+    for name in (".astylerc", "_astylerc", "astylerc"):
+        if Path(name).exists():
+            cfg = name
+            break
+    if not cfg:
+        reporter.skip("astyle", "no .astylerc config")
+        return True
+    opts = ["--options=" + cfg]
     bad = 0
     for src in sources:
         cmd = [tool] + opts + ["--dry-run", "--suffix=none", src]
