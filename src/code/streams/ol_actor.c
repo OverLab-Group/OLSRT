@@ -258,12 +258,10 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
 static void actor_mailbox_destroy(actor_mailbox_t* mb) {
     if (!mb) return;
 
-    /* v1.3.2: free any messages still queued in the mailbox.
-     * Previous versions relied on the owner (actor) having
-     * drained the mailbox first, but ol_actor_destroy can
-     * legitimately be called while messages are still pending.
-     * Without this, every message still in the ring buffer or
-     * overflow list leaks. */
+    /* v1.3.2: free any messages still queued. ol_actor_destroy may
+     * be called before the actor has drained its mailbox, so relying
+     * on the owner to have consumed everything leaks the remaining
+     * messages. */
     if (mb->dtor) {
         for (size_t i = 0; i < mb->capacity; i++) {
             if (mb->ring_buffer[i]) {
@@ -278,12 +276,12 @@ static void actor_mailbox_destroy(actor_mailbox_t* mb) {
             }
         }
     }
-    
+
     /* Cleanup synchronization primitives */
     ol_cond_destroy(&mb->not_full);
     ol_cond_destroy(&mb->not_empty);
     ol_mutex_destroy(&mb->mutex);
-    
+
     /* Free allocated memory */
     free(mb->overflow_list);
     free(mb->ring_buffer);
@@ -1201,6 +1199,9 @@ void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code) {
     }
     
     ol_promise_reject(envelope->reply, error_code);
+
+    /* v1.3.2: release our reference after rejection. */
+    ol_promise_destroy(envelope->reply);
 
     /* v1.3.2: release the promise after rejection (see reply_ok). */
     ol_promise_destroy(envelope->reply);
