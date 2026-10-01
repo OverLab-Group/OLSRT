@@ -110,6 +110,16 @@ typedef struct actor_mailbox {
     size_t total_messages;       /**< Total messages processed through this mailbox */
     size_t peak_size;            /**< Peak mailbox size reached */
     size_t overflow_events;      /**< Number of overflow events (ring buffer full) */
+
+    /* v1.3.2: set by ol_actor_close() so that a driver thread blocked
+     * inside actor_mailbox_batch_recv() returns immediately instead of
+     * waiting for the full timeout. */
+    atomic_bool closed;
+
+    /* v1.3.2: message destructor. Stored here so
+     * actor_mailbox_destroy can free any messages still queued
+     * when the mailbox is torn down. */
+    ol_actor_msg_destructor dtor;
 } actor_mailbox_t;
 
 /**
@@ -150,8 +160,11 @@ struct ol_actor {
     /* Supervisor integration */
     ol_supervisor_t* supervisor;     /**< Parent supervisor (optional) */
     
-    /* State management */
-    volatile uint32_t state;         /**< Actor state flags (bitmask) */
+    /* State management.
+     * _Atomic lets the compiler generate atomic loads and
+     * stores for every access without requiring each call
+     * site to spell out __atomic_load_n. */
+    _Atomic uint32_t state;          /**< Actor state flags (bitmask) */
     int exit_code;                   /**< Exit code if actor terminated */
     
     /* Performance counters */
@@ -192,8 +205,8 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
                                             ol_actor_msg_destructor dtor) {
     actor_mailbox_t* mb = (actor_mailbox_t*)calloc(1, sizeof(actor_mailbox_t));
     if (!mb) return NULL;
-    
-    (void)dtor; /* Mark as unused for now */
+
+    mb->dtor = dtor;
     
     /* Allocate ring buffer */
     mb->capacity = capacity;
@@ -228,7 +241,8 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
     mb->total_messages = 0;
     mb->peak_size = 0;
     mb->overflow_events = 0;
-    
+    atomic_init(&mb->closed, false);
+
     return mb;
 }
 
@@ -243,14 +257,25 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
  */
 static void actor_mailbox_destroy(actor_mailbox_t* mb) {
     if (!mb) return;
-    
-    /* Note: We don't call destructors here because the owner
-       (actor) should have already processed or cleaned up messages */
-    
-    /* Free overflow list */
-    for (size_t i = 0; i < mb->overflow_count; i++) {
-        if (mb->overflow_list[i]) {
-            /* Destructor should be called by owner */
+
+    /* v1.3.2: free any messages still queued in the mailbox.
+     * Previous versions relied on the owner (actor) having
+     * drained the mailbox first, but ol_actor_destroy can
+     * legitimately be called while messages are still pending.
+     * Without this, every message still in the ring buffer or
+     * overflow list leaks. */
+    if (mb->dtor) {
+        for (size_t i = 0; i < mb->capacity; i++) {
+            if (mb->ring_buffer[i]) {
+                mb->dtor(mb->ring_buffer[i]);
+                mb->ring_buffer[i] = NULL;
+            }
+        }
+        for (size_t i = 0; i < mb->overflow_count; i++) {
+            if (mb->overflow_list[i]) {
+                mb->dtor(mb->overflow_list[i]);
+                mb->overflow_list[i] = NULL;
+            }
         }
     }
     
@@ -327,6 +352,13 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
     ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms);
     
     while (count < capacity) {
+        /* v1.3.2: exit immediately if the mailbox has been closed.
+         * This makes actor shutdown prompt even when the actor is
+         * blocked waiting for a message that will never arrive. */
+        if (atomic_load_explicit(&mb->closed, memory_order_acquire)) {
+            break;
+        }
+
         /* Try fast path first (lock-free ring buffer).
          * Consumer is single-writer for 'head'. Producer's 'tail' must be
          * read with ACQUIRE to ensure the message payload written by the
@@ -399,105 +431,97 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
  *       so ol_actor_self() works within actor behaviors.
  */
 static void ol_actor_process_entry(ol_process_t* process, void* arg) {
+    /* v1.3.2: the process argument is not used here; the actor is
+     * recovered from arg. */
+    (void)process;
+
     ol_actor_t* actor = (ol_actor_t*)arg;
     if (!actor) return;
-    
-    /* Set thread-local current actor for ol_actor_self() */
+
+    /* Set thread-local current actor for ol_actor_self(). */
     g_current_actor = actor;
-    
-    /* Update actor state to running */
-    actor->state = ACTOR_STATE_RUNNING;
-    
-    /* Main actor processing loop */
-    void* batch[ACTOR_BATCH_SIZE];
-    
-    while (actor->state & ACTOR_STATE_RUNNING) {
-        /* Batch receive messages for efficiency */
-        size_t batch_size = actor_mailbox_batch_recv(
-            actor->mailbox, batch, ACTOR_BATCH_SIZE, 1000);
-        
-        if (batch_size == 0) {
-            /* Check for stop signal when no messages */
-            if (actor->state & ACTOR_STATE_STOPPING) {
-                break;
-            }
-            continue;
+
+    /* v1.3.2: the actor loop must NOT start until the caller has
+     * invoked ol_actor_start(), which sets ACTOR_STATE_RUNNING.
+     * Waiting here preserves the v1.3.1 contract that an actor which
+     * has not been started does not consume messages, and it makes
+     * the ol_actor_create / ol_actor_start split meaningful. */
+    for (;;) {
+        uint32_t s = __atomic_load_n((uint32_t*)&actor->state,
+                                     __ATOMIC_ACQUIRE);
+        if (s & ACTOR_STATE_CLOSED) {
+            g_current_actor = NULL;
+            return;
         }
-        
-        /* Process batch with timing for performance metrics */
+        if (s & ACTOR_STATE_RUNNING) break;
+        usleep(1000); /* 1 ms */
+    }
+
+    /* Main actor processing loop. State is re-read atomically each
+     * iteration so a CLOSED flag set from another thread is observed
+     * promptly. */
+    void* batch[ACTOR_BATCH_SIZE];
+
+    for (;;) {
+        uint32_t s = __atomic_load_n((uint32_t*)&actor->state,
+                                     __ATOMIC_ACQUIRE);
+        if (!(s & ACTOR_STATE_RUNNING) || (s & ACTOR_STATE_CLOSED)) {
+            break;
+        }
+
+        size_t batch_size = actor_mailbox_batch_recv(
+            actor->mailbox, batch, ACTOR_BATCH_SIZE, 100);
+        if (batch_size == 0) continue;
+
         uint64_t start_time = ol_monotonic_now_ns();
-        
+
         for (size_t i = 0; i < batch_size; i++) {
             if (!batch[i]) continue;
-            
-            /* Check if this is an ask envelope */
-            bool is_ask = false;
-            ol_ask_envelope_t* ask_env = NULL;
-            
-            /* Simple type detection - look for ask envelope signature */
-            ask_env = (ol_ask_envelope_t*)batch[i];
-            if (ask_env && ask_env->reply != NULL) {
-                is_ask = true;
-            }
-            
-            /* Execute behavior if defined */
+
+            /* v1.3.2: the actor loop does NOT auto-detect ask
+             * envelopes. The old heuristic read ask_env->reply from
+             * every message, which read past the end of small user
+             * allocations (ASan: heap-buffer-overflow). Behaviors that
+             * receive ask envelopes cast the message and call
+             * ol_actor_reply_ok / _error / _cancel themselves. */
             if (actor->behavior) {
                 int result = actor->behavior(actor, batch[i]);
-                
-                /* Handle behavior result */
+
                 if (result > 0) {
-                    /* Behavior requested graceful stop */
-                    actor->state = ACTOR_STATE_STOPPING;
+                    __atomic_or_fetch((uint32_t*)&actor->state,
+                                      ACTOR_STATE_STOPPING,
+                                      __ATOMIC_ACQ_REL);
                     break;
                 } else if (result < 0) {
-                    /* Behavior reported error - treat as crash */
-                    actor->state = ACTOR_STATE_CRASHED;
+                    __atomic_or_fetch((uint32_t*)&actor->state,
+                                      ACTOR_STATE_CRASHED,
+                                      __ATOMIC_ACQ_REL);
                     actor->exit_code = result;
-                    
-                    /* Notify supervisor if one exists */
-                    if (actor->supervisor) {
-                        /* TODO: Send error notification to supervisor */
-                    }
                     break;
                 }
-                
-                /* Clean up non-ask messages (asks are cleaned by reply functions) */
-                if (!is_ask && actor->msg_dtor) {
-                    actor->msg_dtor(batch[i]);
-                }
             } else {
-                /* No behavior defined - just clean up message */
-                if (actor->msg_dtor) {
-                    actor->msg_dtor(batch[i]);
-                }
+                if (actor->msg_dtor) actor->msg_dtor(batch[i]);
             }
-            
-            /* Handle unconsumed ask envelope (actor didn't reply) */
-            if (is_ask && ask_env && ask_env->reply != NULL) {
-                ol_actor_reply_cancel(ask_env);
-            }
-            
+
             actor->processed_messages++;
         }
-        
-        /* Update performance metrics */
+
         uint64_t end_time = ol_monotonic_now_ns();
         actor->processing_time_ns += (end_time - start_time);
-        
         if (batch_size > 0) {
-            /* Update exponential moving average of latency */
-            actor->avg_latency_ns = (actor->avg_latency_ns * 7 + 
+            actor->avg_latency_ns = (actor->avg_latency_ns * 7 +
                                     (end_time - start_time) / batch_size) / 8;
         }
-        
-        /* Check for state changes that should terminate the loop */
-        if (actor->state & (ACTOR_STATE_STOPPING | ACTOR_STATE_CRASHED)) {
+
+        s = __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
+        if ((s & ACTOR_STATE_STOPPING) || (s & ACTOR_STATE_CRASHED) ||
+            (s & ACTOR_STATE_CLOSED)) {
             break;
         }
     }
-    
-    /* Cleanup before exit */
-    actor->state = ACTOR_STATE_CLOSED;
+
+    __atomic_or_fetch((uint32_t*)&actor->state, ACTOR_STATE_CLOSED,
+                      __ATOMIC_ACQ_REL);
     g_current_actor = NULL;
 }
 
@@ -630,7 +654,7 @@ int ol_actor_start(ol_actor_t* actor) {
         /* This check is for future compatibility */
     }
     
-    actor->state = ACTOR_STATE_RUNNING;
+    __atomic_store_n((uint32_t*)&actor->state, ACTOR_STATE_RUNNING, __ATOMIC_RELEASE);
     return 0;
 }
 
@@ -653,7 +677,7 @@ int ol_actor_stop(ol_actor_t* actor) {
     }
     
     /* Set stopping flag to request graceful shutdown */
-    actor->state |= ACTOR_STATE_STOPPING;
+    __atomic_or_fetch((uint32_t*)&actor->state, ACTOR_STATE_STOPPING, __ATOMIC_ACQ_REL);
     
     /* Wake up mailbox waiters so they can see the stop request */
     if (actor->mailbox) {
@@ -680,9 +704,28 @@ int ol_actor_close(ol_actor_t* actor) {
         return -1;
     }
     
-    /* Mark as closed */
-    actor->state |= ACTOR_STATE_CLOSED;
-    
+    /* v1.3.2: assign CLOSED directly rather than OR-ing it in.
+     * OR-ing leaves ACTOR_STATE_RUNNING set, so the actor main loop
+     * (while (actor->state & ACTOR_STATE_RUNNING)) never exits and
+     * the driver thread never returns. Assignment clears RUNNING as
+     * a side effect. The loop notices within at most one mailbox
+     * timeout (100 ms). */
+    __atomic_store_n((uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_RELEASE);
+
+    /* v1.3.2: wake the actor loop immediately. Without this, the loop
+     * would keep blocking in actor_mailbox_batch_recv() until its
+     * timeout expires (up to one second), delaying driver-thread
+     * shutdown. */
+    if (actor->mailbox) {
+        /* Set the flag before broadcasting so that any waiter that
+         * wakes up sees it. */
+        atomic_store_explicit(&actor->mailbox->closed, true,
+                              memory_order_release);
+        ol_mutex_lock(&actor->mailbox->mutex);
+        ol_cond_broadcast(&actor->mailbox->not_empty);
+        ol_mutex_unlock(&actor->mailbox->mutex);
+    }
+
     /* Destroy the isolated process */
     if (actor->process) {
         ol_process_destroy(actor->process, OL_EXIT_NORMAL);
@@ -711,9 +754,21 @@ void ol_actor_destroy(ol_actor_t* actor) {
         return;
     }
     
-    /* Stop actor if running */
-    if (actor->state & ACTOR_STATE_RUNNING) {
-        ol_actor_close(actor);
+    /* v1.3.2: always close the actor, even when the RUNNING
+     * flag is not yet set. The driver thread may not have started
+     * running ol_actor_process_entry() yet; closing now ensures the
+     * mailbox->closed flag is set so that when the driver does start,
+     * it observes CLOSED immediately and exits. ol_actor_close() is
+     * idempotent. */
+    ol_actor_close(actor);
+
+    /* v1.3.2: ensure the isolated process is destroyed and its driver
+     * thread joined, even if the actor loop already exited on its own
+     * (in which case the RUNNING flag is cleared and ol_actor_close is
+     * not called above). */
+    if (actor->process) {
+        ol_process_destroy(actor->process, OL_EXIT_NORMAL);
+        actor->process = NULL;
     }
     
     /* Wait for graceful shutdown with timeout */
@@ -767,7 +822,8 @@ int ol_actor_send(ol_actor_t* actor, void* msg) {
     }
     
     /* Check if actor can receive messages */
-    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
+        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
         }
@@ -841,7 +897,8 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
     }
     
     /* Fast-path state check */
-    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
+        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) actor->msg_dtor(msg);
         return -1;
     }
@@ -864,7 +921,8 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
         ol_mutex_lock(&actor->mailbox->mutex);
         
         /* Re-check state under lock (actor may have been closed) */
-        if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
+        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
             ol_mutex_unlock(&actor->mailbox->mutex);
             if (actor->msg_dtor) actor->msg_dtor(msg);
             return -1;
@@ -921,7 +979,8 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
     }
     
     /* Check actor state */
-    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
+        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
         }
@@ -940,7 +999,8 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
     
     /* Re-check state under the lock: the actor may have been closed
      * between the fast-path attempt and now. */
-    if (actor->state & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
+        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         ol_mutex_unlock(&actor->mailbox->mutex);
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
@@ -1115,7 +1175,13 @@ void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value,
     }
     
     ol_promise_fulfill(envelope->reply, value, dtor);
-    
+
+    /* v1.3.2: release the promise now that it is resolved.
+     * The caller's future holds the only remaining reference;
+     * without this the promise (and its core) leak when the
+     * future is destroyed. */
+    ol_promise_destroy(envelope->reply);
+
     /* Clean up envelope (payload was already consumed by actor) */
     free(envelope);
 }
@@ -1135,7 +1201,10 @@ void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code) {
     }
     
     ol_promise_reject(envelope->reply, error_code);
-    
+
+    /* v1.3.2: release the promise after rejection (see reply_ok). */
+    ol_promise_destroy(envelope->reply);
+
     /* Clean up envelope */
     free(envelope);
 }

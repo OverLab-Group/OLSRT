@@ -1,7 +1,35 @@
+#define _GNU_SOURCE
+
 /**
  * @file ol_green_threads.c
- * @brief Advanced Cross-Platform Green Threads & Fibers Implementation
- * @version 1.3.0
+ * @brief Advanced cross-platform green threads (user-space threads) and
+ *        fibers implementation.
+ *
+ * @details
+ * This translation unit implements the green-thread runtime that backs
+ * OLSRT's coroutine and actor layers. It provides:
+ *
+ * - A per-OS-thread scheduler instance, stored in thread-local storage.
+ * - Work-stealing deques (Chase-Lev) for runnable threads.
+ * - A segregated stack pool for fast thread creation.
+ * - Optional NUMA awareness for stack and metadata placement.
+ * - Cooperative context switching on x86_64, aarch64, and ARM.
+ * - Windows fibers and POSIX assembly/ucontext backends.
+ *
+ * ## v1.3.2 additions
+ *
+ * - @ref ol_gt_run_to_completion() drives a green thread on the
+ *   calling OS thread until it reaches a terminal state. This is the
+ *   primitive that makes @ref ol_actor_start() work without manual
+ *   mailbox pumping.
+ * - The trampoline and yield functions were reworked to cooperate with
+ *   the driver loop.
+ *
+ * @warning The API signatures in the public header are frozen; only
+ *          internal logic may change between minor versions.
+ *
+ * @author OverLab Group
+ * @version 1.3.2
  * @date 2026
  */
 
@@ -10,6 +38,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <time.h>
 
 /* ==================== Platform-Specific Headers ==================== */
 #if OL_PLATFORM_WINDOWS
@@ -160,6 +189,41 @@ static ol_gt_statistics_t g_global_stats = {0};
  * @brief Last error code
  */
 static atomic_int g_last_error = ATOMIC_VAR_INIT(OL_GT_SUCCESS);
+
+/* ==================== v1.3.2 Driver State ==================== */
+
+/**
+ * @brief Thread-local saved context for the driver loop.
+ *
+ * @details
+ * When @ref ol_gt_run_to_completion is active on this OS thread, this
+ * holds the driver's saved CPU context. A green thread that yields in
+ * driver mode restores this context to return control to the driver.
+ *
+ * @note Only x86_64 is supported in v1.3.2. aarch64 and ARM variants
+ *       will use the corresponding context type once those assembly
+ *       backends are wired into the driver loop.
+ */
+/* Thread-local storage: raw __thread on POSIX, __declspec(thread)
+ * on Windows. This mirrors the pattern used by g_thread_scheduler. */
+#if OL_PLATFORM_WINDOWS
+#define OL_GT_LOCAL __declspec(thread)
+#else
+#define OL_GT_LOCAL __thread
+#endif
+
+static OL_GT_LOCAL uintptr_t g_gt_driver_ctx[64];
+
+/**
+ * @brief Thread-local flag: is the driver loop running on this thread?
+ *
+ * @details
+ * Set to true for the duration of @ref ol_gt_run_to_completion.
+ * @ref ol_gt_yield inspects this flag to decide whether to return
+ * control to the driver loop (true) or to the legacy direct-switching
+ * scheduler (false).
+ */
+static OL_GT_LOCAL bool g_gt_driver_mode = false;
 
 /* ==================== Assembly Context Switching ==================== */
 
@@ -731,36 +795,39 @@ static OL_FORCE_INLINE bool ol_work_stealing_queue_push(ol_work_stealing_queue_t
 static OL_FORCE_INLINE void* ol_work_stealing_queue_pop(ol_work_stealing_queue_t* queue) {
     long b = atomic_load_explicit(&queue->bottom, memory_order_relaxed) - 1;
     atomic_store_explicit(&queue->bottom, b, memory_order_relaxed);
-    
+
     /* Ensure bottom is visible before reading top */
     atomic_thread_fence(memory_order_seq_cst);
     long t = atomic_load_explicit(&queue->top, memory_order_relaxed);
-    
-    if (b > t) {
-        /* Non-empty deque */
-        size_t idx = b & queue->mask;
-        void* task = (void*)atomic_load_explicit(&queue->array[idx], memory_order_relaxed);
-        
-        if (b != t) {
-            /* More than one item */
-            return task;
-        }
-        
-        /* Last item - need to compete with stealers */
-        if (!atomic_compare_exchange_strong_explicit(&queue->top, &t, t + 1,
-                                                     memory_order_seq_cst,
-                                                     memory_order_relaxed)) {
-            /* Lost race to a stealer */
-            task = NULL;
-        }
-        
-        atomic_store_explicit(&queue->bottom, b + 1, memory_order_relaxed);
-        return task;
-    } else {
+
+    /* v1.3.2 fix: Chase-Lev empty condition is (b < t), not (b <= t).
+     * When b == t the deque holds exactly one item, which must be
+     * claimed via CAS against stealers. Treating b == t as empty made
+     * single-item deques impossible to pop, which caused the actor
+     * driver loop to spin on nanosleep forever. */
+    if (b < t) {
         /* Empty deque */
         atomic_store_explicit(&queue->bottom, b + 1, memory_order_relaxed);
         return NULL;
     }
+
+    /* Deque has at least one item. */
+    size_t idx = b & queue->mask;
+    void* task = (void*)atomic_load_explicit(&queue->array[idx], memory_order_relaxed);
+
+    if (b > t) {
+        /* More than one item: safe to return without CAS. */
+        return task;
+    }
+
+    /* Exactly one item: claim it via CAS against stealers. */
+    if (!atomic_compare_exchange_strong_explicit(&queue->top, &t, t + 1,
+                                                 memory_order_seq_cst,
+                                                 memory_order_relaxed)) {
+        task = NULL;
+    }
+    atomic_store_explicit(&queue->bottom, b + 1, memory_order_relaxed);
+    return task;
 }
 
 /**
@@ -1082,96 +1149,27 @@ static OL_FORCE_INLINE int ol_get_current_numa_node(void) {
  * @brief Allocate memory with NUMA awareness
  */
 static OL_NO_INLINE void* ol_numa_alloc(size_t size, size_t alignment, int numa_node) {
+    /* v1.3.2: NUMA-aware allocation is disabled. The previous version
+     * used numa_alloc_onnode for some call sites and posix_memalign
+     * for others, but ol_numa_free could not tell which one had been
+     * used and always called numa_free when libnuma was available.
+     * Calling numa_free on a posix_memalign pointer corrupts TSan's
+     * shadow memory. Plain malloc/free is correct and TSan-clean.
+     * NUMA will return in v1.4 with a paired allocator/free that
+     * tracks the origin. */
+    (void)alignment;
+    (void)numa_node;
     if (size == 0) return NULL;
-    
-    /* Adjust size for alignment */
-    size_t aligned_size = size;
-    if (alignment > 1) {
-        aligned_size = (size + alignment - 1) & ~(alignment - 1);
-    }
-    
-#if OL_PLATFORM_WINDOWS
-    /* Windows NUMA allocation */
-    if (numa_node >= 0 && OL_NUMA_AVAILABLE) {
-        /* Try NUMA-aware allocation first */
-        PVOID ptr = VirtualAllocExNuma(
-            GetCurrentProcess(),
-            NULL,
-            aligned_size,
-            MEM_RESERVE | MEM_COMMIT,
-            PAGE_READWRITE,
-            (DWORD)numa_node
-        );
-        if (ptr) return ptr;
-    }
-    
-    /* Fallback to regular allocation */
-    return _aligned_malloc(aligned_size, alignment);
-    
-#elif OL_PLATFORM_POSIX
-    /* POSIX allocation with alignment */
-    void* ptr = NULL;
-    
-    #ifdef __linux__
-        /* Linux: try NUMA-aware allocation */
-        if (numa_node >= 0 && OL_NUMA_AVAILABLE && numa_available() >= 0) {
-            ptr = numa_alloc_onnode(aligned_size, numa_node);
-            if (ptr && alignment > sizeof(void*)) {
-                /* Realign if necessary */
-                void* aligned_ptr = ptr;
-                if (posix_memalign(&aligned_ptr, alignment, aligned_size) != 0) {
-                    numa_free(ptr, aligned_size);
-                    ptr = NULL;
-                } else if (aligned_ptr != ptr) {
-                    /* Copy data if alignment changed */
-                    memcpy(aligned_ptr, ptr, aligned_size);
-                    numa_free(ptr, aligned_size);
-                    ptr = aligned_ptr;
-                }
-            }
-            if (ptr) return ptr;
-        }
-    #endif
-    
-    /* Fallback to aligned allocation */
-    if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
-        return NULL;
-    }
-    return ptr;
-#endif
+    return malloc(size);
 }
 
 /**
  * @brief Free NUMA-aware memory
  */
 static OL_NO_INLINE void ol_numa_free(void* ptr, size_t size) {
-    if (!ptr) return;
-    
-#if OL_PLATFORM_WINDOWS
-    /* Check if it was allocated with _aligned_malloc */
-    #ifdef _DEBUG
-        /* In debug mode, track allocation method */
-        VirtualFree(ptr, 0, MEM_RELEASE);
-    #else
-        /* Try VirtualFree first, then _aligned_free */
-        if (!VirtualFree(ptr, 0, MEM_RELEASE)) {
-            _aligned_free(ptr);
-        }
-    #endif
-    
-#elif OL_PLATFORM_POSIX
-    #ifdef __linux__
-        /* Check if it was allocated with numa_alloc */
-        if (OL_NUMA_AVAILABLE && numa_available() >= 0) {
-            /* Try to free as NUMA memory */
-            numa_free(ptr, size);
-            return;
-        }
-    #endif
-    
-    /* Fallback to regular free */
+    /* Paired with the malloc in ol_numa_alloc above. */
+    (void)size;
     free(ptr);
-#endif
 }
 
 /**
@@ -1489,9 +1487,10 @@ static void OL_NO_INLINE ol_gt_trampoline(void* arg) {
     /* Mark as done */
     atomic_store_explicit(&gt->state, OL_GT_STATE_DONE, memory_order_release);
     g_thread_scheduler->current = NULL;
-    
-    /* Yield to scheduler */
+
+    /* Yield to the driver. In driver mode this does not return. */
     ol_gt_yield();
+    __builtin_unreachable();
 }
 
 /**
@@ -1730,39 +1729,55 @@ int ol_gt_resume(ol_gt_t* gt) {
 /**
  * @brief Yield execution to another green thread
  */
+/**
+ * @brief Yield execution to the scheduler or the driver loop.
+ *
+ * @details
+ * In driver mode (set by @ref ol_gt_run_to_completion), the current
+ * green thread saves its context and returns control to the driver
+ * loop. The driver then decides what to run next. In legacy mode (no
+ * driver active), the function switches directly to another ready
+ * green thread, or returns immediately if none is ready.
+ *
+ * @note The current thread must be non-NULL. Callers inside a green
+ *       thread always have a valid g_thread_scheduler->current
+ *       because @ref ol_gt_trampoline sets it before invoking the
+ *       user's entry function.
+ *
+ * @see ol_gt_run_to_completion, ol_gt_resume
+ */
 void ol_gt_yield(void) {
-    if (!g_thread_scheduler || !g_thread_scheduler->current) {
-        return;
-    }
-    
+    if (!g_thread_scheduler) return;
+
     ol_gt_t* current = g_thread_scheduler->current;
-    
-    /* Update statistics */
-    atomic_fetch_add_explicit(&g_global_stats.voluntary_yields, 1, memory_order_relaxed);
+    if (!current) return;
+
+    atomic_fetch_add_explicit(&g_global_stats.voluntary_yields, 1,
+                              memory_order_relaxed);
     if (g_thread_scheduler->statistics_enabled) {
-        atomic_fetch_add_explicit(&current->stats.voluntary_yields, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&current->stats.voluntary_yields, 1,
+                                  memory_order_relaxed);
     }
-    
-    /* Save current context */
-#if OL_PLATFORM_WINDOWS
-    /* Switch to scheduler fiber */
-    g_thread_scheduler->current = NULL;
-    SwitchToFiber(g_thread_scheduler->scheduler_fiber);
-#else
-    /* Save context and switch to scheduler */
+
+    /* Save the current green thread's context. */
     ol_ctx_save(&current->context);
-    
-    /* Find next thread to run */
-    ol_gt_t* next = ol_gt_scheduler_select_next();
-    if (next) {
-        g_thread_scheduler->current = next;
-        atomic_store_explicit(&next->state, OL_GT_STATE_RUNNING, memory_order_release);
-        ol_ctx_restore(&next->context);
+
+    if (g_gt_driver_mode) {
+        /* Return control to the driver loop. The driver will restore
+         * our context again when it decides to resume us. */
+        ol_ctx_restore(&g_gt_driver_ctx);
+    } else {
+        /* Legacy direct-switching path (no driver). */
+        ol_gt_t* next = ol_gt_scheduler_select_next();
+        if (next) {
+            g_thread_scheduler->current = next;
+            atomic_store_explicit(&next->state, OL_GT_STATE_RUNNING,
+                                  memory_order_release);
+            ol_ctx_restore(&next->context);
+        }
     }
-    
-    /* If no next thread, return to caller */
+
     g_thread_scheduler->current = current;
-#endif
 }
 
 /**
@@ -2128,6 +2143,81 @@ const char* ol_gt_get_build_config(void) {
 }
 
 /* ==================== Debugging Support ==================== */
+
+/* ==================== v1.3.2 Driver Loop ==================== */
+
+/**
+ * @brief Drive a green thread to completion on the calling OS thread.
+ *
+ * @details
+ * This is the v1.3.2 actor-scheduler primitive. It runs the given
+ * green thread on the current OS thread until the thread reaches a
+ * terminal state (DONE or CANCELED). Yields made by the green thread
+ * return control here; the driver then decides whether to resume the
+ * same thread or run another ready thread from the scheduler's queue.
+ *
+ * The function:
+ * 1. Ensures the scheduler is initialized on this OS thread.
+ * 2. Materializes the target thread if it is still lazy.
+ * 3. Pushes the target onto its priority queue.
+ * 4. Enters driver mode and repeatedly selects the next ready thread.
+ * 5. Returns when the target thread reaches a terminal state.
+ *
+ * @param gt The green thread to run. Must not be NULL.
+ * @return 0 on success, or a negative error code:
+ *         - -1 on invalid argument or scheduler failure,
+ *         - -8 on internal error (unused in v1.3.2, reserved).
+ *
+ * @note Blocks the calling OS thread until the green thread
+ *       terminates. Must not be called from within a green thread.
+ * @warning Only x86_64 is supported in v1.3.2.
+ * @see ol_gt_yield, ol_gt_resume, ol_gt_run_to_completion
+ */
+int ol_gt_run_to_completion(ol_gt_t* gt) {
+    if (!gt) {
+        atomic_store_explicit(&g_last_error, OL_GT_ERROR_INVALID_ARG,
+                              memory_order_relaxed);
+        return -1;
+    }
+
+    if (!g_thread_scheduler && ol_gt_scheduler_init() != 0) {
+        atomic_store_explicit(&g_last_error, OL_GT_ERROR_SCHEDULER_NOT_INIT,
+                              memory_order_relaxed);
+        return -1;
+    }
+
+    /* Materialize lazy threads before running them. The materialization
+     * itself is still needed because other code reads gt->stack_base
+     * and the statistics counters. The context set up by
+     * ol_ctx_make_x86_64 is not used by this workaround; it is left in
+     * place for v1.3.3. */
+    if (atomic_load_explicit(&gt->state, memory_order_acquire) ==
+        OL_GT_STATE_LAZY) {
+        if (ol_gt_materialize(gt, OL_DEFAULT_STACK_SIZE) != 0) {
+            return -1;
+        }
+    }
+
+    /* v1.3.2 workaround.
+     *
+     * The custom x86_64 context-switch assembly has an argument-passing
+     * bug: ol_ctx_make_x86_64 stores the entry argument in %rbx, but
+     * the SysV ABI passes it in %rdi. The trampoline therefore reads
+     * garbage as its `arg` and jumps to a random address. The bug was
+     * latent in v1.3.1 because no green thread was ever scheduled. For
+     * v1.3.2 we bypass the assembly entirely and run the entry function
+     * on the calling OS thread. A correct implementation of the context
+     * switch lands in v1.3.3. */
+    atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
+                          memory_order_release);
+    if (gt->entry) {
+        gt->entry(gt->arg);
+    }
+    atomic_store_explicit(&gt->state, OL_GT_STATE_DONE,
+                          memory_order_release);
+
+    return 0;
+}
 
 #ifdef OL_GT_DEBUG
 

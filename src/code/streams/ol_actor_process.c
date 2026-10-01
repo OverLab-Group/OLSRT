@@ -119,7 +119,7 @@ typedef struct process_link {
  * used for exit notifications and supervision decisions.
  */
 typedef struct exit_info {
-    ol_exit_reason_t reason;     /**< Exit reason */
+    _Atomic ol_exit_reason_t reason; /**< Exit reason */
     void* data;                  /**< Exit data (process-specific) */
     size_t data_size;            /**< Exit data size */
     uint64_t timestamp;          /**< Exit timestamp */
@@ -135,11 +135,17 @@ struct ol_process {
     /* Identity and state */
     ol_pid_t pid;                       /**< Unique process ID */
     char name[MAX_PROCESS_NAME];        /**< Process name (for debugging) */
-    ol_process_state_t state;           /**< Current process state */
+    _Atomic ol_process_state_t state;   /**< Current process state */
     ol_process_flags_t flags;           /**< Process configuration flags */
     
     /* Execution context */
     ol_gt_t* green_thread;              /**< Green thread for execution */
+#if defined(_WIN32)
+    HANDLE   driver_thread;             /**< v1.3.2: OS driver thread */
+#else
+    pthread_t driver_thread;            /**< v1.3.2: OS driver thread */
+#endif
+    bool     driver_thread_active;      /**< v1.3.2: driver-thread liveness */
     ol_process_entry_fn entry;          /**< Entry function */
     void* entry_arg;                    /**< Argument for entry function */
     
@@ -373,6 +379,43 @@ static void ol_process_create_default_name(char* buffer, size_t size, const char
  * @details This is the entry point for process execution in green threads.
  * It sets up the execution environment and runs the main process loop.
  */
+/**
+ * @brief OS-thread trampoline that drives a process green thread.
+ *
+ * @details
+ * v1.3.2: each process is created with a dedicated OS driver thread
+ * that runs the process green thread to completion. This is what makes
+ * ol_actor_start work without manual pumping. The driver thread
+ * destroys the green thread after it reaches a terminal state, because
+ * the green thread cannot safely destroy itself from its own stack.
+ *
+ * @param arg The process instance (`ol_process_t*`).
+ * @return Always NULL.
+ */
+static void* ol_process_driver_thread(void* arg) {
+    ol_process_t* process = (ol_process_t*)arg;
+    if (!process) return NULL;
+
+    ol_gt_t* gt = process->green_thread;
+    if (!gt) return NULL;
+
+    (void)ol_gt_run_to_completion(gt);
+
+    /* The green thread has reached a terminal state. Destroying it
+     * from the driver thread is safe; destroying it from inside the
+     * green thread would free a stack that is still in use. */
+    ol_gt_destroy(gt);
+    process->green_thread = NULL;
+
+    /* v1.3.2: shut down this driver thread's scheduler. Without
+     * this, the per-thread stack pool caches up to 256 KB per
+     * materialized green thread and LSan reports every cached
+     * stack as a leak. Each driver thread is dedicated to one
+     * process, so it owns its scheduler exclusively. */
+    ol_gt_scheduler_shutdown();
+    return NULL;
+}
+
 static void ol_process_trampoline(void* arg) {
     ol_process_t* process = (ol_process_t*)arg;
     if (!process) {
@@ -384,7 +427,7 @@ static void ol_process_trampoline(void* arg) {
     
     /* Update process state to RUNNING */
     ol_mutex_lock(&process->state_mutex);
-    process->state = OL_PROCESS_RUNNING;
+    __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_RUNNING, __ATOMIC_RELEASE);
     process->start_time = ol_monotonic_now_ns();
     process->system_thread_id = OL_GET_TID();
     ol_mutex_unlock(&process->state_mutex);
@@ -393,7 +436,8 @@ static void ol_process_trampoline(void* arg) {
     bool trap_exit = (process->flags & OL_PROCESS_TRAP_EXIT) != 0;
     
     /* Main process loop */
-    while (process->state == OL_PROCESS_RUNNING) {
+    while (__atomic_load_n((uint32_t*)&process->state,
+                              __ATOMIC_ACQUIRE) == OL_PROCESS_RUNNING) {
         /* Check for exit signals (unless trapping exits) */
         if (!trap_exit && process->exit_info.reason != OL_EXIT_NORMAL) {
             break;
@@ -426,14 +470,12 @@ static void ol_process_trampoline(void* arg) {
     ol_mutex_lock(&process->state_mutex);
     
     if (process->state == OL_PROCESS_RUNNING) {
-        process->state = OL_PROCESS_DONE;
+        __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
     }
     
-    /* Clean up green thread */
-    if (process->green_thread) {
-        ol_gt_destroy(process->green_thread);
-        process->green_thread = NULL;
-    }
+    /* NOTE(v1.3.2): do NOT destroy the green thread from within
+     * it. The driver thread destroys it after we yield back. Touching
+     * process->green_thread here would race with the driver. */
     
     /* Notify all linked processes about our exit */
     for (size_t i = 0; i < process->link_count; i++) {
@@ -478,7 +520,7 @@ static void ol_process_send_exit(ol_process_t* process, ol_exit_reason_t reason,
     }
     
     /* Set exit information */
-    process->exit_info.reason = reason;
+    __atomic_store_n((uint32_t*)&process->exit_info.reason, (uint32_t)reason, __ATOMIC_RELEASE);
     process->exit_info.timestamp = ol_monotonic_now_ns();
     
     /* Copy exit data if provided */
@@ -496,13 +538,13 @@ static void ol_process_send_exit(ol_process_t* process, ol_exit_reason_t reason,
     /* Update process state based on exit reason */
     switch (reason) {
         case OL_EXIT_NORMAL:
-            process->state = OL_PROCESS_DONE;
+            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
             break;
         case OL_EXIT_KILL:
-            process->state = OL_PROCESS_KILLED;
+            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_KILLED, __ATOMIC_RELEASE);
             break;
         default:
-            process->state = OL_PROCESS_CRASHED;
+            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_CRASHED, __ATOMIC_RELEASE);
             break;
     }
     
@@ -838,7 +880,34 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
+    /* v1.3.2: spawn a dedicated OS driver thread that runs the green
+     * thread to completion. Without this, the actor main loop is never
+     * scheduled and callers must pump the mailbox manually. */
+#if defined(_WIN32)
+    process->driver_thread = CreateThread(NULL, 0,
+                                          (LPTHREAD_START_ROUTINE)
+                                              ol_process_driver_thread,
+                                          process, 0, NULL);
+    if (process->driver_thread == NULL) {
+        ol_process_unregister(process);
+        ol_gt_destroy(process->green_thread);
+        ol_process_cleanup(process);
+        free(process);
+        return NULL;
+    }
+#else
+    if (pthread_create(&process->driver_thread, NULL,
+                       ol_process_driver_thread, process) != 0) {
+        ol_process_unregister(process);
+        ol_gt_destroy(process->green_thread);
+        ol_process_cleanup(process);
+        free(process);
+        return NULL;
+    }
+#endif
+    process->driver_thread_active = true;
+
     return process;
 }
 
@@ -870,6 +939,20 @@ void ol_process_destroy(ol_process_t* process, ol_exit_reason_t reason) {
     }
     ol_mutex_unlock(&process->state_mutex);
     
+    /* v1.3.2: wait for the driver thread to exit before freeing
+     * the process structure. The green thread has reached a terminal
+     * state by this point, so the join returns promptly. */
+    if (process->driver_thread_active) {
+#if defined(_WIN32)
+        WaitForSingleObject(process->driver_thread, INFINITE);
+        CloseHandle(process->driver_thread);
+        process->driver_thread = NULL;
+#else
+        pthread_join(process->driver_thread, NULL);
+#endif
+        process->driver_thread_active = false;
+    }
+
     /* Clean up resources */
     ol_process_cleanup(process);
     

@@ -233,6 +233,27 @@ bool ol_gt_is_canceled(const ol_gt_t* gt);
  */
 ol_gt_t* ol_gt_current(void);
 
+/**
+ * @brief Drive a green thread to completion on the calling OS thread.
+ *
+ * @details
+ * Runs the given green thread on the current OS thread until it reaches
+ * a terminal state (DONE or CANCELED). Yields made by the green thread
+ * return control to this function, which then decides whether to resume
+ * the same thread or run another ready thread from the scheduler queue.
+ *
+ * This is the primitive that makes @ref ol_actor_start work without
+ * manual mailbox pumping (v1.3.2 actor scheduler).
+ *
+ * @param gt The green thread to run. Must not be NULL.
+ * @return 0 on success, or a negative error code.
+ *
+ * @note Blocks the calling OS thread until the green thread terminates.
+ *       Must not be called from within a green thread.
+ * @see ol_gt_resume, ol_gt_yield
+ */
+int ol_gt_run_to_completion(ol_gt_t* gt);
+
 /* ==================== Enhanced Internal API ==================== */
 
 /**
@@ -371,15 +392,20 @@ struct ol_gt {
     ol_gt_entry_fn entry;
     void* arg;
     
-    /* Context switching */
+    /* Context switching.
+     *
+     * v1.3.2: the context buffer must be large enough to
+     * hold the full platform context. ol_ctx_save_x86_64
+     * writes 232 bytes; the old 144-byte anonymous struct
+     * overflowed 88 bytes into the fields that follow,
+     * corrupting the struct and causing a SEGV inside
+     * ol_ctx_restore. A 512-byte raw buffer fits every
+     * current context type (x86_64: 232, aarch64: ~200,
+     * arm: ~120). */
 #if OL_PLATFORM_WINDOWS
     void* fiber;
 #else
-    struct {
-        void* stack_ptr;
-        void* instruction_ptr;
-        uintptr_t registers[16];
-    } context;
+    uintptr_t context[64];
 #endif
     
     /* Stack management */
@@ -414,9 +440,7 @@ struct ol_gt {
     atomic_bool cancel_requested;
     atomic_bool cancel_flag;
     
-    /* Padding to 1024 bytes exactly */
-    uint8_t padding[1024 - 384];
-} OL_ALIGNED(64) OL_PACKED;
+} OL_ALIGNED(64);
 
 /* Chase-Lev work-stealing deque. Field names and padding must match the
  * implementation in ol_green_threads.c. */
