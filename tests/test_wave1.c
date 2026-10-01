@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 
 /* ------------------------------------------------------------------ */
@@ -219,6 +220,81 @@ static void test_channel_close(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Behavior used by the v1.3.2 test                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Uppercase the payload and reply via ask.
+ *
+ * @param a   Actor instance (unused).
+ * @param msg Incoming ol_ask_envelope_t*.
+ * @return Always 0.
+ */
+static int echo_upper_beh(ol_actor_t* a, void* msg)
+{
+    (void)a;
+    ol_ask_envelope_t* env = (ol_ask_envelope_t*)msg;
+    if (!env || !env->reply) { if (msg) free(msg); return 0; }
+    char* in = (char*)env->payload;
+    if (!in) { ol_actor_reply_error(env, -1); return 0; }
+    for (char* p = in; *p; ++p) *p = (char)toupper((unsigned char)*p);
+    ol_actor_reply_ok(env, in, free);
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* v1.3.2 test                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Verify the actor main loop is driven automatically.
+ *
+ * @details
+ * This is the acceptance test for the v1.3.2 actor scheduler.
+ * It creates an actor, starts it, and uses the ask/reply
+ * pattern without calling ol_actor_process_batch(). If the
+ * driver thread is working, the reply arrives via the future.
+ */
+static void test_actor_runs_automatically(void)
+{
+    printf("\nTest 7: actor runs automatically (v1.3.2)\n");
+
+    ol_actor_t* a = ol_actor_create(NULL, 16, free, echo_upper_beh, NULL);
+    EXPECT(a != NULL, "actor created");
+    if (!a) return;
+
+    EXPECT(ol_actor_start(a) == 0, "actor started");
+
+    /* Small delay so the driver thread can spin up. */
+    struct timespec ts = { 0, 50000000 }; /* 50 ms */
+    nanosleep(&ts, NULL);
+
+    char* payload = strdup("hello");
+    ol_future_t* f = ol_actor_ask(a, payload);
+    EXPECT(f != NULL, "ask returned a future");
+    if (!f) { ol_actor_destroy(a); return; }
+
+    int r = ol_future_await(f, ol_deadline_from_ms(500).when_ns);
+    EXPECT(r == 1, "future resolved within 500 ms (no manual pump)");
+
+    if (r == 1) {
+        const char* reply = (const char*)ol_future_get_value_const(f);
+        EXPECT(reply != NULL, "reply is not NULL");
+        EXPECT(reply && strcmp(reply, "HELLO") == 0,
+               "reply is the uppercased payload");
+    }
+
+    ol_future_destroy(f);
+    ol_actor_stop(a);
+    ol_actor_destroy(a);
+}
+
+/* ------------------------------------------------------------------ */
+/* Behavior used only by the v1.3.2 test                              */
+/* ------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------ */
 /* Main                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -233,6 +309,9 @@ int main(void)
     test_mailbox_atomics();
     test_event_loop_smoke();
     test_channel_close();
+
+    /* v1.3.2 tests */
+    test_actor_runs_automatically();
 
     printf("\n=============================\n");
     printf("Passed: %d\n", g_pass);

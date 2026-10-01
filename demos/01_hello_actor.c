@@ -54,19 +54,9 @@ static int uppercase_beh(ol_actor_t* a, void* msg) {
 /* Helper: pump the actor until the future resolves                   */
 /* ------------------------------------------------------------------ */
 
-static int pump_until_resolved(ol_actor_t* actor, ol_future_t* f,
-                               int64_t deadline_ns) {
-    while (1) {
-        if (ol_future_state(f) != OL_PROMISE_PENDING) return 1;
-        if (ol_monotonic_now_ns() >= deadline_ns) return 0;
-
-        size_t n = ol_actor_process_batch(actor, 16);
-        if (n == 0) {
-            struct timespec ts = { 0, 1000000 };  /* 1 ms */
-            nanosleep(&ts, NULL);
-        }
-    }
-}
+/* v1.3.2: the actor main loop is driven automatically by the
+ * driver thread in ol_process_create. No manual pumping is
+ * needed; ol_future_await blocks until the reply arrives. */
 
 /* ------------------------------------------------------------------ */
 /* Main                                                               */
@@ -103,8 +93,8 @@ int main(void) {
             continue;
         }
 
-        int64_t deadline = ol_deadline_from_ms(1000).when_ns;
-        if (!pump_until_resolved(echo, f, deadline)) {
+        int r = ol_future_await(f, ol_deadline_from_ms(1000).when_ns);
+        if (r != 1) {
             fprintf(stderr, "[main] timeout waiting for reply\n");
             ol_future_destroy(f);
             continue;
