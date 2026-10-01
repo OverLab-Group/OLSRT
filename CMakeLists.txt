@@ -7,7 +7,7 @@
 
 cmake_minimum_required(VERSION 3.12)
 project(OLSRT 
-    VERSION 1.0.0
+    VERSION 1.3.2
     DESCRIPTION "OLSRT Runtime Library"
     LANGUAGES C
     HOMEPAGE_URL "https://github.com/username/olsrt"
