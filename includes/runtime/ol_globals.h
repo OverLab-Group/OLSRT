@@ -9,8 +9,8 @@
  * Runtime version information
  * ----------------------------------------------------- */
 #define OL_VERSION_MAJOR   1
-#define OL_VERSION_MINOR   0
-#define OL_VERSION_PATCH   0
+#define OL_VERSION_MINOR   3
+#define OL_VERSION_PATCH   2
 
 /* -----------------------------------------------------
  * Core runtime configuration

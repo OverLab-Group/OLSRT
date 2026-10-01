@@ -9,14 +9,12 @@
 *.out
 
 # Dependencies
-node_modules/
 venv/
 .venv/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
 target/
-.gradle/
 
 # Logs and temp files
 *.log
@@ -70,9 +68,7 @@ htmlcov/
 *.orig
 *.orig2
 *.save
-
-# Local build configs
-build_wave1_config.py
+*.v*
 
 # Wave 1 local tools and backups
 *.orig
@@ -85,13 +81,13 @@ __pycache__/
 *.py[cod]
 
 # Personal scripts (not part of the library)
-apply_patches.py
-add_tcp_udp_patches.py
-fix_*.py
-verify.py
-verify.py.orig
-verify.sh
-build_wave1_config.py
+*patches.py
+apply*.py
+add*patches.py
+fix*.py
+wire*.py
+build*.py
+final*.py
 
 # Personal notes
 BUGS.txt
@@ -101,6 +97,9 @@ dump.txt
 log.txt
 errors.txt
 bash.sh
+*.sh
+tools/*
+docs/v*.md
 
 # Accidental shell outputs
 Building
@@ -122,7 +121,6 @@ workspace.tar
 .DS_Store
 
 # Demos — build artifacts
-demos/01_hello_actor
 demos/*.o
 demos/*.so
 demos/libolsrt.so
@@ -142,3 +140,20 @@ demos/*.o
 src/code/network/*.orig
 includes/code/network/*.orig
 includes/code/streams/ol_poller.h.orig
+
+# Backups
+*.pre_v*
+*.before*
+src/code/streams/*.pre_v*
+includes/code/streams/*.pre_v*
+src/code/network/*.pre_v*
+includes/code/network/*.pre_v*
+includes/code/network/*.before*
+src/code/streams/*.before*
+includes/code/streams/*.before*
+src/code/network/*.before*
+
+# Changepart Files
+CHANGENOW.md
+CHANGETO.md
+changepart.py

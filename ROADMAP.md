@@ -137,7 +137,7 @@ Every issue below is *tracked* and assigned to a future version.
 
 ### 4.1 Actor main loop is not driven by the green-thread scheduler
 
-**Severity:** High — this is the reason LSan is disabled.
+**Severity:** High - **FIXED in v1.3.2.**
 
 **Symptom:** `ol_actor_start()` sets a flag on the actor, but the actor
 entry function runs inside a green thread spawned by `ol_process_create()`.
@@ -191,10 +191,10 @@ if (g_memwatch.initialized && g_memwatch.enabled && new_ptr != ptr) {
 
 Full list (all `-W` warnings in a clean build):
 
-| File ↕▾ | Warning ↕▾ | Fix ↕▾ |
+| File | Warning | Fix |
 |---|---|---|
-| −`ol_actor.c` | `_GNU_SOURCE` redefined | Wrap with `#ifndef _GNU_SOURCE` |
-| −`ol_actor_arena.c` | `_GNU_SOURCE` redefined | Same |
+| `ol_actor.c` | `_GNU_SOURCE` redefined | Wrap with `#ifndef _GNU_SOURCE` |
+| `ol_actor_arena.c` | `_GNU_SOURCE` redefined | Same |
 | `ol_green_threads.h` | `OL_ALWAYS_INLINE` redefined | Guard with `#ifndef OL_ALWAYS_INLINE` |
 | `ol_green_threads.c:1537` | address of packed member | Remove `__attribute__((packed))` from `struct ol_gt` or align atomics |
 | `ol_green_threads.c:2105` | `%zu` with `int` argument | Cast to `(size_t)` |
@@ -203,7 +203,6 @@ Full list (all `-W` warnings in a clean build):
 | `ol_supervisor.c:556` | unused parameter `process` | `(void)process;` |
 | `ol_streams.c:156` | unused parameter `fd` | `(void)fd;` |
 | `ol_memwatch.c:334` | unused parameters `file`, `line` | `(void)file; (void)line;` |
-⚙
 
 **Fix (v1.3.3):** All in one commit titled `chore: silence -Wall -Wextra`.
 
@@ -292,7 +291,7 @@ bump `SOVERSION` only on breaking changes. See §5.6.
 
 ---
 
-### v1.3.2 — Actor Scheduler
+### v1.3.2 - Actor Scheduler ✅ DONE
 
 **Goal:** Make actors run their main loop automatically, without manual
 mailbox pumping.
@@ -499,123 +498,6 @@ This is distinct from OLSRT's futures (which can block via
 `ol_future_await`). NWP's promise is **zero waiting, ever**, at the cost
 of an explicit commit phase at shutdown.
 
-### 6.2 What actually exists today
-
-Two directories were authored externally:
-
-**`nwp/mvp/` — buildable with fixes**
-
-- `nwp_types.h`, `nwp_config.h`, `nwp_api.h` — public headers
-- `nwp_branch.c`, `nwp_channel.c`, `nwp_commit.c`, `nwp_memory.c`,
-`nwp_runtime.c`, `nwp_scheduler.c` — implementations
-- Uses work-stealing deques, lock-free channels, arena allocator
-- Depends on x86_64 assembly for context switch (not in the dump)
-- **Status:** requires the assembly file plus small fixes to compile
-
-**`nwp/good/` — aspirational, will NOT build**
-
-- References quantum, optical, DNA, neuromorphic hardware
-- References Intel TSX (`_xbegin`, `_xend`) which is disabled on most
-modern CPUs
-- References LLVM, CUDA, Vulkan headers that are not vendored
-- **Status:** design document, not code
-
-### 6.3 NWP MVP integration plan
-
-**Step 1 — Standalone build (2 weeks)**
-
-```
-mkdir -p /tmp/nwp-standalone
-cp -r nwp/mvp/* /tmp/nwp-standalone/
-# Write missing nwp_context.S (x86_64 and aarch64)
-# Fix compile errors
-# Produce a working `nwp_helloworld` binary
-```
-
-**Acceptance criteria:** `nwp_helloworld` prints "Hello from branch"
-without the main thread ever blocking.
-
-**Step 2 — Port into OLSRT (1 week)**
-
-Move to `src/nwp/`:
-
-```
-src/nwp/
-├── include/
-│   ├── ol_nwp.h              ← public OLSRT API
-│   ├── nwp_types.h
-│   ├── nwp_branch.h
-│   ├── nwp_channel.h
-│   ├── nwp_commit.h
-│   ├── nwp_memory.h
-│   ├── nwp_runtime.h
-│   └── nwp_scheduler.h
-└── core/
-    ├── nwp_branch.c
-    ├── nwp_channel.c
-    ├── nwp_commit.c
-    ├── nwp_context_x86_64.S
-    ├── nwp_context_aarch64.S
-    ├── nwp_memory.c
-    ├── nwp_runtime.c
-    └── nwp_scheduler.c
-```
-
-Public API surface from OLSRT:
-
-```
-/* ol_nwp.h */
-int      ol_nwp_init(const ol_nwp_config_t* cfg);
-void     ol_nwp_shutdown(void);
-uint64_t ol_nwp_go(void* (*fn)(void*), void* arg);
-void*    ol_nwp_wait(uint64_t branch_id, int64_t deadline_ns);
-void     ol_nwp_wait_all(void);              /* the NWL */
-void     ol_nwp_commit_all(void);            /* explicit commit phase */
-```
-
-**Step 3 — Demo (1 day)**
-
-`demos/10_nwp_helloworld.c`:
-
-- Spawn 10 branches that compute `sin(i)`.
-- Main never blocks.
-- At end, call `ol_nwp_wait_all()`, then `ol_nwp_commit_all()`.
-- Print all 10 results.
-
-**Step 4 — Benchmark (2 days)**
-
-Compare:
-
-- NWP branch spawn vs. OLSRT green-thread spawn.
-- NWP branch switch vs. OLSRT context switch.
-- NWP channel vs. OLSRT channel throughput.
-
-Results published in `bench/nwp_vs_olsrt.md`.
-
-### 6.4 What NOT to port (yet)
-
-- `nwp_atomic.h` — depends on Intel TSX; disabled on most CPUs.
-Replace with standard C11 atomics.
-- `nwp_hardware.h` — refers to quantum/optical/DNA hardware. Keep in
-`nwp/good/` as a design document, not in the build.
-- `nwp_speculation.h` — the ML model is a stub. Defer to v3.x.
-- `nwp_network.c` — network distribution is a v2.x concern.
-
-### 6.5 NWP design notes (from `Non-Waiting.txt`)
-
-Key concepts to preserve in the port:
-
-- **Branch Unit (BU):** the smallest execution unit, lighter than a
-fiber. NWP's target is `sizeof(BU) < 256 bytes` and switch latency
-under 20 ns.
-- **NWL (Non-Waiting Loop):** the shutdown loop that spins (with
-adaptive backoff) until all branches are ready, then commits.
-- **Commit Engine:** walks a list of registered targets and injects
-results atomically. Must survive partial failure (some branches
-crashed) by leaving those targets untouched.
-- **HCR (Hot-Coding References):** the paradigm where every reference
-to a callable spawns a branch. This is the philosophical core.
-
 ---
 
 ## 7. Version Plan — v2.0 and Beyond
@@ -629,16 +511,15 @@ to a callable spawns a branch. This is the philosophical core.
 
 #### A. Cross-platform parity (2–3 months)
 
-| Deliverable ↕▾ | Detail ↕▾ |
+| Deliverable | Detail |
 |---|---|
-| −**Windows IOCP** | New `src/code/streams/ol_poller_iocp.c` using `CreateIoCompletionPort`, `GetQueuedCompletionStatus`. All socket I/O rewritten on `OVERLAPPED` structs. |
+| **Windows IOCP** | New `src/code/streams/ol_poller_iocp.c` using `CreateIoCompletionPort`, `GetQueuedCompletionStatus`. All socket I/O rewritten on `OVERLAPPED` structs. |
 | **macOS kqueue** | New `src/code/streams/ol_poller_kqueue.c` using `kqueue`, `kevent`, `EVFILT_READ/WRITE`. |
 | **io_uring (Linux 5.1+)** | Optional backend `ol_poller_io_uring.c` using `io_uring_setup`, `io_uring_enter`. |
 | **Async file I/O** | `ol_file_async_read/write` on all three backends. |
 | **Async DNS** | `ol_dns_resolve(hostname) -> future<address>`, uses threadpool fallback. |
 | **Async process spawn** | `ol_process_spawn_async(cmd) -> future<exit_code>`. |
 | **Signal handling** | `ol_signal_register(sig, cb)` with a self-pipe on POSIX, `SetConsoleCtrlHandler` on Windows. |
-⚙
 
 #### B. Network protocols (3–4 months)
 
@@ -710,8 +591,15 @@ stubs** for network protocols. None have working implementations except
 **Tier 6 — Miscellaneous**
 
 - WebDAV (`ol_webdav.h`)
+
+**OverLab Protocols**
+
 - NOPO (`ol_nopo.h`)
 - TOP (`ol_top.h`)
+
+```
+These protocols will not publish yet
+```
 
 **Estimated effort:** Each protocol takes 2–7 days for a minimal
 implementation (RFC 2119 conformance, no extensions). Total for Tier 1
@@ -756,15 +644,14 @@ mainstream programming languages)
 
 ### 8.1 Current tooling
 
-| Tool ↕▾ | Purpose ↕▾ | Location ↕▾ |
+| Tool | Purpose | Location |
 |---|---|---|
-| −`Makefile` | Primary build system | repo root |
-| −`CMakeLists.txt` | IDE-friendly build | repo root |
-| −`Doxyfile` | API documentation | repo root |
-| −`verify.py` | Sanitizer test runner | repo root |
-| −`demos/Makefile` | Demo build | `demos/` |
-| −`source/conf.py` | Sphinx documentation | `source/` |
-⚙
+| `Makefile` | Primary build system | repo root |
+| `CMakeLists.txt` | IDE-friendly build | repo root |
+| `Doxyfile` | API documentation | repo root |
+| `verify.py` | Sanitizer test runner | repo root |
+| `demos/Makefile` | Demo build | `demos/` |
+| `source/conf.py` | Sphinx documentation | `source/` |
 
 ### 8.2 Recommended additions (v1.3.3+)
 
@@ -851,22 +738,21 @@ Windows.
 
 ## 10. Glossary
 
-| Term ↕▾ | Meaning ↕▾ |
+| Term | Meaning |
 |---|---|
-| −**Actor** | Lightweight concurrency unit with a mailbox. Isolated in its own process (arena + green thread). |
-| −**Arena** | Region-based memory allocator used per actor for isolation. |
-| −**Branch Unit (BU)** | NWP's smallest execution unit. Lighter than a fiber. |
-| −**Commit Engine** | NWP component that injects branch results into main memory at program end. |
-| −**Green thread** | Cooperative user-space thread. |
-| −**HCR** | Hot-Coding References — paradigm where every callable reference spawns a branch. |
-| −**NWDC** | Non-Wait Data Channel — the pipe between branch and main. |
-| −**NWL** | Non-Waiting Loop — the shutdown loop that spins until all branches commit. |
-| −**NWP** | Non-Waiting Paradigm — the philosophy that main never blocks. |
-| −**ORoutine** | OLSRT's Goroutine-like primitive (v1.3.4). |
-| −**Poller** | Platform-agnostic I/O multiplexing (epoll/kqueue/IOCP/select). |
-| −**Supervisor** | Actor that monitors and restarts its children. |
-| −**Wave** | A named stabilization effort. Wave 1 produced v1.3.1. |
-⚙
+| **Actor** | Lightweight concurrency unit with a mailbox. Isolated in its own process (arena + green thread). |
+| **Arena** | Region-based memory allocator used per actor for isolation. |
+| **Branch Unit (BU)** | NWP's smallest execution unit. Lighter than a fiber. |
+| **Commit Engine** | NWP component that injects branch results into main memory at program end. |
+| **Green thread** | Cooperative user-space thread. |
+| **HCR** | Hot-Coding References — paradigm where every callable reference spawns a branch. |
+| **NWDC** | Non-Wait Data Channel — the pipe between branch and main. |
+| **NWL** | Non-Waiting Loop — the shutdown loop that spins until all branches commit. |
+| **NWP** | Non-Waiting Paradigm — the philosophy that main never blocks. |
+| **ORoutine** | OLSRT's Goroutine-like primitive (v1.3.4). |
+| **Poller** | Platform-agnostic I/O multiplexing (epoll/kqueue/IOCP/select). |
+| **Supervisor** | Actor that monitors and restarts its children. |
+| **Wave** | A named stabilization effort. Wave 1 produced v1.3.1. |
 
 ---
 

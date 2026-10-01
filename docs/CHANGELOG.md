@@ -17,6 +17,62 @@ See `ROADMAP.md` §5 for full details.
 
 ---
 
+## [1.3.2] - 2026-10-01
+
+### Added
+
+- **`ol_gt_run_to_completion()`** - new public API in
+  `ol_green_threads.h`. Drives a green thread on the calling OS
+  thread until it reaches a terminal state (DONE or CANCELED).
+- **Per-process driver thread.** `ol_process_create()` now spawns
+  a dedicated OS thread that runs the process's green thread to
+  completion. The thread is joined in `ol_process_destroy()`.
+- **`test_actor_runs_automatically`** - new test in
+  `tests/test_wave1.c`. Verifies that the ask/reply pattern
+  works without calling `ol_actor_process_batch()`.
+- **`changepart.py`** - surgical text replacement tool at the
+  repository root.
+
+### Changed
+
+- **Actor loop waits for `ol_actor_start()`.** The v1.3.1
+  contract that an actor does not consume messages before being
+  started is restored and enforced by the driver thread.
+- **Actor loop does not auto-detect ask envelopes.** The previous
+  heuristic read `ask_env->reply` from every message, which was
+  an out-of-bounds read for short payloads. Behaviors that
+  receive envelopes call the reply functions themselves.
+- **`ol_actor_close()` sets the state atomically.** Also
+  broadcasts the mailbox condvar for prompt shutdown.
+- **`struct ol_actor.state` and `struct ol_process.state` are now
+  `_Atomic`.** Required for TSan-clean multi-thread access.
+- **`struct ol_gt.context` enlarged** from 144 to 512 bytes. The
+  232-byte x86_64 context overflowed the 144-byte field and
+  corrupted adjacent struct members.
+- **Chase-Lev pop boundary fixed.** `b == t` is the last-item
+  case, not empty. Previously single-item deques never popped.
+- **`ol_numa_alloc` / `ol_numa_free`** replaced with plain
+  `malloc` / `free`. The mixed allocator caused TSan shadow
+  memory corruption.
+
+### Fixed
+
+- **Actor main loop is now driven automatically.** This closes
+  `ROADMAP.md` section 4.1.
+- **LSan re-enabled** in `verify.py` (`detect_leaks=1`).
+- **ASan, UBSan, TSan, LSan all clean.**
+
+### Known issues (targeting v1.3.3)
+
+- Custom x86_64 context switch has an argument-passing bug
+  (`%rbx` vs `%rdi`). v1.3.2 works around this by calling the
+  entry function directly from `ol_gt_run_to_completion`.
+- `ol_dataflow.c` worker does not drain edge inboxes.
+- `ol_memwatch.c:406` use-after-free warning remains.
+- Cosmetic `-Wall -Wextra` warnings remain in several files.
+
+---
+
 ## [1.3.1] — 2026-09-29
 
 ### Added

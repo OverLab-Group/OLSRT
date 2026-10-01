@@ -66,12 +66,12 @@ production-ready runtime with:
 
 | Metric | Value |
 |--------|-------|
-| **Current release** | v1.3.1 (Wave 1 stabilization) |
+| **Current release** | v1.3.2 (Actor Scheduler) |
 | **Previous stable** | v1.0.0 (first public release) |
 | **Regression tests** | 22 assertions, 0 failures |
 | **Sanitizer status** | ASan ✅ · UBSan ✅ · TSan ✅ |
 | **Demos** | 7 (all working) |
-| **Active development** | v1.3.2 (Actor Scheduler) |
+| **Active development** | v1.3.3 (Dataflow Cleanup) |
 
 ---
 
@@ -117,13 +117,12 @@ See [`demos/README.md`](https://demos/README.md) for details and expected output
 
 Benchmarks observed on an **AMD E2-1800 (dual-core, 1.7 GHz)**:
 
-| Demo ↕▾ | Metric ↕▾ |
+| Demo | Metric |
 |---|---|
-| −`02_channel` | 1,000,000 messages in 2.588 s → **~386k msg/s** |
-| −`03_parallel` | 100 tasks in 86 ms across 4 workers |
-| −`04_timers` | periodic timer drift **< 2 µs** over 6 fires |
-| −`07_http_server` | served 3 sequential curl requests correctly |
-⚙
+| `02_channel` | 1,000,000 messages in 2.588 s → **~386k msg/s** |
+| `03_parallel` | 100 tasks in 86 ms across 4 workers |
+| `04_timers` | periodic timer drift **< 2 µs** over 6 fires |
+| `07_http_server` | served 3 sequential curl requests correctly |
 
 ---
 
@@ -189,31 +188,30 @@ IOCP (Windows) and native kqueue (macOS).
 
 ## 📅 Release Timeline
 
-| Version ↕▾ | Codename ↕▾ | Highlights ↕▾ | Status ↕▾ |
+| Version | Codename | Highlights | Status |
 |---|---|---|---|
-| −v0.1 | **Initialize Core** | First spark, skeleton features | ✅ |
-| −v1.0 | **Atom** | First public release | ✅ |
-| −v1.2 | **Atom (stable)** | Full Linux/BSD support | ✅ |
-| −v1.3.0 | **Atom (v1.3)** | Actors, Supervisors, Coroutines, platform module | ✅ |
-| −**v1.3.1** | **Wave 1 Stabilization** | 11 bug fixes, 22 tests, sanitizer-clean | ✅ **CURRENT** |
-| −v1.3.2 | **Actor Scheduler** | Green-thread-driven actor loop | 🔜 Next |
-| −v1.3.3 | **Dataflow Cleanup** | Edge inbox fix, cosmetic warnings, LSan re-enable | 🔜 |
-| −v1.3.4 | **ORoutines** | Goroutine-like API + HCR primitives | 🔜 |
-| −v1.3.5 | **Supervisor 2.0** | Hierarchical supervision, restart strategies | 🔜 |
-| −v1.3.6 | **NWP MVP** | Non-Waiting Paradigm, Branch Units, NWL | 🔜 |
-| −v1.3.7 | **NWP Integration** | Benchmarks, docs, SDK bindings | 🔜 |
-| −v2.0 | **Apollo** | Cross-platform (IOCP/kqueue) + 66 network protocols | 🔮 |
-| −v3.0 | **Nova** | Virtualization support | 🔮 |
-| −v4.0 | **Core** | Utilities foundation | 🔮 |
-| −v5.0 | **Spark** | Utilities expansion | 🔮 |
-| −v6.0 | **Orion** | More utilities | 🔮 |
-| −v7.0 | **Cosmos** | Vast scope | 🔮 |
-| −v8.0 | **Hermes** | Compiler era begins | 🔮 |
-| −v9.0 | **Kernel** | Advanced runtime core | 🔮 |
-| −v10.0 | **Stream** | Architectures added | 🔮 |
-| −v11.0 | **Flow** | Full OS support | 🔮 |
-| −v12.0 | **Wave** | 30% language coverage | 🔮 |
-⚙
+| v0.1 | **Initialize Core** | First spark, skeleton features | ✅ |
+| v1.0 | **Atom** | First public release | ✅ |
+| v1.2 | **Atom (stable)** | Full Linux/BSD support | ✅ |
+| v1.3.0 | **Atom (v1.3)** | Actors, Supervisors, Coroutines, platform module | ✅ |
+| **v1.3.1** | **Wave 1 Stabilization** | 11 bug fixes, 22 tests, sanitizer-clean | ✅ **CURRENT** |
+| v1.3.2 | **Actor Scheduler** | Green-thread-driven actor loop | 🔜 Next |
+| v1.3.3 | **Dataflow Cleanup** | Edge inbox fix, cosmetic warnings, LSan re-enable | 🔜 |
+| v1.3.4 | **ORoutines** | Goroutine-like API + HCR primitives | 🔜 |
+| v1.3.5 | **Supervisor 2.0** | Hierarchical supervision, restart strategies | 🔜 |
+| v1.3.6 | **NWP MVP** | Non-Waiting Paradigm, Branch Units, NWL | 🔜 |
+| v1.3.7 | **NWP Integration** | Benchmarks, docs, SDK bindings | 🔜 |
+| v2.0 | **Apollo** | Cross-platform (IOCP/kqueue) + 66 network protocols | 🔮 |
+| v3.0 | **Nova** | Virtualization support | 🔮 |
+| v4.0 | **Core** | Utilities foundation | 🔮 |
+| v5.0 | **Spark** | Utilities expansion | 🔮 |
+| v6.0 | **Orion** | More utilities | 🔮 |
+| v7.0 | **Cosmos** | Vast scope | 🔮 |
+| v8.0 | **Hermes** | Compiler era begins | 🔮 |
+| v9.0 | **Kernel** | Advanced runtime core | 🔮 |
+| v10.0 | **Stream** | Architectures added | 🔮 |
+| v11.0 | **Flow** | Full OS support | 🔮 |
+| v12.0 | **Wave** | 30% language coverage | 🔮 |
 
 See [`ROADMAP.md`](https://roadmap.md/) for exhaustive details.
 
@@ -240,5 +238,6 @@ Pull requests that break the sanitizer pass will not be merged.
 
 Apache 2.0 — free to use, remix, and share. See [`LICENSE`](https://license/).
 
-Current milestone: **v1.3.1 (Wave 1 Stabilization)**
+Current milestone: **v1.3.2 (Actor Scheduler)**
+
 `By OverLab Group`
