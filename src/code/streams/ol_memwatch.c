@@ -121,8 +121,8 @@ static void symbolize_backtrace(void **buffer, int depth, char *out, size_t out_
     
     for (int i = 0; i < depth && remaining > 1; i++) {
         DWORD64 address = (DWORD64)(buffer[i]);
-        char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-        PSYMBOL_INFO symbol = (PSYMBOL_INFO)buffer;
+        char sym_buf[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+        PSYMBOL_INFO symbol = (PSYMBOL_INFO)sym_buf;
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         symbol->MaxNameLen = MAX_SYM_NAME;
         
@@ -382,31 +382,96 @@ void *ol_memwatch_calloc(size_t nmemb, size_t size) {
 void *ol_memwatch_realloc(void *ptr, size_t size) {
     if (!ptr) return ol_memwatch_track_alloc(size, NULL, 0);
 
-    /* Find old size */
+    if (!g_memwatch.initialized || !g_memwatch.enabled) {
+        return realloc(ptr, size);
+    }
+
+    /* v1.3.3: the previous implementation called
+     * ol_memwatch_track_free(ptr, ...) after realloc had already
+     * released ptr (double free) and then ol_memwatch_track_alloc
+     * to register the new pointer, which performed a second malloc
+     * that was never used (leak).
+     *
+     * The correct sequence is:
+     *   1. detach the old record from the hash table without freeing
+     *      the user pointer; realloc owns it now
+     *   2. call realloc
+     *   3. if realloc failed, restore the old record; otherwise
+     *      register a new record for the returned pointer.
+     */
+
+    /* 1. detach the old record. */
     size_t old_size = 0;
-    if (g_memwatch.initialized && g_memwatch.enabled) {
-        ol_mutex_lock(&g_memwatch.mutex);
+    mem_record_t *old_rec = NULL;
+
+    ol_mutex_lock(&g_memwatch.mutex);
+    {
         size_t hash = ptr_hash(ptr);
-        mem_record_t *rec = g_memwatch.hash_table[hash];
+        mem_record_t **prev = &g_memwatch.hash_table[hash];
+        mem_record_t *rec = *prev;
         while (rec) {
             if (rec->ptr == ptr) {
                 old_size = rec->size;
+                old_rec = rec;
+                *prev = rec->next;
                 break;
             }
+            prev = &rec->next;
             rec = rec->next;
         }
+    }
+    ol_mutex_unlock(&g_memwatch.mutex);
+
+    /* 2. reallocate. */
+    void *new_ptr = realloc(ptr, size);
+    if (!new_ptr) {
+        /* Restore the old record so the tracker still knows about
+         * the original pointer. */
+        if (old_rec) {
+            ol_mutex_lock(&g_memwatch.mutex);
+            size_t hash = ptr_hash(ptr);
+            old_rec->next = g_memwatch.hash_table[hash];
+            g_memwatch.hash_table[hash] = old_rec;
+            ol_mutex_unlock(&g_memwatch.mutex);
+        }
+        return NULL;
+    }
+
+    /* Free the old record struct (the user pointer is owned by
+     * realloc; we only drop its tracker entry). */
+    if (old_rec) {
+        free(old_rec);
+        ol_mutex_lock(&g_memwatch.mutex);
+        g_memwatch.current_usage -= old_size;
         ol_mutex_unlock(&g_memwatch.mutex);
     }
 
-    void *new_ptr = realloc(ptr, size);
-    if (!new_ptr) return NULL;
+    /* 3. register the new pointer without allocating a second
+     * block. */
+    {
+        mem_record_t *new_rec = (mem_record_t*)malloc(sizeof(*new_rec));
+        if (new_rec) {
+            new_rec->ptr = new_ptr;
+            new_rec->size = size;
+            new_rec->file = NULL;
+            new_rec->line = 0;
+            new_rec->bt_depth = 0;
+            new_rec->timestamp = 0;
 
-    if (g_memwatch.initialized && g_memwatch.enabled && new_ptr != ptr) {
-        /* Remove old record */
-        ol_memwatch_track_free(ptr, NULL, 0);
-
-        /* Add new record */
-        ol_memwatch_track_alloc(size, NULL, 0);
+            ol_mutex_lock(&g_memwatch.mutex);
+            size_t hash = ptr_hash(new_ptr);
+            new_rec->next = g_memwatch.hash_table[hash];
+            g_memwatch.hash_table[hash] = new_rec;
+            g_memwatch.current_usage += size;
+            g_memwatch.total_allocations++;
+            if (g_memwatch.current_usage > g_memwatch.peak_usage) {
+                g_memwatch.peak_usage = g_memwatch.current_usage;
+            }
+            ol_mutex_unlock(&g_memwatch.mutex);
+        }
+        /* If malloc of the record fails, we simply stop tracking the
+         * new pointer. That is acceptable degradation; the user
+         * still owns their reallocated buffer. */
     }
 
     return new_ptr;
