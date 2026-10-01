@@ -1,5 +1,5 @@
 /**
- * @file ol_serialize.h
+ * @file ol_actor_serialize.h
  * @brief Message serialization for inter-process communication in actor system
  * 
  * @details Provides message serialization capabilities for safe transfer of

@@ -1,5 +1,5 @@
 /**
- * @file ol_arena.h
+ * @file ol_actor_arena.h
  * @brief Memory arena for process isolation in actor system
  * 
  * @details Each process gets its own memory arena to ensure complete isolation.

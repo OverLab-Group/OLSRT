@@ -1,5 +1,5 @@
 /**
- * @file ol_process.c
+ * @file ol_actor_process.c
  * @brief Complete process management with Erlang/OTP-style isolation
  * @version 1.2.0
  * 

@@ -1,5 +1,5 @@
 /**
- * @file ol_hashmap.c
+ * @file ol_actor_hashmap.c
  * @brief Simple hash map implementation for internal use in actor system.
  *
  * @details

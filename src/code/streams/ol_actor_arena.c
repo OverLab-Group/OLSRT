@@ -1,5 +1,5 @@
 /**
- * @file ol_arena.c
+ * @file ol_actor_arena.c
  * @brief Complete memory arena implementation for process isolation
  * @version 1.2.0
  * 

@@ -1,5 +1,5 @@
 /**
- * @file ol_serialize.c
+ * @file ol_actor_serialize.c
  * @brief Complete message serialization system for inter-process communication
  * @version 1.2.0
  * 
