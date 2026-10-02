@@ -35,10 +35,10 @@
 #include <assert.h>
 
 #if defined(_WIN32)
-    #include <windows.h>
+#include <windows.h>
 #else
-    #include <unistd.h>
-    #include <sys/time.h>
+#include <unistd.h>
+#include <sys/time.h>
 #endif
 
 /* ==================== Internal Constants ==================== */
@@ -47,37 +47,37 @@
  * @def ACTOR_DEFAULT_ARENA_SIZE
  * @brief Default size of actor's private memory arena (2MB)
  */
-#define ACTOR_DEFAULT_ARENA_SIZE (2 * 1024 * 1024)  /* 2MB default */
+#define ACTOR_DEFAULT_ARENA_SIZE (2 * 1024 * 1024) /* 2MB default */
 
 /**
  * @def ACTOR_MAILBOX_CAPACITY
  * @brief Default mailbox capacity when capacity parameter is 0
  */
-#define ACTOR_MAILBOX_CAPACITY   1024
+#define ACTOR_MAILBOX_CAPACITY 1024
 
 /**
  * @def ACTOR_BATCH_SIZE
  * @brief Default batch size for batch message processing
  */
-#define ACTOR_BATCH_SIZE         32
+#define ACTOR_BATCH_SIZE 32
 
 /**
  * @def ACTOR_TIMEOUT_MS
  * @brief Default timeout for actor shutdown operations (5 seconds)
  */
-#define ACTOR_TIMEOUT_MS         5000
+#define ACTOR_TIMEOUT_MS 5000
 
 /**
  * @def ACTOR_MAX_RESTARTS
  * @brief Maximum number of actor restarts allowed by supervisor
  */
-#define ACTOR_MAX_RESTARTS       3
+#define ACTOR_MAX_RESTARTS 3
 
 /**
  * @def ACTOR_RESTART_WINDOW_MS
  * @brief Time window for counting actor restarts (5 seconds)
  */
-#define ACTOR_RESTART_WINDOW_MS  5000
+#define ACTOR_RESTART_WINDOW_MS 5000
 
 /* ==================== Internal Structures ==================== */
 
@@ -92,24 +92,27 @@
  */
 typedef struct actor_mailbox {
     /* Fast path: single-producer lock-free ring buffer */
-    void** ring_buffer;          /**< Ring buffer array for messages */
-    size_t capacity;             /**< Buffer capacity (number of slots) */
-    volatile size_t head;        /**< Read position (atomic access) */
-    volatile size_t tail;        /**< Write position (atomic access) */
-    
+    void** ring_buffer;   /**< Ring buffer array for messages */
+    size_t capacity;      /**< Buffer capacity (number of slots) */
+    volatile size_t head; /**< Read position (atomic access) */
+    volatile size_t tail; /**< Write position (atomic access) */
+
     /* Slow path: overflow list for batch processing */
-    void** overflow_list;        /**< List for overflow messages when ring buffer is full */
-    size_t overflow_count;       /**< Number of overflow messages */
-    
+    void**
+        overflow_list; /**< List for overflow messages when ring buffer is full */
+    size_t overflow_count; /**< Number of overflow messages */
+
     /* Synchronization */
-    ol_mutex_t mutex;            /**< Mutex for overflow list synchronization */
-    ol_cond_t not_empty;         /**< Condition variable signaled when mailbox is not empty */
-    ol_cond_t not_full;          /**< Condition variable signaled when mailbox is not full */
-    
+    ol_mutex_t mutex; /**< Mutex for overflow list synchronization */
+    ol_cond_t
+        not_empty; /**< Condition variable signaled when mailbox is not empty */
+    ol_cond_t
+        not_full; /**< Condition variable signaled when mailbox is not full */
+
     /* Statistics */
-    size_t total_messages;       /**< Total messages processed through this mailbox */
-    size_t peak_size;            /**< Peak mailbox size reached */
-    size_t overflow_events;      /**< Number of overflow events (ring buffer full) */
+    size_t total_messages; /**< Total messages processed through this mailbox */
+    size_t peak_size;      /**< Peak mailbox size reached */
+    size_t overflow_events; /**< Number of overflow events (ring buffer full) */
 
     /* v1.3.2: set by ol_actor_close() so that a driver thread blocked
      * inside actor_mailbox_batch_recv() returns immediately instead of
@@ -129,12 +132,16 @@ typedef struct actor_mailbox {
  * Multiple flags can be combined using bitwise OR.
  */
 typedef enum {
-    ACTOR_STATE_RUNNING     = 1 << 0, /**< Actor is actively processing messages */
-    ACTOR_STATE_STOPPING    = 1 << 1, /**< Actor is in the process of stopping gracefully */
-    ACTOR_STATE_CLOSED      = 1 << 2, /**< Actor has been closed and resources freed */
-    ACTOR_STATE_CRASHED     = 1 << 3, /**< Actor has crashed due to an error */
-    ACTOR_STATE_SUSPENDED   = 1 << 4, /**< Actor is suspended (not processing messages) */
-    ACTOR_STATE_BATCH_MODE  = 1 << 5  /**< Actor is processing messages in batch mode */
+    ACTOR_STATE_RUNNING = 1 << 0, /**< Actor is actively processing messages */
+    ACTOR_STATE_STOPPING =
+        1 << 1, /**< Actor is in the process of stopping gracefully */
+    ACTOR_STATE_CLOSED =
+        1 << 2, /**< Actor has been closed and resources freed */
+    ACTOR_STATE_CRASHED = 1 << 3, /**< Actor has crashed due to an error */
+    ACTOR_STATE_SUSPENDED =
+        1 << 4, /**< Actor is suspended (not processing messages) */
+    ACTOR_STATE_BATCH_MODE =
+        1 << 5 /**< Actor is processing messages in batch mode */
 } actor_state_flags_t;
 
 /**
@@ -146,46 +153,47 @@ typedef enum {
  */
 struct ol_actor {
     /* Core identity */
-    ol_process_t* process;           /**< Isolated process for this actor */
-    ol_arena_t* private_arena;       /**< Private memory arena for allocations */
-    
+    ol_process_t* process;     /**< Isolated process for this actor */
+    ol_arena_t* private_arena; /**< Private memory arena for allocations */
+
     /* Behavior management */
-    ol_actor_behavior behavior;      /**< Current behavior function */
-    void* user_context;              /**< User context data (passed to behavior) */
-    ol_actor_msg_destructor msg_dtor;/**< Message destructor function */
-    
+    ol_actor_behavior behavior; /**< Current behavior function */
+    void* user_context;         /**< User context data (passed to behavior) */
+    ol_actor_msg_destructor msg_dtor; /**< Message destructor function */
+
     /* Mailbox */
-    actor_mailbox_t* mailbox;        /**< Optimized mailbox for message passing */
-    
+    actor_mailbox_t* mailbox; /**< Optimized mailbox for message passing */
+
     /* Supervisor integration */
-    ol_supervisor_t* supervisor;     /**< Parent supervisor (optional) */
-    
+    ol_supervisor_t* supervisor; /**< Parent supervisor (optional) */
+
     /* State management.
      * _Atomic lets the compiler generate atomic loads and
      * stores for every access without requiring each call
      * site to spell out __atomic_load_n. */
-    _Atomic uint32_t state;          /**< Actor state flags (bitmask) */
-    int exit_code;                   /**< Exit code if actor terminated */
-    
+    _Atomic uint32_t state; /**< Actor state flags (bitmask) */
+    int exit_code;          /**< Exit code if actor terminated */
+
     /* Performance counters */
-    uint64_t processed_messages;     /**< Total messages processed by this actor */
-    uint64_t processing_time_ns;     /**< Total processing time in nanoseconds */
-    uint64_t avg_latency_ns;         /**< Average latency per message in nanoseconds */
-    
+    uint64_t processed_messages; /**< Total messages processed by this actor */
+    uint64_t processing_time_ns; /**< Total processing time in nanoseconds */
+    uint64_t avg_latency_ns; /**< Average latency per message in nanoseconds */
+
     /* Ask/Reply tracking */
-    ol_hashmap_t* pending_asks;      /**< Hashmap of pending ask requests */
-    ol_mutex_t ask_mutex;            /**< Mutex for synchronizing ask map access */
-    
+    ol_hashmap_t* pending_asks; /**< Hashmap of pending ask requests */
+    ol_mutex_t ask_mutex;       /**< Mutex for synchronizing ask map access */
+
     /* Batched processing */
-    void* batch_buffer[ACTOR_BATCH_SIZE]; /**< Buffer for batch message processing */
-    size_t batch_count;                   /**< Current number of messages in batch buffer */
+    void* batch_buffer
+        [ACTOR_BATCH_SIZE]; /**< Buffer for batch message processing */
+    size_t batch_count;     /**< Current number of messages in batch buffer */
 };
 
 /* Thread-local current actor pointer for ol_actor_self() */
 #if defined(_WIN32)
-    static __declspec(thread) ol_actor_t* g_current_actor = NULL;
+static __declspec(thread) ol_actor_t* g_current_actor = NULL;
 #else
-    static __thread ol_actor_t* g_current_actor = NULL;
+static __thread ol_actor_t* g_current_actor = NULL;
 #endif
 
 /* ==================== Mailbox Implementation ==================== */
@@ -201,13 +209,14 @@ struct ol_actor {
  *       The mailbox includes both a lock-free ring buffer and
  *       an overflow list for handling high contention.
  */
-static actor_mailbox_t* actor_mailbox_create(size_t capacity, 
-                                            ol_actor_msg_destructor dtor) {
+static actor_mailbox_t* actor_mailbox_create(size_t capacity,
+                                             ol_actor_msg_destructor dtor) {
     actor_mailbox_t* mb = (actor_mailbox_t*)calloc(1, sizeof(actor_mailbox_t));
-    if (!mb) return NULL;
+    if (!mb)
+        return NULL;
 
     mb->dtor = dtor;
-    
+
     /* Allocate ring buffer */
     mb->capacity = capacity;
     mb->ring_buffer = (void**)calloc(capacity, sizeof(void*));
@@ -215,7 +224,7 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
         free(mb);
         return NULL;
     }
-    
+
     /* Allocate overflow list */
     mb->overflow_list = (void**)calloc(capacity, sizeof(void*));
     if (!mb->overflow_list) {
@@ -223,7 +232,7 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
         free(mb);
         return NULL;
     }
-    
+
     /* Initialize synchronization primitives */
     if (ol_mutex_init(&mb->mutex) != OL_SUCCESS ||
         ol_cond_init(&mb->not_empty) != OL_SUCCESS ||
@@ -233,7 +242,7 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
         free(mb);
         return NULL;
     }
-    
+
     /* Initialize counters */
     mb->head = 0;
     mb->tail = 0;
@@ -256,7 +265,8 @@ static actor_mailbox_t* actor_mailbox_create(size_t capacity,
  *       for ensuring all messages are processed or destroyed.
  */
 static void actor_mailbox_destroy(actor_mailbox_t* mb) {
-    if (!mb) return;
+    if (!mb)
+        return;
 
     /* v1.3.2: free any messages still queued. ol_actor_destroy may
      * be called before the actor has drained its mailbox, so relying
@@ -306,26 +316,26 @@ static bool actor_mailbox_try_send_fast(actor_mailbox_t* mb, void* msg) {
      * sufficient for the local read; the consumer's 'head' must be ACQUIRE
      * to observe a consistent view before we decide the buffer is full. */
     size_t current_tail = __atomic_load_n(&mb->tail, __ATOMIC_RELAXED);
-    size_t head         = __atomic_load_n(&mb->head, __ATOMIC_ACQUIRE);
-    size_t next_tail    = (current_tail + 1) % mb->capacity;
-    
+    size_t head = __atomic_load_n(&mb->head, __ATOMIC_ACQUIRE);
+    size_t next_tail = (current_tail + 1) % mb->capacity;
+
     /* Buffer full? */
     if (next_tail == head) {
         return false;
     }
-    
+
     /* Store message first, then publish tail with RELEASE so the consumer
      * observes the message before the updated tail. */
     mb->ring_buffer[current_tail] = msg;
     __atomic_store_n(&mb->tail, next_tail, __ATOMIC_RELEASE);
-    
+
     /* Non-atomic stats - producer is single-writer for these */
     mb->total_messages++;
-    size_t size = (next_tail > head)
-                  ? (next_tail - head)
-                  : (mb->capacity - head + next_tail);
-    if (size > mb->peak_size) mb->peak_size = size;
-    
+    size_t size = (next_tail > head) ? (next_tail - head)
+                                     : (mb->capacity - head + next_tail);
+    if (size > mb->peak_size)
+        mb->peak_size = size;
+
     return true;
 }
 
@@ -342,13 +352,16 @@ static bool actor_mailbox_try_send_fast(actor_mailbox_t* mb, void* msg) {
  *       reduce synchronization overhead. It first tries the lock-free
  *       ring buffer, then falls back to the overflow list.
  */
-static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
-                                      size_t capacity, int timeout_ms) {
-    if (!mb || !buffer || capacity == 0) return 0;
-    
+static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb,
+                                       void** buffer,
+                                       size_t capacity,
+                                       int timeout_ms) {
+    if (!mb || !buffer || capacity == 0)
+        return 0;
+
     size_t count = 0;
     ol_deadline_t deadline = ol_deadline_from_ms(timeout_ms);
-    
+
     while (count < capacity) {
         /* v1.3.2: exit immediately if the mailbox has been closed.
          * This makes actor shutdown prompt even when the actor is
@@ -367,18 +380,18 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
             /* Messages available in ring buffer */
             buffer[count++] = mb->ring_buffer[current_head];
             mb->ring_buffer[current_head] = NULL;
-            
+
             size_t next_head = (current_head + 1) % mb->capacity;
             __atomic_store_n(&mb->head, next_head, __ATOMIC_RELEASE);
-            
+
             /* Signal not_full if we just freed a slot */
             if ((next_head + 1) % mb->capacity == current_tail) {
                 ol_cond_signal(&mb->not_full);
             }
-            
+
             continue;
         }
-        
+
         /* Check overflow list (requires mutex) */
         ol_mutex_lock(&mb->mutex);
         if (mb->overflow_count > 0) {
@@ -387,17 +400,17 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
             continue;
         }
         ol_mutex_unlock(&mb->mutex);
-        
+
         /* No messages available */
         if (count > 0 || timeout_ms == 0) {
             break;
         }
-        
+
         /* Wait for messages with timeout */
         ol_mutex_lock(&mb->mutex);
         if (mb->overflow_count == 0) {
-            int result = ol_cond_wait_until(&mb->not_empty, &mb->mutex,
-                                           deadline.when_ns);
+            int result = ol_cond_wait_until(
+                &mb->not_empty, &mb->mutex, deadline.when_ns);
             if (result <= 0) {
                 ol_mutex_unlock(&mb->mutex);
                 break; /* Timeout or error */
@@ -405,7 +418,7 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb, void** buffer,
         }
         ol_mutex_unlock(&mb->mutex);
     }
-    
+
     return count;
 }
 
@@ -434,7 +447,8 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
     (void)process;
 
     ol_actor_t* actor = (ol_actor_t*)arg;
-    if (!actor) return;
+    if (!actor)
+        return;
 
     /* Set thread-local current actor for ol_actor_self(). */
     g_current_actor = actor;
@@ -445,13 +459,14 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
      * has not been started does not consume messages, and it makes
      * the ol_actor_create / ol_actor_start split meaningful. */
     for (;;) {
-        uint32_t s = __atomic_load_n((uint32_t*)&actor->state,
-                                     __ATOMIC_ACQUIRE);
+        uint32_t s =
+            __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
         if (s & ACTOR_STATE_CLOSED) {
             g_current_actor = NULL;
             return;
         }
-        if (s & ACTOR_STATE_RUNNING) break;
+        if (s & ACTOR_STATE_RUNNING)
+            break;
         usleep(1000); /* 1 ms */
     }
 
@@ -461,20 +476,22 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
     void* batch[ACTOR_BATCH_SIZE];
 
     for (;;) {
-        uint32_t s = __atomic_load_n((uint32_t*)&actor->state,
-                                     __ATOMIC_ACQUIRE);
+        uint32_t s =
+            __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
         if (!(s & ACTOR_STATE_RUNNING) || (s & ACTOR_STATE_CLOSED)) {
             break;
         }
 
         size_t batch_size = actor_mailbox_batch_recv(
             actor->mailbox, batch, ACTOR_BATCH_SIZE, 100);
-        if (batch_size == 0) continue;
+        if (batch_size == 0)
+            continue;
 
         uint64_t start_time = ol_monotonic_now_ns();
 
         for (size_t i = 0; i < batch_size; i++) {
-            if (!batch[i]) continue;
+            if (!batch[i])
+                continue;
 
             /* v1.3.2: the actor loop does NOT auto-detect ask
              * envelopes. The old heuristic read ask_env->reply from
@@ -498,7 +515,8 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
                     break;
                 }
             } else {
-                if (actor->msg_dtor) actor->msg_dtor(batch[i]);
+                if (actor->msg_dtor)
+                    actor->msg_dtor(batch[i]);
             }
 
             actor->processed_messages++;
@@ -508,7 +526,8 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
         actor->processing_time_ns += (end_time - start_time);
         if (batch_size > 0) {
             actor->avg_latency_ns = (actor->avg_latency_ns * 7 +
-                                    (end_time - start_time) / batch_size) / 8;
+                                     (end_time - start_time) / batch_size) /
+                                    8;
         }
 
         s = __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
@@ -518,8 +537,8 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
         }
     }
 
-    __atomic_or_fetch((uint32_t*)&actor->state, ACTOR_STATE_CLOSED,
-                      __ATOMIC_ACQ_REL);
+    __atomic_or_fetch(
+        (uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_ACQ_REL);
     g_current_actor = NULL;
 }
 
@@ -551,25 +570,25 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
                             void* user_ctx) {
     /* Note: pool parameter is deprecated but kept for API compatibility */
     (void)pool;
-    
+
     /* Validate parameters */
     if (initial == NULL) {
         return NULL;
     }
-    
+
     /* Allocate actor structure */
     ol_actor_t* actor = (ol_actor_t*)calloc(1, sizeof(ol_actor_t));
     if (actor == NULL) {
         return NULL;
     }
-    
+
     /* Create private memory arena for isolation */
     actor->private_arena = ol_arena_create(ACTOR_DEFAULT_ARENA_SIZE, false);
     if (actor->private_arena == NULL) {
         free(actor);
         return NULL;
     }
-    
+
     /* Initialize mailbox with specified capacity */
     actor->mailbox = actor_mailbox_create(
         capacity > 0 ? capacity : ACTOR_MAILBOX_CAPACITY, dtor);
@@ -578,7 +597,7 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
         free(actor);
         return NULL;
     }
-    
+
     /* Set actor properties */
     actor->behavior = initial;
     actor->user_context = user_ctx;
@@ -590,7 +609,7 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
     actor->processing_time_ns = 0;
     actor->avg_latency_ns = 0;
     actor->batch_count = 0;
-    
+
     /* Create hashmap for tracking pending ask requests */
     actor->pending_asks = ol_hashmap_create(16, NULL);
     if (actor->pending_asks == NULL) {
@@ -599,7 +618,7 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
         free(actor);
         return NULL;
     }
-    
+
     /* Initialize mutex for ask hashmap synchronization */
     if (ol_mutex_init(&actor->ask_mutex) != OL_SUCCESS) {
         ol_hashmap_destroy(actor->pending_asks);
@@ -608,10 +627,10 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
         free(actor);
         return NULL;
     }
-    
+
     /* Create isolated process for actor execution */
-    actor->process = ol_process_create(ol_actor_process_entry, actor,
-                                      NULL, 0, ACTOR_DEFAULT_ARENA_SIZE);
+    actor->process = ol_process_create(
+        ol_actor_process_entry, actor, NULL, 0, ACTOR_DEFAULT_ARENA_SIZE);
     if (actor->process == NULL) {
         ol_mutex_destroy(&actor->ask_mutex);
         ol_hashmap_destroy(actor->pending_asks);
@@ -620,7 +639,7 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
         free(actor);
         return NULL;
     }
-    
+
     return actor;
 }
 
@@ -640,19 +659,20 @@ int ol_actor_start(ol_actor_t* actor) {
     if (actor == NULL) {
         return -1;
     }
-    
+
     /* Check if already running */
     if (actor->state & ACTOR_STATE_RUNNING) {
         return 0;
     }
-    
+
     /* Start the process if not already alive */
     if (!ol_process_is_alive(actor->process)) {
         /* Note: In new architecture, processes auto-start on creation */
         /* This check is for future compatibility */
     }
-    
-    __atomic_store_n((uint32_t*)&actor->state, ACTOR_STATE_RUNNING, __ATOMIC_RELEASE);
+
+    __atomic_store_n(
+        (uint32_t*)&actor->state, ACTOR_STATE_RUNNING, __ATOMIC_RELEASE);
     return 0;
 }
 
@@ -673,15 +693,16 @@ int ol_actor_stop(ol_actor_t* actor) {
     if (actor == NULL) {
         return -1;
     }
-    
+
     /* Set stopping flag to request graceful shutdown */
-    __atomic_or_fetch((uint32_t*)&actor->state, ACTOR_STATE_STOPPING, __ATOMIC_ACQ_REL);
-    
+    __atomic_or_fetch(
+        (uint32_t*)&actor->state, ACTOR_STATE_STOPPING, __ATOMIC_ACQ_REL);
+
     /* Wake up mailbox waiters so they can see the stop request */
     if (actor->mailbox) {
         ol_cond_signal(&actor->mailbox->not_empty);
     }
-    
+
     return 0;
 }
 
@@ -701,14 +722,15 @@ int ol_actor_close(ol_actor_t* actor) {
     if (actor == NULL) {
         return -1;
     }
-    
+
     /* v1.3.2: assign CLOSED directly rather than OR-ing it in.
      * OR-ing leaves ACTOR_STATE_RUNNING set, so the actor main loop
      * (while (actor->state & ACTOR_STATE_RUNNING)) never exits and
      * the driver thread never returns. Assignment clears RUNNING as
      * a side effect. The loop notices within at most one mailbox
      * timeout (100 ms). */
-    __atomic_store_n((uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_RELEASE);
+    __atomic_store_n(
+        (uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_RELEASE);
 
     /* v1.3.2: wake the actor loop immediately. Without this, the loop
      * would keep blocking in actor_mailbox_batch_recv() until its
@@ -717,8 +739,8 @@ int ol_actor_close(ol_actor_t* actor) {
     if (actor->mailbox) {
         /* Set the flag before broadcasting so that any waiter that
          * wakes up sees it. */
-        atomic_store_explicit(&actor->mailbox->closed, true,
-                              memory_order_release);
+        atomic_store_explicit(
+            &actor->mailbox->closed, true, memory_order_release);
         ol_mutex_lock(&actor->mailbox->mutex);
         ol_cond_broadcast(&actor->mailbox->not_empty);
         ol_mutex_unlock(&actor->mailbox->mutex);
@@ -729,7 +751,7 @@ int ol_actor_close(ol_actor_t* actor) {
         ol_process_destroy(actor->process, OL_EXIT_NORMAL);
         actor->process = NULL;
     }
-    
+
     return 0;
 }
 
@@ -751,7 +773,7 @@ void ol_actor_destroy(ol_actor_t* actor) {
     if (actor == NULL) {
         return;
     }
-    
+
     /* v1.3.2: always close the actor, even when the RUNNING
      * flag is not yet set. The driver thread may not have started
      * running ol_actor_process_entry() yet; closing now ensures the
@@ -768,7 +790,7 @@ void ol_actor_destroy(ol_actor_t* actor) {
         ol_process_destroy(actor->process, OL_EXIT_NORMAL);
         actor->process = NULL;
     }
-    
+
     /* Wait for graceful shutdown with timeout */
     ol_deadline_t deadline = ol_deadline_from_ms(ACTOR_TIMEOUT_MS);
     while (actor->state != ACTOR_STATE_CLOSED) {
@@ -781,22 +803,22 @@ void ol_actor_destroy(ol_actor_t* actor) {
         usleep(10000);
 #endif
     }
-    
+
     /* Clean up resources in reverse creation order */
     ol_mutex_destroy(&actor->ask_mutex);
-    
+
     if (actor->pending_asks) {
         ol_hashmap_destroy(actor->pending_asks);
     }
-    
+
     if (actor->mailbox) {
         actor_mailbox_destroy(actor->mailbox);
     }
-    
+
     if (actor->private_arena) {
         ol_arena_destroy(actor->private_arena);
     }
-    
+
     free(actor);
 }
 
@@ -818,24 +840,24 @@ int ol_actor_send(ol_actor_t* actor, void* msg) {
     if (actor == NULL) {
         return -1;
     }
-    
+
     /* Check if actor can receive messages */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
-        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+        (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
         }
         return -1;
     }
-    
+
     /* Try fast path first (lock-free ring buffer) */
     if (actor_mailbox_try_send_fast(actor->mailbox, msg)) {
         return 0;
     }
-    
+
     /* Fall back to overflow list (requires mutex) */
     ol_mutex_lock(&actor->mailbox->mutex);
-    
+
     /* Check capacity of overflow list */
     if (actor->mailbox->overflow_count >= actor->mailbox->capacity) {
         ol_mutex_unlock(&actor->mailbox->mutex);
@@ -844,27 +866,28 @@ int ol_actor_send(ol_actor_t* actor, void* msg) {
         }
         return -1;
     }
-    
+
     /* Add to overflow list */
     actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
     actor->mailbox->overflow_events++;
     actor->mailbox->total_messages++;
-    
+
     /* Update peak size calculation */
-    size_t total_size = (actor->mailbox->tail > actor->mailbox->head ?
-                        actor->mailbox->tail - actor->mailbox->head :
-                        actor->mailbox->capacity - actor->mailbox->head + 
-                        actor->mailbox->tail) + actor->mailbox->overflow_count;
-    
+    size_t total_size = (actor->mailbox->tail > actor->mailbox->head
+                             ? actor->mailbox->tail - actor->mailbox->head
+                             : actor->mailbox->capacity - actor->mailbox->head +
+                                   actor->mailbox->tail) +
+                        actor->mailbox->overflow_count;
+
     if (total_size > actor->mailbox->peak_size) {
         actor->mailbox->peak_size = total_size;
     }
-    
+
     /* Signal waiting receivers that a message is available */
     ol_cond_signal(&actor->mailbox->not_empty);
-    
+
     ol_mutex_unlock(&actor->mailbox->mutex);
-    
+
     return 0;
 }
 
@@ -893,14 +916,15 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
         }
         return -1;
     }
-    
+
     /* Fast-path state check */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
-        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
-        if (actor->msg_dtor) actor->msg_dtor(msg);
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+        (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        if (actor->msg_dtor)
+            actor->msg_dtor(msg);
         return -1;
     }
-    
+
     /* timeout_ms == 0 means infinite wait (matches ol_actor_send semantics) */
     const bool infinite = (timeout_ms == 0);
     ol_deadline_t deadline;
@@ -909,48 +933,52 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
     } else {
         deadline = ol_deadline_from_ms(timeout_ms);
     }
-    
+
     for (;;) {
         /* Try lock-free ring buffer first */
         if (actor_mailbox_try_send_fast(actor->mailbox, msg)) {
             return 0;
         }
-        
+
         ol_mutex_lock(&actor->mailbox->mutex);
-        
+
         /* Re-check state under lock (actor may have been closed) */
-        if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
-        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+        if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+            (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
             ol_mutex_unlock(&actor->mailbox->mutex);
-            if (actor->msg_dtor) actor->msg_dtor(msg);
+            if (actor->msg_dtor)
+                actor->msg_dtor(msg);
             return -1;
         }
-        
+
         /* Slow path: overflow list has space? */
         if (actor->mailbox->overflow_count < actor->mailbox->capacity) {
-            actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
+            actor->mailbox->overflow_list[actor->mailbox->overflow_count++] =
+                msg;
             actor->mailbox->overflow_events++;
             actor->mailbox->total_messages++;
             ol_cond_signal(&actor->mailbox->not_empty);
             ol_mutex_unlock(&actor->mailbox->mutex);
             return 0;
         }
-        
+
         /* Mailbox full - wait for space with proper deadline */
         if (!infinite && ol_deadline_expired(deadline)) {
             ol_mutex_unlock(&actor->mailbox->mutex);
-            if (actor->msg_dtor) actor->msg_dtor(msg);
+            if (actor->msg_dtor)
+                actor->msg_dtor(msg);
             return -3; /* OL_TIMEOUT */
         }
-        
+
         int r = ol_cond_wait_until(&actor->mailbox->not_full,
                                    &actor->mailbox->mutex,
                                    infinite ? 0 : deadline.when_ns);
         ol_mutex_unlock(&actor->mailbox->mutex);
-        
+
         if (r == 0) {
             /* Timed out while waiting */
-            if (actor->msg_dtor) actor->msg_dtor(msg);
+            if (actor->msg_dtor)
+                actor->msg_dtor(msg);
             return -3;
         }
         /* r == 1 (signaled) or r < 0 (spurious): loop and retry */
@@ -975,50 +1003,50 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
     if (actor == NULL) {
         return -1;
     }
-    
+
     /* Check actor state */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
-        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+        (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
         }
         return -1;
     }
-    
+
     /* Try fast path (lock-free ring buffer) */
     if (actor_mailbox_try_send_fast(actor->mailbox, msg)) {
         return 1;
     }
-    
+
     /* Slow path: try the overflow list. The ring buffer is full, but
      * the overflow list often has capacity left. If we did not add here,
      * callers would think the mailbox is full while it is only 3/4 full. */
     ol_mutex_lock(&actor->mailbox->mutex);
-    
+
     /* Re-check state under the lock: the actor may have been closed
      * between the fast-path attempt and now. */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE)
-        & (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
+    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+        (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         ol_mutex_unlock(&actor->mailbox->mutex);
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
         }
         return -1;
     }
-    
+
     /* Truly full? Both ring buffer and overflow list must be exhausted. */
     if (actor->mailbox->overflow_count >= actor->mailbox->capacity) {
         ol_mutex_unlock(&actor->mailbox->mutex);
         return 0; /* would block */
     }
-    
+
     /* Add to overflow list */
     actor->mailbox->overflow_list[actor->mailbox->overflow_count++] = msg;
     actor->mailbox->overflow_events++;
     actor->mailbox->total_messages++;
     ol_cond_signal(&actor->mailbox->not_empty);
     ol_mutex_unlock(&actor->mailbox->mutex);
-    
+
     return 1;
 }
 
@@ -1045,32 +1073,33 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
     if (actor == NULL) {
         return NULL;
     }
-    
+
     /* Create promise for reply */
     ol_promise_t* promise = ol_promise_create(NULL);
     if (promise == NULL) {
         return NULL;
     }
-    
+
     ol_future_t* future = ol_promise_get_future(promise);
     if (future == NULL) {
         ol_promise_destroy(promise);
         return NULL;
     }
-    
+
     /* Create ask envelope */
-    ol_ask_envelope_t* envelope = (ol_ask_envelope_t*)calloc(1, sizeof(ol_ask_envelope_t));
+    ol_ask_envelope_t* envelope =
+        (ol_ask_envelope_t*)calloc(1, sizeof(ol_ask_envelope_t));
     if (envelope == NULL) {
         ol_future_destroy(future);
         ol_promise_destroy(promise);
         return NULL;
     }
-    
+
     envelope->payload = msg;
     envelope->reply = promise;
     envelope->sender = ol_actor_self();
     envelope->ask_id = ol_monotonic_now_ns();
-    
+
     /* NOTE(v1.3.1): The previous implementation inserted the envelope into
      * actor->pending_asks for "future timeout handling", but no code path
      * ever removed entries from that hashmap. Every ol_actor_ask() therefore
@@ -1081,7 +1110,7 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
      * through the reply promise with an ol_future_then() continuation that
      * cancels the promise and frees the envelope exactly once.
      */
-    
+
     /* Send envelope to actor */
     int send_result = ol_actor_send(actor, envelope);
     if (send_result != 0) {
@@ -1098,7 +1127,7 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
         ol_future_destroy(future);
         return NULL;
     }
-    
+
     return future;
 }
 
@@ -1119,7 +1148,7 @@ int ol_actor_become(ol_actor_t* actor, ol_actor_behavior behavior) {
     if (actor == NULL || behavior == NULL) {
         return -1;
     }
-    
+
     /* Atomic update of behavior (simple assignment is atomic for pointers) */
     actor->behavior = behavior;
     return 0;
@@ -1135,7 +1164,7 @@ void* ol_actor_get_context(const ol_actor_t* actor) {
     if (actor == NULL) {
         return NULL;
     }
-    
+
     return actor->user_context;
 }
 
@@ -1149,7 +1178,7 @@ void ol_actor_set_context(ol_actor_t* actor, void* context) {
     if (actor == NULL) {
         return;
     }
-    
+
     actor->user_context = context;
 }
 
@@ -1166,12 +1195,13 @@ void ol_actor_set_context(ol_actor_t* actor, void* context) {
  * @note This function must be called from within the actor's
  * behavior function that received the ask envelope.
  */
-void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value, 
-                      ol_actor_value_destructor dtor) {
+void ol_actor_reply_ok(ol_ask_envelope_t* envelope,
+                       void* value,
+                       ol_actor_value_destructor dtor) {
     if (envelope == NULL || envelope->reply == NULL) {
         return;
     }
-    
+
     ol_promise_fulfill(envelope->reply, value, dtor);
 
     /* v1.3.2: release the promise now that it is resolved.
@@ -1197,7 +1227,7 @@ void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code) {
     if (envelope == NULL || envelope->reply == NULL) {
         return;
     }
-    
+
     ol_promise_reject(envelope->reply, error_code);
 
     /* v1.3.2: release our reference after rejection. */
@@ -1222,7 +1252,7 @@ void ol_actor_reply_cancel(ol_ask_envelope_t* envelope) {
     if (envelope == NULL || envelope->reply == NULL) {
         return;
     }
-    
+
     ol_promise_cancel(envelope->reply);
     ol_promise_destroy(envelope->reply);
     free(envelope);
@@ -1238,7 +1268,7 @@ bool ol_actor_is_running(const ol_actor_t* actor) {
     if (actor == NULL) {
         return false;
     }
-    
+
     return (actor->state & ACTOR_STATE_RUNNING) != 0;
 }
 
@@ -1254,17 +1284,17 @@ size_t ol_actor_mailbox_length(const ol_actor_t* actor) {
     if (actor == NULL || actor->mailbox == NULL) {
         return 0;
     }
-    
-    size_t ring_size = (actor->mailbox->tail > actor->mailbox->head ?
-                       actor->mailbox->tail - actor->mailbox->head :
-                       actor->mailbox->capacity - actor->mailbox->head + 
-                       actor->mailbox->tail);
-    
+
+    size_t ring_size = (actor->mailbox->tail > actor->mailbox->head
+                            ? actor->mailbox->tail - actor->mailbox->head
+                            : actor->mailbox->capacity - actor->mailbox->head +
+                                  actor->mailbox->tail);
+
     size_t overflow_size;
     ol_mutex_lock((ol_mutex_t*)&actor->mailbox->mutex);
     overflow_size = actor->mailbox->overflow_count;
     ol_mutex_unlock((ol_mutex_t*)&actor->mailbox->mutex);
-    
+
     return ring_size + overflow_size;
 }
 
@@ -1278,7 +1308,7 @@ size_t ol_actor_mailbox_capacity(const ol_actor_t* actor) {
     if (actor == NULL || actor->mailbox == NULL) {
         return 0;
     }
-    
+
     return actor->mailbox->capacity;
 }
 
@@ -1331,11 +1361,11 @@ int ol_actor_link(ol_actor_t* actor1, ol_actor_t* actor2) {
     if (!actor1 || !actor2) {
         return OL_ERROR;
     }
-    
+
     if (!actor1->process || !actor2->process) {
         return OL_ERROR;
     }
-    
+
     return ol_process_link(actor1->process, actor2->process);
 }
 
@@ -1353,11 +1383,11 @@ uint64_t ol_actor_monitor(ol_actor_t* monitor, ol_actor_t* target) {
     if (!monitor || !target) {
         return 0;
     }
-    
+
     if (!monitor->process || !target->process) {
         return 0;
     }
-    
+
     return ol_process_monitor(monitor->process, target->process);
 }
 
@@ -1374,7 +1404,7 @@ int ol_actor_get_stats(const ol_actor_t* actor, ol_actor_stats_t* stats) {
     if (!actor || !stats) {
         return OL_ERROR;
     }
-    
+
     stats->processed_messages = actor->processed_messages;
     stats->processing_time_ns = actor->processing_time_ns;
     stats->avg_latency_ns = actor->avg_latency_ns;
@@ -1382,7 +1412,7 @@ int ol_actor_get_stats(const ol_actor_t* actor, ol_actor_stats_t* stats) {
     stats->mailbox_capacity = actor->mailbox->capacity;
     stats->mailbox_peak = actor->mailbox->peak_size;
     stats->overflow_events = actor->mailbox->overflow_events;
-    
+
     return OL_SUCCESS;
 }
 
@@ -1404,38 +1434,38 @@ size_t ol_actor_process_batch(ol_actor_t* actor, size_t max_batch_size) {
     if (!actor || max_batch_size == 0) {
         return 0;
     }
-    
+
     if (max_batch_size > ACTOR_BATCH_SIZE) {
         max_batch_size = ACTOR_BATCH_SIZE;
     }
-    
+
     /* Get batch of messages from mailbox */
     size_t batch_size = actor_mailbox_batch_recv(
         actor->mailbox, actor->batch_buffer, max_batch_size, 0);
-    
+
     if (batch_size == 0) {
         return 0;
     }
-    
+
     /* Enable batch mode flag */
     uint32_t old_state = actor->state;
     actor->state |= ACTOR_STATE_BATCH_MODE;
-    
+
     /* Process batch with timing */
     uint64_t start_time = ol_monotonic_now_ns();
-    
+
     for (size_t i = 0; i < batch_size; i++) {
         if (actor->behavior) {
             actor->behavior(actor, actor->batch_buffer[i]);
         }
         actor->processed_messages++;
     }
-    
+
     uint64_t end_time = ol_monotonic_now_ns();
     actor->processing_time_ns += (end_time - start_time);
-    
+
     /* Restore original state */
     actor->state = old_state;
-    
+
     return batch_size;
 }

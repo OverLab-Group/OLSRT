@@ -94,10 +94,10 @@
 
 /* Branch prediction */
 #if defined(__GNUC__) || defined(__clang__)
-#define OL_LIKELY(x)   __builtin_expect(!!(x), 1)
+#define OL_LIKELY(x) __builtin_expect(!!(x), 1)
 #define OL_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-#define OL_LIKELY(x)   (x)
+#define OL_LIKELY(x) (x)
 #define OL_UNLIKELY(x) (x)
 #endif
 
@@ -160,63 +160,63 @@
 
 /* Yield processor */
 static OL_INLINE void ol_cpu_yield(void) {
-    #if OL_OS_WINDOWS
+#if OL_OS_WINDOWS
     YieldProcessor();
-    #elif defined(__x86_64__) || defined(__i386__)
+#elif defined(__x86_64__) || defined(__i386__)
     asm volatile("pause" ::: "memory");
-    #elif defined(__aarch64__)
+#elif defined(__aarch64__)
     asm volatile("yield" ::: "memory");
-    #else
+#else
     sched_yield();
-    #endif
+#endif
 }
 
 /* Memory barrier */
 static OL_INLINE void ol_memory_barrier(void) {
-    #if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
     asm volatile("" ::: "memory");
-    #elif OL_OS_WINDOWS
+#elif OL_OS_WINDOWS
     MemoryBarrier();
-    #else
+#else
     __sync_synchronize();
-    #endif
+#endif
 }
 
 /* Get thread ID */
 static OL_INLINE uint64_t ol_get_thread_id(void) {
-    #if OL_OS_WINDOWS
+#if OL_OS_WINDOWS
     return GetCurrentThreadId();
-    #elif OL_OS_LINUX
+#elif OL_OS_LINUX
     return syscall(SYS_gettid);
-    #elif OL_OS_MACOS
+#elif OL_OS_MACOS
     uint64_t tid;
     pthread_threadid_np(NULL, &tid);
     return tid;
-    #else
+#else
     return (uint64_t)pthread_self();
-    #endif
+#endif
 }
 
 /* Get page size */
 static OL_INLINE size_t ol_get_page_size(void) {
-    #if OL_OS_WINDOWS
+#if OL_OS_WINDOWS
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     return sys_info.dwPageSize;
-    #else
+#else
     return sysconf(_SC_PAGESIZE);
-    #endif
+#endif
 }
 
 /* Get number of CPUs */
 static OL_INLINE int ol_get_cpu_count(void) {
-    #if OL_OS_WINDOWS
+#if OL_OS_WINDOWS
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     return sys_info.dwNumberOfProcessors;
-    #else
+#else
     return sysconf(_SC_NPROCESSORS_ONLN);
-    #endif
+#endif
 }
 
 #endif /* OL_PLATFORM_H */

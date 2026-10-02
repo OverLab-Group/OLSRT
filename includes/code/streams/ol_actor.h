@@ -102,10 +102,10 @@ typedef void (*ol_actor_value_destructor)(void* value);
  * between actors.
  */
 typedef struct ol_ask_envelope {
-    void* payload;                 /**< Message payload (the actual request data) */
-    ol_promise_t* reply;           /**< Promise to resolve with reply value */
-    ol_actor_t* sender;            /**< Sender actor (optional, can be NULL) */
-    uint64_t ask_id;               /**< Unique ask identifier for tracking */
+    void* payload;       /**< Message payload (the actual request data) */
+    ol_promise_t* reply; /**< Promise to resolve with reply value */
+    ol_actor_t* sender;  /**< Sender actor (optional, can be NULL) */
+    uint64_t ask_id;     /**< Unique ask identifier for tracking */
 } ol_ask_envelope_t;
 
 /**
@@ -115,13 +115,13 @@ typedef struct ol_ask_envelope {
  * mailbox usage for monitoring and debugging purposes.
  */
 typedef struct ol_actor_stats {
-    uint64_t processed_messages;   /**< Total number of processed messages */
-    uint64_t processing_time_ns;   /**< Total processing time in nanoseconds */
-    uint64_t avg_latency_ns;       /**< Average latency per message in nanoseconds */
-    size_t mailbox_size;           /**< Current number of messages in mailbox */
-    size_t mailbox_capacity;       /**< Maximum mailbox capacity (0 = unbounded) */
-    size_t mailbox_peak;           /**< Peak mailbox size reached */
-    size_t overflow_events;        /**< Number of mailbox overflow events */
+    uint64_t processed_messages; /**< Total number of processed messages */
+    uint64_t processing_time_ns; /**< Total processing time in nanoseconds */
+    uint64_t avg_latency_ns; /**< Average latency per message in nanoseconds */
+    size_t mailbox_size;     /**< Current number of messages in mailbox */
+    size_t mailbox_capacity; /**< Maximum mailbox capacity (0 = unbounded) */
+    size_t mailbox_peak;     /**< Peak mailbox size reached */
+    size_t overflow_events;  /**< Number of mailbox overflow events */
 } ol_actor_stats_t;
 
 /* ==================== Actor Creation & Lifecycle ==================== */
@@ -313,7 +313,9 @@ void ol_actor_set_context(ol_actor_t* actor, void* context);
  * @warning This function must only be called from within the actor's
  *          behavior function that received the ask envelope.
  */
-void ol_actor_reply_ok(ol_ask_envelope_t* envelope, void* value, ol_actor_value_destructor dtor);
+void ol_actor_reply_ok(ol_ask_envelope_t* envelope,
+                       void* value,
+                       ol_actor_value_destructor dtor);
 
 /**
  * @brief Reply to ask envelope with error

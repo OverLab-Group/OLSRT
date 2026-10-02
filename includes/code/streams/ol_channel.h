@@ -25,7 +25,7 @@ typedef struct ol_channel ol_channel_t;
  * @brief Item destructor function type for channels
  * @param item Item to destroy
  */
-typedef void (*ol_chan_item_destructor)(void *item);
+typedef void (*ol_chan_item_destructor)(void* item);
 
 /**
  * @brief Create a new channel
@@ -44,7 +44,7 @@ OL_API ol_channel_t* ol_channel_create(size_t capacity,
  * 
  * @param ch Channel to destroy (may be NULL)
  */
-OL_API void ol_channel_destroy(ol_channel_t *ch);
+OL_API void ol_channel_destroy(ol_channel_t* ch);
 
 /**
  * @brief Close a channel
@@ -54,7 +54,7 @@ OL_API void ol_channel_destroy(ol_channel_t *ch);
  * @param ch Channel to close
  * @return OL_SUCCESS on success, OL_ERROR on invalid argument
  */
-OL_API int ol_channel_close(ol_channel_t *ch);
+OL_API int ol_channel_close(ol_channel_t* ch);
 
 /**
  * @brief Send an item with blocking wait
@@ -66,7 +66,7 @@ OL_API int ol_channel_close(ol_channel_t *ch);
  * @return OL_SUCCESS on success, OL_CLOSED if channel closed,
  *         OL_ERROR on invalid argument
  */
-OL_API int ol_channel_send(ol_channel_t *ch, void *item);
+OL_API int ol_channel_send(ol_channel_t* ch, void* item);
 
 /**
  * @brief Send an item with deadline
@@ -77,9 +77,8 @@ OL_API int ol_channel_send(ol_channel_t *ch, void *item);
  * @return OL_SUCCESS on success, OL_CLOSED if channel closed,
  *         OL_TIMEOUT on timeout, OL_ERROR on error
  */
-OL_API int ol_channel_send_deadline(ol_channel_t *ch,
-                                    void *item,
-                                    int64_t deadline_ns);
+OL_API int
+ol_channel_send_deadline(ol_channel_t* ch, void* item, int64_t deadline_ns);
 
 /**
  * @brief Try to send without blocking
@@ -89,7 +88,7 @@ OL_API int ol_channel_send_deadline(ol_channel_t *ch,
  * @return 1 if sent, 0 if would block, OL_CLOSED if channel closed,
  *         OL_ERROR on error
  */
-OL_API int ol_channel_try_send(ol_channel_t *ch, void *item);
+OL_API int ol_channel_try_send(ol_channel_t* ch, void* item);
 
 /**
  * @brief Receive an item with blocking wait
@@ -99,7 +98,7 @@ OL_API int ol_channel_try_send(ol_channel_t *ch, void *item);
  * @return 1 if item received, 0 if channel closed and empty,
  *         OL_ERROR on error
  */
-OL_API int ol_channel_recv(ol_channel_t *ch, void **out_item);
+OL_API int ol_channel_recv(ol_channel_t* ch, void** out_item);
 
 /**
  * @brief Receive an item with deadline
@@ -110,8 +109,8 @@ OL_API int ol_channel_recv(ol_channel_t *ch, void **out_item);
  * @return 1 if item received, 0 if channel closed and empty,
  *         OL_TIMEOUT on timeout, OL_ERROR on error
  */
-OL_API int ol_channel_recv_deadline(ol_channel_t *ch,
-                                    void **out_item,
+OL_API int ol_channel_recv_deadline(ol_channel_t* ch,
+                                    void** out_item,
                                     int64_t deadline_ns);
 
 /**
@@ -122,7 +121,7 @@ OL_API int ol_channel_recv_deadline(ol_channel_t *ch,
  * @return 1 if item received, 0 if would block or channel closed and empty,
  *         OL_ERROR on error
  */
-OL_API int ol_channel_try_recv(ol_channel_t *ch, void **out_item);
+OL_API int ol_channel_try_recv(ol_channel_t* ch, void** out_item);
 
 /**
  * @brief Check if channel is closed
@@ -130,7 +129,7 @@ OL_API int ol_channel_try_recv(ol_channel_t *ch, void **out_item);
  * @param ch Channel handle
  * @return true if closed, false otherwise
  */
-OL_API bool ol_channel_is_closed(const ol_channel_t *ch);
+OL_API bool ol_channel_is_closed(const ol_channel_t* ch);
 
 /**
  * @brief Get current queue length
@@ -138,7 +137,7 @@ OL_API bool ol_channel_is_closed(const ol_channel_t *ch);
  * @param ch Channel handle
  * @return Number of queued items
  */
-OL_API size_t ol_channel_len(const ol_channel_t *ch);
+OL_API size_t ol_channel_len(const ol_channel_t* ch);
 
 /**
  * @brief Get channel capacity
@@ -146,7 +145,7 @@ OL_API size_t ol_channel_len(const ol_channel_t *ch);
  * @param ch Channel handle
  * @return Channel capacity (0 for unbounded)
  */
-OL_API size_t ol_channel_capacity(const ol_channel_t *ch);
+OL_API size_t ol_channel_capacity(const ol_channel_t* ch);
 
 #ifdef __cplusplus
 }

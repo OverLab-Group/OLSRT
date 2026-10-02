@@ -25,16 +25,16 @@
 /* ==================== Internal structures ==================== */
 
 typedef struct ol_hashmap_entry {
-    void*  key;              /* Heap-allocated copy of the key bytes */
-    size_t key_size;         /* Length of key in bytes */
-    void*  value;            /* User pointer (ownership retained) */
+    void* key;       /* Heap-allocated copy of the key bytes */
+    size_t key_size; /* Length of key in bytes */
+    void* value;     /* User pointer (ownership retained) */
     struct ol_hashmap_entry* next;
 } ol_hashmap_entry_t;
 
 struct ol_hashmap {
     ol_hashmap_entry_t** buckets;
-    size_t capacity;         /* Number of buckets */
-    size_t size;             /* Number of entries */
+    size_t capacity; /* Number of buckets */
+    size_t size;     /* Number of entries */
     void (*value_destructor)(void*);
 };
 
@@ -58,7 +58,8 @@ static uint64_t fnv1a_64(const void* data, size_t size) {
  * Round up to the next power of two (>= 8).
  */
 static size_t next_pow2(size_t n) {
-    if (n < 8) return 8;
+    if (n < 8)
+        return 8;
     n--;
     n |= n >> 1;
     n |= n >> 2;
@@ -74,11 +75,12 @@ static size_t next_pow2(size_t n) {
 ol_hashmap_t* ol_hashmap_create(size_t capacity,
                                 void (*value_destructor)(void*)) {
     ol_hashmap_t* map = (ol_hashmap_t*)calloc(1, sizeof(*map));
-    if (!map) return NULL;
+    if (!map)
+        return NULL;
 
     capacity = next_pow2(capacity ? capacity : 16);
-    map->buckets = (ol_hashmap_entry_t**)calloc(
-        capacity, sizeof(ol_hashmap_entry_t*));
+    map->buckets =
+        (ol_hashmap_entry_t**)calloc(capacity, sizeof(ol_hashmap_entry_t*));
     if (!map->buckets) {
         free(map);
         return NULL;
@@ -90,7 +92,8 @@ ol_hashmap_t* ol_hashmap_create(size_t capacity,
 }
 
 void ol_hashmap_destroy(ol_hashmap_t* map) {
-    if (!map) return;
+    if (!map)
+        return;
     for (size_t i = 0; i < map->capacity; i++) {
         ol_hashmap_entry_t* e = map->buckets[i];
         while (e) {
@@ -108,9 +111,11 @@ void ol_hashmap_destroy(ol_hashmap_t* map) {
 }
 
 bool ol_hashmap_put(ol_hashmap_t* map,
-                    const void* key, size_t key_size,
+                    const void* key,
+                    size_t key_size,
                     void* value) {
-    if (!map || !key || key_size == 0) return false;
+    if (!map || !key || key_size == 0)
+        return false;
 
     size_t idx = (size_t)(fnv1a_64(key, key_size) & (map->capacity - 1));
 
@@ -128,7 +133,8 @@ bool ol_hashmap_put(ol_hashmap_t* map,
 
     /* New entry */
     ol_hashmap_entry_t* e = (ol_hashmap_entry_t*)malloc(sizeof(*e));
-    if (!e) return false;
+    if (!e)
+        return false;
     e->key = malloc(key_size);
     if (!e->key) {
         free(e);
@@ -144,8 +150,10 @@ bool ol_hashmap_put(ol_hashmap_t* map,
 }
 
 void* ol_hashmap_get(const ol_hashmap_t* map,
-                     const void* key, size_t key_size) {
-    if (!map || !key || key_size == 0) return NULL;
+                     const void* key,
+                     size_t key_size) {
+    if (!map || !key || key_size == 0)
+        return NULL;
 
     size_t idx = (size_t)(fnv1a_64(key, key_size) & (map->capacity - 1));
     for (ol_hashmap_entry_t* e = map->buckets[idx]; e; e = e->next) {
@@ -156,9 +164,9 @@ void* ol_hashmap_get(const ol_hashmap_t* map,
     return NULL;
 }
 
-bool ol_hashmap_remove(ol_hashmap_t* map,
-                       const void* key, size_t key_size) {
-    if (!map || !key || key_size == 0) return false;
+bool ol_hashmap_remove(ol_hashmap_t* map, const void* key, size_t key_size) {
+    if (!map || !key || key_size == 0)
+        return false;
 
     size_t idx = (size_t)(fnv1a_64(key, key_size) & (map->capacity - 1));
     ol_hashmap_entry_t** pp = &map->buckets[idx];
@@ -184,7 +192,8 @@ size_t ol_hashmap_size(const ol_hashmap_t* map) {
 }
 
 void ol_hashmap_clear(ol_hashmap_t* map) {
-    if (!map) return;
+    if (!map)
+        return;
     for (size_t i = 0; i < map->capacity; i++) {
         ol_hashmap_entry_t* e = map->buckets[i];
         while (e) {

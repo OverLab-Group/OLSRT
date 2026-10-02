@@ -61,7 +61,7 @@ void ol_memwatch_set_threshold(size_t threshold);
  * @param line Line number
  * @return Pointer to allocated memory
  */
-void *ol_memwatch_track_alloc(size_t size, const char *file, int line);
+void* ol_memwatch_track_alloc(size_t size, const char* file, int line);
 
 /**
  * @brief Track memory free with file and line information
@@ -69,7 +69,7 @@ void *ol_memwatch_track_alloc(size_t size, const char *file, int line);
  * @param file Source file name
  * @param line Line number
  */
-void ol_memwatch_track_free(void *ptr, const char *file, int line);
+void ol_memwatch_track_free(void* ptr, const char* file, int line);
 
 /* Wrapped allocation functions */
 /**
@@ -80,7 +80,7 @@ void ol_memwatch_track_free(void *ptr, const char *file, int line);
  * @see ol_memwatch_free
  */
 
-void *ol_memwatch_malloc(size_t size);
+void* ol_memwatch_malloc(size_t size);
 /**
  * @brief calloc wrapped by the memory watcher.
  *
@@ -89,7 +89,7 @@ void *ol_memwatch_malloc(size_t size);
  * @return Zero-initialised buffer, or NULL on failure.
  */
 
-void *ol_memwatch_calloc(size_t nmemb, size_t size);
+void* ol_memwatch_calloc(size_t nmemb, size_t size);
 /**
  * @brief realloc wrapped by the memory watcher.
  *
@@ -98,14 +98,14 @@ void *ol_memwatch_calloc(size_t nmemb, size_t size);
  * @return Reallocated buffer, or NULL on failure.
  */
 
-void *ol_memwatch_realloc(void *ptr, size_t size);
+void* ol_memwatch_realloc(void* ptr, size_t size);
 /**
  * @brief free wrapped by the memory watcher.
  *
  * @param ptr Allocation to release; NULL is a no-op.
  */
 
-void ol_memwatch_free(void *ptr);
+void ol_memwatch_free(void* ptr);
 
 #ifdef __cplusplus
 }

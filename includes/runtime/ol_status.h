@@ -10,12 +10,12 @@
  * success, failure, and special conditions.
  * ----------------------------------------------------- */
 typedef enum {
-    OL_STATUS_SUCCESS = 0,   // Operation completed successfully
-    OL_STATUS_FAILURE = -1,  // Generic failure
-    OL_STATUS_TIMEOUT = -2,  // Operation timed out
-    OL_STATUS_INVALID = -3,  // Invalid argument or state
-    OL_STATUS_NOT_FOUND = -4,// Resource not found
-    OL_STATUS_BUSY = -5,     // Resource currently busy
+    OL_STATUS_SUCCESS = 0,     // Operation completed successfully
+    OL_STATUS_FAILURE = -1,    // Generic failure
+    OL_STATUS_TIMEOUT = -2,    // Operation timed out
+    OL_STATUS_INVALID = -3,    // Invalid argument or state
+    OL_STATUS_NOT_FOUND = -4,  // Resource not found
+    OL_STATUS_BUSY = -5,       // Resource currently busy
     OL_STATUS_UNSUPPORTED = -6 // Feature not supported
 } ol_status_t;
 
@@ -24,10 +24,10 @@ typedef enum {
  * These macros simplify checking status codes and
  * improve readability in runtime modules.
  * ----------------------------------------------------- */
-#define OL_IS_OK(status)        ((status) == OL_STATUS_SUCCESS)
-#define OL_IS_ERROR(status)     ((status) < 0)
-#define OL_IS_TIMEOUT(status)   ((status) == OL_STATUS_TIMEOUT)
-#define OL_IS_INVALID(status)   ((status) == OL_STATUS_INVALID)
+#define OL_IS_OK(status) ((status) == OL_STATUS_SUCCESS)
+#define OL_IS_ERROR(status) ((status) < 0)
+#define OL_IS_TIMEOUT(status) ((status) == OL_STATUS_TIMEOUT)
+#define OL_IS_INVALID(status) ((status) == OL_STATUS_INVALID)
 
 /* -----------------------------------------------------
  * Function prototypes

@@ -44,11 +44,11 @@ typedef struct ol_arena ol_arena_t;
  * @brief Arena statistics structure for monitoring and debugging
  */
 typedef struct {
-    size_t total_size;     /**< Total arena size in bytes */
-    size_t used_size;      /**< Currently allocated/used bytes */
-    size_t alloc_count;    /**< Number of active allocations */
-    size_t free_count;     /**< Number of free blocks in free list */
-    size_t peak_usage;     /**< Peak memory usage reached */
+    size_t total_size;  /**< Total arena size in bytes */
+    size_t used_size;   /**< Currently allocated/used bytes */
+    size_t alloc_count; /**< Number of active allocations */
+    size_t free_count;  /**< Number of free blocks in free list */
+    size_t peak_usage;  /**< Peak memory usage reached */
 } ol_arena_stats_t;
 
 /**

@@ -45,7 +45,8 @@ typedef struct ol_hashmap ol_hashmap_t;
  *       If value_destructor is provided, it will be called for each value when
  *       the hash map is destroyed or when entries are removed.
  */
-ol_hashmap_t* ol_hashmap_create(size_t capacity, void (*value_destructor)(void*));
+ol_hashmap_t* ol_hashmap_create(size_t capacity,
+                                void (*value_destructor)(void*));
 
 /**
  * @brief Destroy hash map and all entries
@@ -78,7 +79,10 @@ void ol_hashmap_destroy(ol_hashmap_t* map);
  *          is stored directly. The hash map does NOT take ownership
  *          of the value memory unless a value_destructor is provided.
  */
-bool ol_hashmap_put(ol_hashmap_t* map, const void* key, size_t key_size, void* value);
+bool ol_hashmap_put(ol_hashmap_t* map,
+                    const void* key,
+                    size_t key_size,
+                    void* value);
 
 /**
  * @brief Get value by key

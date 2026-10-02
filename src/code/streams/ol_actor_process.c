@@ -39,12 +39,12 @@
 #include <stdio.h>
 
 #if defined(_WIN32)
-    #include <windows.h>
-    #define OL_GET_TID() GetCurrentThreadId()
+#include <windows.h>
+#define OL_GET_TID() GetCurrentThreadId()
 #else
-    #include <unistd.h>
-    #include <sys/syscall.h>
-    #define OL_GET_TID() (pid_t)syscall(SYS_gettid)
+#include <unistd.h>
+#include <sys/syscall.h>
+#define OL_GET_TID() (pid_t) syscall(SYS_gettid)
 #endif
 
 /* ==================== Internal Constants ==================== */
@@ -53,31 +53,31 @@
  * @def DEFAULT_ARENA_SIZE
  * @brief Default arena size for processes (4MB)
  */
-#define DEFAULT_ARENA_SIZE (4 * 1024 * 1024)  /* 4MB default arena */
+#define DEFAULT_ARENA_SIZE (4 * 1024 * 1024) /* 4MB default arena */
 
 /**
  * @def MAX_PROCESS_NAME
  * @brief Maximum length of process name string
  */
-#define MAX_PROCESS_NAME   256
+#define MAX_PROCESS_NAME 256
 
 /**
  * @def MAILBOX_CAPACITY
  * @brief Default mailbox capacity (messages)
  */
-#define MAILBOX_CAPACITY   1024
+#define MAILBOX_CAPACITY 1024
 
 /**
  * @def MAX_LINKS
  * @brief Maximum number of linked processes (initial capacity)
  */
-#define MAX_LINKS          256
+#define MAX_LINKS 256
 
 /**
  * @def MAX_MONITORS
  * @brief Maximum number of monitoring processes (initial capacity)
  */
-#define MAX_MONITORS       256
+#define MAX_MONITORS 256
 
 /**
  * @def PROCESS_TIMEOUT_MS
@@ -94,10 +94,10 @@
  * with sender information and timestamp.
  */
 typedef struct mailbox_entry {
-    ol_serialized_msg_t* msg;    /**< Serialized message */
-    ol_pid_t sender;             /**< Sender process ID */
-    uint64_t timestamp;          /**< Message arrival timestamp */
-    struct mailbox_entry* next;  /**< Next entry in linked list */
+    ol_serialized_msg_t* msg;   /**< Serialized message */
+    ol_pid_t sender;            /**< Sender process ID */
+    uint64_t timestamp;         /**< Message arrival timestamp */
+    struct mailbox_entry* next; /**< Next entry in linked list */
 } mailbox_entry_t;
 
 /**
@@ -107,9 +107,9 @@ typedef struct mailbox_entry {
  * (link) or unidirectional (monitor).
  */
 typedef struct process_link {
-    ol_pid_t pid;                /**< Linked/monitored process ID */
-    bool is_monitor;             /**< true = monitor, false = bidirectional link */
-    uint64_t ref;                /**< Monitor reference (0 for bidirectional links) */
+    ol_pid_t pid;    /**< Linked/monitored process ID */
+    bool is_monitor; /**< true = monitor, false = bidirectional link */
+    uint64_t ref;    /**< Monitor reference (0 for bidirectional links) */
 } process_link_t;
 
 /**
@@ -120,9 +120,9 @@ typedef struct process_link {
  */
 typedef struct exit_info {
     _Atomic ol_exit_reason_t reason; /**< Exit reason */
-    void* data;                  /**< Exit data (process-specific) */
-    size_t data_size;            /**< Exit data size */
-    uint64_t timestamp;          /**< Exit timestamp */
+    void* data;                      /**< Exit data (process-specific) */
+    size_t data_size;                /**< Exit data size */
+    uint64_t timestamp;              /**< Exit timestamp */
 } exit_info_t;
 
 /**
@@ -133,61 +133,61 @@ typedef struct exit_info {
  */
 struct ol_process {
     /* Identity and state */
-    ol_pid_t pid;                       /**< Unique process ID */
-    char name[MAX_PROCESS_NAME];        /**< Process name (for debugging) */
-    _Atomic ol_process_state_t state;   /**< Current process state */
-    ol_process_flags_t flags;           /**< Process configuration flags */
-    
+    ol_pid_t pid;                     /**< Unique process ID */
+    char name[MAX_PROCESS_NAME];      /**< Process name (for debugging) */
+    _Atomic ol_process_state_t state; /**< Current process state */
+    ol_process_flags_t flags;         /**< Process configuration flags */
+
     /* Execution context */
-    ol_gt_t* green_thread;              /**< Green thread for execution */
+    ol_gt_t* green_thread; /**< Green thread for execution */
 #if defined(_WIN32)
-    HANDLE   driver_thread;             /**< v1.3.2: OS driver thread */
+    HANDLE driver_thread; /**< v1.3.2: OS driver thread */
 #else
-    pthread_t driver_thread;            /**< v1.3.2: OS driver thread */
+    pthread_t driver_thread; /**< v1.3.2: OS driver thread */
 #endif
-    bool     driver_thread_active;      /**< v1.3.2: driver-thread liveness */
-    ol_process_entry_fn entry;          /**< Entry function */
-    void* entry_arg;                    /**< Argument for entry function */
-    
+    bool driver_thread_active; /**< v1.3.2: driver-thread liveness */
+    ol_process_entry_fn entry; /**< Entry function */
+    void* entry_arg;           /**< Argument for entry function */
+
     /* Memory isolation */
-    ol_arena_t* arena;                  /**< Private memory arena */
-    size_t arena_size;                  /**< Arena size */
-    
+    ol_arena_t* arena; /**< Private memory arena */
+    size_t arena_size; /**< Arena size */
+
     /* Message passing */
-    mailbox_entry_t* mailbox_head;      /**< Mailbox linked list head */
-    mailbox_entry_t* mailbox_tail;      /**< Mailbox linked list tail */
-    size_t mailbox_size;                /**< Number of messages in mailbox */
-    ol_mutex_t mailbox_mutex;           /**< Mailbox synchronization */
-    ol_cond_t mailbox_cond;             /**< Condition for message arrival */
-    
+    mailbox_entry_t* mailbox_head; /**< Mailbox linked list head */
+    mailbox_entry_t* mailbox_tail; /**< Mailbox linked list tail */
+    size_t mailbox_size;           /**< Number of messages in mailbox */
+    ol_mutex_t mailbox_mutex;      /**< Mailbox synchronization */
+    ol_cond_t mailbox_cond;        /**< Condition for message arrival */
+
     /* Process relationships */
-    ol_process_t* parent;               /**< Parent process (supervision tree) */
-    process_link_t* links;              /**< Array of linked processes */
-    size_t link_count;                  /**< Number of links */
-    size_t link_capacity;               /**< Links array capacity */
-    
-    process_link_t* monitors;           /**< Array of monitoring processes */
-    size_t monitor_count;               /**< Number of monitors */
-    size_t monitor_capacity;            /**< Monitors array capacity */
-    
+    ol_process_t* parent;  /**< Parent process (supervision tree) */
+    process_link_t* links; /**< Array of linked processes */
+    size_t link_count;     /**< Number of links */
+    size_t link_capacity;  /**< Links array capacity */
+
+    process_link_t* monitors; /**< Array of monitoring processes */
+    size_t monitor_count;     /**< Number of monitors */
+    size_t monitor_capacity;  /**< Monitors array capacity */
+
     /* Exit handling */
-    exit_info_t exit_info;              /**< Exit information */
-    ol_exit_handler_fn exit_handler;    /**< Exit handler callback */
-    void* exit_handler_data;            /**< Data for exit handler */
-    
+    exit_info_t exit_info;           /**< Exit information */
+    ol_exit_handler_fn exit_handler; /**< Exit handler callback */
+    void* exit_handler_data;         /**< Data for exit handler */
+
     /* Synchronization */
-    ol_mutex_t state_mutex;             /**< Protects process state */
-    ol_cond_t state_cond;               /**< Condition for state changes */
-    
+    ol_mutex_t state_mutex; /**< Protects process state */
+    ol_cond_t state_cond;   /**< Condition for state changes */
+
     /* Statistics */
-    uint64_t create_time;               /**< Process creation timestamp */
-    uint64_t start_time;                /**< Process start timestamp */
-    uint64_t message_count;             /**< Total messages received */
-    uint64_t send_count;                /**< Total messages sent */
-    size_t peak_mailbox_size;           /**< Peak mailbox usage */
-    
+    uint64_t create_time;     /**< Process creation timestamp */
+    uint64_t start_time;      /**< Process start timestamp */
+    uint64_t message_count;   /**< Total messages received */
+    uint64_t send_count;      /**< Total messages sent */
+    size_t peak_mailbox_size; /**< Peak mailbox usage */
+
     /* System information */
-    uint64_t system_thread_id;          /**< OS thread ID (for debugging) */
+    uint64_t system_thread_id; /**< OS thread ID (for debugging) */
 };
 
 /* ==================== Global Process Management ==================== */
@@ -209,9 +209,9 @@ static uint32_t g_process_counter = 0;
 
 /* Thread-local current process (for ol_process_self() equivalent) */
 #if defined(_WIN32)
-    static __declspec(thread) ol_process_t* g_current_process = NULL;
+static __declspec(thread) ol_process_t* g_current_process = NULL;
 #else
-    static __thread ol_process_t* g_current_process = NULL;
+static __thread ol_process_t* g_current_process = NULL;
 #endif
 
 /* ==================== Internal Helper Functions ==================== */
@@ -227,12 +227,12 @@ static uint32_t g_process_counter = 0;
 static ol_pid_t ol_process_generate_pid(void) {
     ol_mutex_lock(&g_registry_mutex);
     ol_pid_t pid = g_next_pid++;
-    
+
     /* Ensure we don't wrap around to system PIDs */
     if (g_next_pid < 1000) {
         g_next_pid = 1000;
     }
-    
+
     ol_mutex_unlock(&g_registry_mutex);
     return pid;
 }
@@ -262,19 +262,19 @@ static uint64_t ol_process_generate_monitor_ref(void) {
  */
 static int ol_process_init_registry(void) {
     if (g_process_registry) {
-        return OL_SUCCESS;  /* Already initialized */
+        return OL_SUCCESS; /* Already initialized */
     }
-    
+
     if (ol_mutex_init(&g_registry_mutex) != OL_SUCCESS) {
         return OL_ERROR;
     }
-    
+
     g_process_registry = ol_hashmap_create(1024, NULL);
     if (!g_process_registry) {
         ol_mutex_destroy(&g_registry_mutex);
         return OL_ERROR;
     }
-    
+
     return OL_SUCCESS;
 }
 
@@ -290,23 +290,24 @@ static int ol_process_register(ol_process_t* process) {
     if (!process || !g_process_registry) {
         return OL_ERROR;
     }
-    
+
     ol_mutex_lock(&g_registry_mutex);
-    
+
     /* Check if PID already exists (should be unique) */
     if (ol_hashmap_get(g_process_registry, &process->pid, sizeof(ol_pid_t))) {
         ol_mutex_unlock(&g_registry_mutex);
         return OL_ERROR;
     }
-    
+
     /* Add to registry */
-    if (!ol_hashmap_put(g_process_registry, &process->pid, sizeof(ol_pid_t), process)) {
+    if (!ol_hashmap_put(
+            g_process_registry, &process->pid, sizeof(ol_pid_t), process)) {
         ol_mutex_unlock(&g_registry_mutex);
         return OL_ERROR;
     }
-    
+
     ol_mutex_unlock(&g_registry_mutex);
-    
+
     return OL_SUCCESS;
 }
 
@@ -321,7 +322,7 @@ static void ol_process_unregister(ol_process_t* process) {
     if (!process || !g_process_registry) {
         return;
     }
-    
+
     ol_mutex_lock(&g_registry_mutex);
     ol_hashmap_remove(g_process_registry, &process->pid, sizeof(ol_pid_t));
     ol_mutex_unlock(&g_registry_mutex);
@@ -339,12 +340,12 @@ static ol_process_t* ol_process_find_by_pid(ol_pid_t pid) {
     if (!g_process_registry) {
         return NULL;
     }
-    
+
     ol_mutex_lock(&g_registry_mutex);
-    ol_process_t* process = (ol_process_t*)ol_hashmap_get(g_process_registry, 
-                                                         &pid, sizeof(ol_pid_t));
+    ol_process_t* process = (ol_process_t*)ol_hashmap_get(
+        g_process_registry, &pid, sizeof(ol_pid_t));
     ol_mutex_unlock(&g_registry_mutex);
-    
+
     return process;
 }
 
@@ -358,12 +359,13 @@ static ol_process_t* ol_process_find_by_pid(ol_pid_t pid) {
  * @note Generates names like "process.1", "process.2", etc.
  *       Thread-safe for counter increment.
  */
-static void ol_process_create_default_name(char* buffer, size_t size, const char* prefix) {
+static void
+ol_process_create_default_name(char* buffer, size_t size, const char* prefix) {
     uint32_t counter;
     ol_mutex_lock(&g_registry_mutex);
     counter = ++g_process_counter;
     ol_mutex_unlock(&g_registry_mutex);
-    
+
     if (prefix) {
         snprintf(buffer, size, "%s.%u", prefix, counter);
     } else {
@@ -394,10 +396,12 @@ static void ol_process_create_default_name(char* buffer, size_t size, const char
  */
 static void* ol_process_driver_thread(void* arg) {
     ol_process_t* process = (ol_process_t*)arg;
-    if (!process) return NULL;
+    if (!process)
+        return NULL;
 
     ol_gt_t* gt = process->green_thread;
-    if (!gt) return NULL;
+    if (!gt)
+        return NULL;
 
     (void)ol_gt_run_to_completion(gt);
 
@@ -421,28 +425,29 @@ static void ol_process_trampoline(void* arg) {
     if (!process) {
         return;
     }
-    
+
     /* Set thread-local current process */
     g_current_process = process;
-    
+
     /* Update process state to RUNNING */
     ol_mutex_lock(&process->state_mutex);
-    __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_RUNNING, __ATOMIC_RELEASE);
+    __atomic_store_n(
+        (uint32_t*)&process->state, OL_PROCESS_RUNNING, __ATOMIC_RELEASE);
     process->start_time = ol_monotonic_now_ns();
     process->system_thread_id = OL_GET_TID();
     ol_mutex_unlock(&process->state_mutex);
-    
+
     /* Check for trap exit flag (affects exit signal handling) */
     bool trap_exit = (process->flags & OL_PROCESS_TRAP_EXIT) != 0;
-    
+
     /* Main process loop */
-    while (__atomic_load_n((uint32_t*)&process->state,
-                              __ATOMIC_ACQUIRE) == OL_PROCESS_RUNNING) {
+    while (__atomic_load_n((uint32_t*)&process->state, __ATOMIC_ACQUIRE) ==
+           OL_PROCESS_RUNNING) {
         /* Check for exit signals (unless trapping exits) */
         if (!trap_exit && process->exit_info.reason != OL_EXIT_NORMAL) {
             break;
         }
-        
+
         /* Execute process entry function if provided */
         if (process->entry) {
             process->entry(process, process->entry_arg);
@@ -451,7 +456,7 @@ static void ol_process_trampoline(void* arg) {
             void* msg = NULL;
             size_t size = 0;
             ol_pid_t sender = 0;
-            
+
             if (ol_process_recv(process, &msg, &size, &sender, 1000) == 1) {
                 /* Message received - but no handler to process it */
                 if (msg) {
@@ -459,39 +464,41 @@ static void ol_process_trampoline(void* arg) {
                 }
             }
         }
-        
+
         /* If still running after entry function, transition to SUSPENDED */
         if (process->state == OL_PROCESS_RUNNING) {
             process->state = OL_PROCESS_SUSPENDED;
         }
     }
-    
+
     /* Process is terminating - perform cleanup */
     ol_mutex_lock(&process->state_mutex);
-    
+
     if (process->state == OL_PROCESS_RUNNING) {
-        __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
+        __atomic_store_n(
+            (uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
     }
-    
+
     /* NOTE(v1.3.2): do NOT destroy the green thread from within
      * it. The driver thread destroys it after we yield back. Touching
      * process->green_thread here would race with the driver. */
-    
+
     /* Notify all linked processes about our exit */
     for (size_t i = 0; i < process->link_count; i++) {
         process_link_t* link = &process->links[i];
         ol_process_t* linked = ol_process_find_by_pid(link->pid);
-        
+
         if (linked && linked->exit_handler) {
-            linked->exit_handler(linked, process->pid, 
-                                process->exit_info.reason,
-                                process->exit_info.data);
+            linked->exit_handler(linked,
+                                 process->pid,
+                                 process->exit_info.reason,
+                                 process->exit_info.data);
         }
     }
-    
+
     /* Clear thread-local current process */
     g_current_process = NULL;
-    
+
     ol_mutex_unlock(&process->state_mutex);
 }
 
@@ -506,23 +513,28 @@ static void ol_process_trampoline(void* arg) {
  * @note Sets exit information and transitions process to terminal state.
  *       Wakes up any waiting threads.
  */
-static void ol_process_send_exit(ol_process_t* process, ol_exit_reason_t reason,
-                                void* exit_data, size_t exit_data_size) {
-    if (!process) return;
-    
+static void ol_process_send_exit(ol_process_t* process,
+                                 ol_exit_reason_t reason,
+                                 void* exit_data,
+                                 size_t exit_data_size) {
+    if (!process)
+        return;
+
     ol_mutex_lock(&process->state_mutex);
-    
+
     /* Check if already exiting */
-    if (process->state != OL_PROCESS_RUNNING && 
+    if (process->state != OL_PROCESS_RUNNING &&
         process->state != OL_PROCESS_SUSPENDED) {
         ol_mutex_unlock(&process->state_mutex);
         return;
     }
-    
+
     /* Set exit information */
-    __atomic_store_n((uint32_t*)&process->exit_info.reason, (uint32_t)reason, __ATOMIC_RELEASE);
+    __atomic_store_n((uint32_t*)&process->exit_info.reason,
+                     (uint32_t)reason,
+                     __ATOMIC_RELEASE);
     process->exit_info.timestamp = ol_monotonic_now_ns();
-    
+
     /* Copy exit data if provided */
     if (exit_data && exit_data_size > 0) {
         process->exit_info.data = malloc(exit_data_size);
@@ -534,26 +546,29 @@ static void ol_process_send_exit(ol_process_t* process, ol_exit_reason_t reason,
         process->exit_info.data = NULL;
         process->exit_info.data_size = 0;
     }
-    
+
     /* Update process state based on exit reason */
     switch (reason) {
-        case OL_EXIT_NORMAL:
-            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
-            break;
-        case OL_EXIT_KILL:
-            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_KILLED, __ATOMIC_RELEASE);
-            break;
-        default:
-            __atomic_store_n((uint32_t*)&process->state, OL_PROCESS_CRASHED, __ATOMIC_RELEASE);
-            break;
+    case OL_EXIT_NORMAL:
+        __atomic_store_n(
+            (uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
+        break;
+    case OL_EXIT_KILL:
+        __atomic_store_n(
+            (uint32_t*)&process->state, OL_PROCESS_KILLED, __ATOMIC_RELEASE);
+        break;
+    default:
+        __atomic_store_n(
+            (uint32_t*)&process->state, OL_PROCESS_CRASHED, __ATOMIC_RELEASE);
+        break;
     }
-    
+
     /* Wake up process if it's waiting */
     ol_cond_signal(&process->state_cond);
-    
+
     /* Wake up mailbox waiters */
     ol_cond_signal(&process->mailbox_cond);
-    
+
     ol_mutex_unlock(&process->state_mutex);
 }
 
@@ -568,40 +583,43 @@ static void ol_process_send_exit(ol_process_t* process, ol_exit_reason_t reason,
  * 
  * @note Handles array resizing if needed. Checks for duplicate links.
  */
-static int ol_process_add_link(ol_process_t* process, ol_pid_t pid,
-                              bool is_monitor, uint64_t ref) {
+static int ol_process_add_link(ol_process_t* process,
+                               ol_pid_t pid,
+                               bool is_monitor,
+                               uint64_t ref) {
     if (!process) {
         return OL_ERROR;
     }
-    
+
     /* Check for duplicate link */
     for (size_t i = 0; i < process->link_count; i++) {
         if (process->links[i].pid == pid) {
-            return OL_SUCCESS;  /* Already linked */
+            return OL_SUCCESS; /* Already linked */
         }
     }
-    
+
     /* Ensure capacity (resize if needed) */
     if (process->link_count >= process->link_capacity) {
         size_t new_capacity = process->link_capacity * 2;
-        if (new_capacity < 8) new_capacity = 8;
-        
+        if (new_capacity < 8)
+            new_capacity = 8;
+
         process_link_t* new_links = (process_link_t*)realloc(
             process->links, new_capacity * sizeof(process_link_t));
         if (!new_links) {
             return OL_ERROR;
         }
-        
+
         process->links = new_links;
         process->link_capacity = new_capacity;
     }
-    
+
     /* Add link to array */
     process_link_t* link = &process->links[process->link_count++];
     link->pid = pid;
     link->is_monitor = is_monitor;
     link->ref = ref;
-    
+
     return OL_SUCCESS;
 }
 
@@ -616,7 +634,7 @@ static int ol_process_remove_link(ol_process_t* process, ol_pid_t pid) {
     if (!process) {
         return OL_ERROR;
     }
-    
+
     for (size_t i = 0; i < process->link_count; i++) {
         if (process->links[i].pid == pid) {
             /* Shift remaining links left to fill gap */
@@ -627,8 +645,8 @@ static int ol_process_remove_link(ol_process_t* process, ol_pid_t pid) {
             return OL_SUCCESS;
         }
     }
-    
-    return OL_ERROR;  /* Link not found */
+
+    return OL_ERROR; /* Link not found */
 }
 
 /**
@@ -641,33 +659,35 @@ static int ol_process_remove_link(ol_process_t* process, ol_pid_t pid) {
  * 
  * @note Monitors are stored separately from bidirectional links.
  */
-static int ol_process_add_monitor(ol_process_t* process, ol_pid_t monitor_pid,
-                                 uint64_t ref) {
+static int ol_process_add_monitor(ol_process_t* process,
+                                  ol_pid_t monitor_pid,
+                                  uint64_t ref) {
     if (!process) {
         return OL_ERROR;
     }
-    
+
     /* Ensure capacity */
     if (process->monitor_count >= process->monitor_capacity) {
         size_t new_capacity = process->monitor_capacity * 2;
-        if (new_capacity < 8) new_capacity = 8;
-        
+        if (new_capacity < 8)
+            new_capacity = 8;
+
         process_link_t* new_monitors = (process_link_t*)realloc(
             process->monitors, new_capacity * sizeof(process_link_t));
         if (!new_monitors) {
             return OL_ERROR;
         }
-        
+
         process->monitors = new_monitors;
         process->monitor_capacity = new_capacity;
     }
-    
+
     /* Add monitor to array */
     process_link_t* monitor = &process->monitors[process->monitor_count++];
     monitor->pid = monitor_pid;
     monitor->is_monitor = true;
     monitor->ref = ref;
-    
+
     return OL_SUCCESS;
 }
 
@@ -682,7 +702,7 @@ static int ol_process_remove_monitor(ol_process_t* process, uint64_t ref) {
     if (!process) {
         return OL_ERROR;
     }
-    
+
     for (size_t i = 0; i < process->monitor_count; i++) {
         if (process->monitors[i].ref == ref) {
             /* Shift remaining monitors left */
@@ -693,8 +713,8 @@ static int ol_process_remove_monitor(ol_process_t* process, uint64_t ref) {
             return OL_SUCCESS;
         }
     }
-    
-    return OL_ERROR;  /* Monitor not found */
+
+    return OL_ERROR; /* Monitor not found */
 }
 
 /**
@@ -705,8 +725,9 @@ static int ol_process_remove_monitor(ol_process_t* process, uint64_t ref) {
  * @note Called during process destruction. Frees all allocated resources.
  */
 static void ol_process_cleanup(ol_process_t* process) {
-    if (!process) return;
-    
+    if (!process)
+        return;
+
     /* Clear mailbox (free all messages) */
     ol_mutex_lock(&process->mailbox_mutex);
     mailbox_entry_t* entry = process->mailbox_head;
@@ -722,27 +743,27 @@ static void ol_process_cleanup(ol_process_t* process) {
     process->mailbox_tail = NULL;
     process->mailbox_size = 0;
     ol_mutex_unlock(&process->mailbox_mutex);
-    
+
     /* Destroy synchronization primitives */
     ol_mutex_destroy(&process->mailbox_mutex);
     ol_cond_destroy(&process->mailbox_cond);
     ol_mutex_destroy(&process->state_mutex);
     ol_cond_destroy(&process->state_cond);
-    
+
     /* Free dynamic arrays */
     free(process->links);
     free(process->monitors);
-    
+
     /* Free exit data if any */
     if (process->exit_info.data) {
         free(process->exit_info.data);
     }
-    
+
     /* Destroy arena (if not using heap-only) */
     if (process->arena) {
         ol_arena_destroy(process->arena);
     }
-    
+
     /* Unregister from global registry */
     ol_process_unregister(process);
 }
@@ -763,43 +784,46 @@ static void ol_process_cleanup(ol_process_t* process) {
  * resources. The process starts in NEW state and needs to be
  * started (via green thread) to begin execution.
  */
-ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
-                               ol_process_t* parent, uint32_t flags,
-                               size_t arena_size) {
+ol_process_t* ol_process_create(ol_process_entry_fn entry,
+                                void* arg,
+                                ol_process_t* parent,
+                                uint32_t flags,
+                                size_t arena_size) {
     /* Initialize registry if needed */
     if (ol_process_init_registry() != OL_SUCCESS) {
         return NULL;
     }
-    
+
     /* Validate parameters */
     if (arena_size == 0) {
         arena_size = DEFAULT_ARENA_SIZE;
     }
-    
+
     /* Allocate process structure */
     ol_process_t* process = (ol_process_t*)calloc(1, sizeof(ol_process_t));
     if (!process) {
         return NULL;
     }
-    
+
     /* Generate unique PID */
     process->pid = ol_process_generate_pid();
-    
+
     /* Set process name */
-    ol_process_create_default_name(process->name, sizeof(process->name), "process");
-    
+    ol_process_create_default_name(
+        process->name, sizeof(process->name), "process");
+
     /* Set initial state and metadata */
     process->state = OL_PROCESS_NEW;
     process->flags = flags;
     process->create_time = ol_monotonic_now_ns();
-    
+
     /* Set entry function */
     process->entry = entry;
     process->entry_arg = arg;
-    
+
     /* Set parent process (for supervision tree) */
     process->parent = parent;
-    
+
     /* Create memory arena (unless heap-only flag set) */
     if (!(flags & OL_PROCESS_HEAP_ONLY)) {
         process->arena = ol_arena_create(arena_size, false);
@@ -809,7 +833,7 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         }
         process->arena_size = arena_size;
     }
-    
+
     /* Initialize mailbox synchronization */
     if (ol_mutex_init(&process->mailbox_mutex) != OL_SUCCESS) {
         if (process->arena) {
@@ -818,7 +842,7 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
     if (ol_cond_init(&process->mailbox_cond) != OL_SUCCESS) {
         ol_mutex_destroy(&process->mailbox_mutex);
         if (process->arena) {
@@ -827,7 +851,7 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
     /* Initialize state synchronization */
     if (ol_mutex_init(&process->state_mutex) != OL_SUCCESS) {
         ol_cond_destroy(&process->mailbox_cond);
@@ -838,7 +862,7 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
     if (ol_cond_init(&process->state_cond) != OL_SUCCESS) {
         ol_mutex_destroy(&process->state_mutex);
         ol_cond_destroy(&process->mailbox_cond);
@@ -849,22 +873,22 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
     /* Initialize arrays for links and monitors */
     process->links = NULL;
     process->link_count = 0;
     process->link_capacity = 0;
-    
+
     process->monitors = NULL;
     process->monitor_count = 0;
     process->monitor_capacity = 0;
-    
+
     /* Initialize exit info */
     process->exit_info.reason = OL_EXIT_NORMAL;
     process->exit_info.data = NULL;
     process->exit_info.data_size = 0;
     process->exit_info.timestamp = 0;
-    
+
     /* Create green thread for execution */
     process->green_thread = ol_gt_spawn(ol_process_trampoline, process, 0);
     if (!process->green_thread) {
@@ -872,7 +896,7 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         free(process);
         return NULL;
     }
-    
+
     /* Register process in global registry */
     if (ol_process_register(process) != OL_SUCCESS) {
         ol_gt_destroy(process->green_thread);
@@ -885,10 +909,13 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
      * thread to completion. Without this, the actor main loop is never
      * scheduled and callers must pump the mailbox manually. */
 #if defined(_WIN32)
-    process->driver_thread = CreateThread(NULL, 0,
-                                          (LPTHREAD_START_ROUTINE)
-                                              ol_process_driver_thread,
-                                          process, 0, NULL);
+    process->driver_thread =
+        CreateThread(NULL,
+                     0,
+                     (LPTHREAD_START_ROUTINE)ol_process_driver_thread,
+                     process,
+                     0,
+                     NULL);
     if (process->driver_thread == NULL) {
         ol_process_unregister(process);
         ol_gt_destroy(process->green_thread);
@@ -897,8 +924,9 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
         return NULL;
     }
 #else
-    if (pthread_create(&process->driver_thread, NULL,
-                       ol_process_driver_thread, process) != 0) {
+    if (pthread_create(
+            &process->driver_thread, NULL, ol_process_driver_thread, process) !=
+        0) {
         ol_process_unregister(process);
         ol_gt_destroy(process->green_thread);
         ol_process_cleanup(process);
@@ -921,24 +949,26 @@ ol_process_t* ol_process_create(ol_process_entry_fn entry, void* arg,
  * processes and cleans up all resources.
  */
 void ol_process_destroy(ol_process_t* process, ol_exit_reason_t reason) {
-    if (!process) return;
-    
+    if (!process)
+        return;
+
     /* Send exit signal to process */
     ol_process_send_exit(process, reason, NULL, 0);
-    
+
     /* Wait for process to terminate (with timeout) */
     ol_deadline_t deadline = ol_deadline_from_ms(PROCESS_TIMEOUT_MS);
-    
+
     ol_mutex_lock(&process->state_mutex);
     while (process->state == OL_PROCESS_RUNNING ||
            process->state == OL_PROCESS_SUSPENDED) {
-        if (ol_cond_wait_until(&process->state_cond, &process->state_mutex,
-                              deadline.when_ns) == 0) {
-            break;  /* Timeout */
+        if (ol_cond_wait_until(&process->state_cond,
+                               &process->state_mutex,
+                               deadline.when_ns) == 0) {
+            break; /* Timeout */
         }
     }
     ol_mutex_unlock(&process->state_mutex);
-    
+
     /* v1.3.2: wait for the driver thread to exit before freeing
      * the process structure. The green thread has reached a terminal
      * state by this point, so the join returns promptly. */
@@ -955,7 +985,7 @@ void ol_process_destroy(ol_process_t* process, ol_exit_reason_t reason) {
 
     /* Clean up resources */
     ol_process_cleanup(process);
-    
+
     /* Free process structure */
     free(process);
 }
@@ -977,13 +1007,14 @@ ol_pid_t ol_process_pid(const ol_process_t* process) {
  * @return ol_process_state_t Current state
  */
 ol_process_state_t ol_process_state(const ol_process_t* process) {
-    if (!process) return OL_PROCESS_KILLED;
-    
+    if (!process)
+        return OL_PROCESS_KILLED;
+
     ol_process_state_t state;
     ol_mutex_lock((ol_mutex_t*)&process->state_mutex);
     state = process->state;
     ol_mutex_unlock((ol_mutex_t*)&process->state_mutex);
-    
+
     return state;
 }
 
@@ -994,13 +1025,14 @@ ol_process_state_t ol_process_state(const ol_process_t* process) {
  * @return ol_exit_reason_t Exit reason if terminated
  */
 ol_exit_reason_t ol_process_exit_reason(const ol_process_t* process) {
-    if (!process) return OL_EXIT_NOPROC;
-    
+    if (!process)
+        return OL_EXIT_NOPROC;
+
     ol_exit_reason_t reason;
     ol_mutex_lock((ol_mutex_t*)&process->state_mutex);
     reason = process->exit_info.reason;
     ol_mutex_unlock((ol_mutex_t*)&process->state_mutex);
-    
+
     return reason;
 }
 
@@ -1017,23 +1049,23 @@ int ol_process_link(ol_process_t* process1, ol_process_t* process2) {
     if (!process1 || !process2) {
         return OL_ERROR;
     }
-    
+
     if (process1->pid == process2->pid) {
-        return OL_ERROR;  /* Cannot link to self */
+        return OL_ERROR; /* Cannot link to self */
     }
-    
+
     /* Link process1 to process2 */
     if (ol_process_add_link(process1, process2->pid, false, 0) != OL_SUCCESS) {
         return OL_ERROR;
     }
-    
+
     /* Link process2 to process1 */
     if (ol_process_add_link(process2, process1->pid, false, 0) != OL_SUCCESS) {
         /* Rollback first link */
         ol_process_remove_link(process1, process2->pid);
         return OL_ERROR;
     }
-    
+
     return OL_SUCCESS;
 }
 
@@ -1050,25 +1082,25 @@ ol_pid_t ol_process_monitor(ol_process_t* monitor, ol_process_t* target) {
     if (!monitor || !target) {
         return 0;
     }
-    
+
     if (monitor->pid == target->pid) {
-        return 0;  /* Cannot monitor self */
+        return 0; /* Cannot monitor self */
     }
-    
+
     uint64_t ref = ol_process_generate_monitor_ref();
-    
+
     /* Add monitor to target's monitor list */
     if (ol_process_add_monitor(target, monitor->pid, ref) != OL_SUCCESS) {
         return 0;
     }
-    
+
     /* Add link from monitor to target (as monitor type) */
     if (ol_process_add_link(monitor, target->pid, true, ref) != OL_SUCCESS) {
         /* Rollback monitor */
         ol_process_remove_monitor(target, ref);
         return 0;
     }
-    
+
     return ref;
 }
 
@@ -1083,12 +1115,12 @@ int ol_process_unlink(ol_process_t* process1, ol_process_t* process2) {
     if (!process1 || !process2) {
         return OL_ERROR;
     }
-    
+
     int result1 = ol_process_remove_link(process1, process2->pid);
     int result2 = ol_process_remove_link(process2, process1->pid);
-    
-    return (result1 == OL_SUCCESS && result2 == OL_SUCCESS) ? 
-           OL_SUCCESS : OL_ERROR;
+
+    return (result1 == OL_SUCCESS && result2 == OL_SUCCESS) ? OL_SUCCESS
+                                                            : OL_ERROR;
 }
 
 /**
@@ -1103,12 +1135,14 @@ int ol_process_unlink(ol_process_t* process1, ol_process_t* process2) {
  * @details Serializes message and adds to target's mailbox.
  * Wakes up receiving process if it's waiting.
  */
-int ol_process_send(ol_process_t* process, const void* data, size_t size,
-                   ol_pid_t sender_pid) {
+int ol_process_send(ol_process_t* process,
+                    const void* data,
+                    size_t size,
+                    ol_pid_t sender_pid) {
     if (!process || !data || size == 0) {
         return OL_ERROR;
     }
-    
+
     /* Check if process can receive messages */
     ol_mutex_lock(&process->state_mutex);
     if (process->state != OL_PROCESS_RUNNING &&
@@ -1118,28 +1152,28 @@ int ol_process_send(ol_process_t* process, const void* data, size_t size,
         return OL_ERROR;
     }
     ol_mutex_unlock(&process->state_mutex);
-    
+
     /* Create mailbox entry */
     mailbox_entry_t* entry = (mailbox_entry_t*)malloc(sizeof(mailbox_entry_t));
     if (!entry) {
         return OL_ERROR;
     }
-    
+
     /* Serialize message for inter-process transfer */
-    entry->msg = ol_serialize(data, size, OL_SERIALIZE_BINARY, 0,
-                             sender_pid, process->pid);
+    entry->msg = ol_serialize(
+        data, size, OL_SERIALIZE_BINARY, 0, sender_pid, process->pid);
     if (!entry->msg) {
         free(entry);
         return OL_ERROR;
     }
-    
+
     entry->sender = sender_pid;
     entry->timestamp = ol_monotonic_now_ns();
     entry->next = NULL;
-    
+
     /* Add to mailbox */
     ol_mutex_lock(&process->mailbox_mutex);
-    
+
     /* Handle mailbox overflow (drop oldest message) */
     if (process->mailbox_size >= MAILBOX_CAPACITY) {
         mailbox_entry_t* oldest = process->mailbox_head;
@@ -1148,7 +1182,7 @@ int ol_process_send(ol_process_t* process, const void* data, size_t size,
             if (!process->mailbox_head) {
                 process->mailbox_tail = NULL;
             }
-            
+
             if (oldest->msg) {
                 ol_serialize_free(oldest->msg);
             }
@@ -1156,7 +1190,7 @@ int ol_process_send(ol_process_t* process, const void* data, size_t size,
             process->mailbox_size--;
         }
     }
-    
+
     /* Add new entry to tail of linked list */
     if (process->mailbox_tail) {
         process->mailbox_tail->next = entry;
@@ -1164,20 +1198,20 @@ int ol_process_send(ol_process_t* process, const void* data, size_t size,
     } else {
         process->mailbox_head = process->mailbox_tail = entry;
     }
-    
+
     process->mailbox_size++;
     process->message_count++;
-    
+
     /* Update peak size */
     if (process->mailbox_size > process->peak_mailbox_size) {
         process->peak_mailbox_size = process->mailbox_size;
     }
-    
+
     /* Signal waiting receivers */
     ol_cond_signal(&process->mailbox_cond);
-    
+
     ol_mutex_unlock(&process->mailbox_mutex);
-    
+
     return OL_SUCCESS;
 }
 
@@ -1194,44 +1228,46 @@ int ol_process_send(ol_process_t* process, const void* data, size_t size,
  * @details Blocks waiting for message with optional timeout.
  * Deserializes message and returns to caller.
  */
-int ol_process_recv(ol_process_t* process, void** out_data, size_t* out_size,
-                   ol_pid_t* out_sender, int timeout_ms) {
+int ol_process_recv(ol_process_t* process,
+                    void** out_data,
+                    size_t* out_size,
+                    ol_pid_t* out_sender,
+                    int timeout_ms) {
     if (!process || !out_data || !out_size) {
         return OL_ERROR;
     }
-    
-    ol_deadline_t deadline = {0};
+
+    ol_deadline_t deadline = { 0 };
     if (timeout_ms > 0) {
         deadline = ol_deadline_from_ms(timeout_ms);
     } else if (timeout_ms < 0) {
-        deadline.when_ns = 0;  /* Infinite */
+        deadline.when_ns = 0; /* Infinite */
     }
-    
+
     ol_mutex_lock(&process->mailbox_mutex);
-    
+
     /* Wait for messages */
     while (process->mailbox_size == 0) {
         /* Check if process is still alive */
         ol_mutex_lock(&process->state_mutex);
         bool is_alive = (process->state == OL_PROCESS_RUNNING ||
-                        process->state == OL_PROCESS_SUSPENDED);
+                         process->state == OL_PROCESS_SUSPENDED);
         ol_mutex_unlock(&process->state_mutex);
-        
+
         if (!is_alive) {
             ol_mutex_unlock(&process->mailbox_mutex);
             return -1;
         }
-        
+
         /* Non-blocking mode */
         if (timeout_ms == 0) {
             ol_mutex_unlock(&process->mailbox_mutex);
             return 0;
         }
-        
+
         /* Wait with timeout */
-        int wait_result = ol_cond_wait_until(&process->mailbox_cond,
-                                            &process->mailbox_mutex,
-                                            deadline.when_ns);
+        int wait_result = ol_cond_wait_until(
+            &process->mailbox_cond, &process->mailbox_mutex, deadline.when_ns);
         if (wait_result == 0) {
             /* Timeout */
             ol_mutex_unlock(&process->mailbox_mutex);
@@ -1242,27 +1278,27 @@ int ol_process_recv(ol_process_t* process, void** out_data, size_t* out_size,
             return -1;
         }
     }
-    
+
     /* Get first message from mailbox */
     mailbox_entry_t* entry = process->mailbox_head;
     if (!entry) {
         ol_mutex_unlock(&process->mailbox_mutex);
         return 0;
     }
-    
+
     /* Remove from mailbox */
     process->mailbox_head = entry->next;
     if (!process->mailbox_head) {
         process->mailbox_tail = NULL;
     }
     process->mailbox_size--;
-    
+
     ol_mutex_unlock(&process->mailbox_mutex);
-    
+
     /* Deserialize message */
     void* data = NULL;
     size_t size = 0;
-    
+
     if (ol_deserialize(entry->msg, &data, &size) != OL_SUCCESS) {
         if (entry->msg) {
             ol_serialize_free(entry->msg);
@@ -1270,21 +1306,21 @@ int ol_process_recv(ol_process_t* process, void** out_data, size_t* out_size,
         free(entry);
         return -1;
     }
-    
+
     /* Return results */
     *out_data = data;
     *out_size = size;
-    
+
     if (out_sender) {
         *out_sender = entry->sender;
     }
-    
+
     /* Clean up entry */
     if (entry->msg) {
         ol_serialize_free(entry->msg);
     }
     free(entry);
-    
+
     return 1;
 }
 
@@ -1296,10 +1332,11 @@ int ol_process_recv(ol_process_t* process, void** out_data, size_t* out_size,
  * @param user_data User data passed to handler
  */
 void ol_process_set_exit_handler(ol_process_t* process,
-                                ol_exit_handler_fn handler,
-                                void* user_data) {
-    if (!process) return;
-    
+                                 ol_exit_handler_fn handler,
+                                 void* user_data) {
+    if (!process)
+        return;
+
     ol_mutex_lock(&process->state_mutex);
     process->exit_handler = handler;
     process->exit_handler_data = user_data;
@@ -1343,15 +1380,16 @@ ol_process_t* ol_process_parent(const ol_process_t* process) {
  * @return bool True if alive
  */
 bool ol_process_is_alive(const ol_process_t* process) {
-    if (!process) return false;
-    
+    if (!process)
+        return false;
+
     bool alive;
     ol_mutex_lock((ol_mutex_t*)&process->state_mutex);
     alive = (process->state == OL_PROCESS_RUNNING ||
-            process->state == OL_PROCESS_SUSPENDED ||
-            process->state == OL_PROCESS_READY);
+             process->state == OL_PROCESS_SUSPENDED ||
+             process->state == OL_PROCESS_READY);
     ol_mutex_unlock((ol_mutex_t*)&process->state_mutex);
-    
+
     return alive;
 }
 
@@ -1362,10 +1400,12 @@ bool ol_process_is_alive(const ol_process_t* process) {
  * @param reason Exit reason
  * @param exit_data Exit data
  */
-void ol_process_crash(ol_process_t* process, ol_exit_reason_t reason,
-                     void* exit_data) {
-    if (!process) return;
-    
+void ol_process_crash(ol_process_t* process,
+                      ol_exit_reason_t reason,
+                      void* exit_data) {
+    if (!process)
+        return;
+
     ol_process_send_exit(process, reason, exit_data, 0);
 }
 

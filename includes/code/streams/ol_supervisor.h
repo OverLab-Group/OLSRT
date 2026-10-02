@@ -49,42 +49,43 @@ typedef int (*ol_child_function)(void* arg);
  * @brief Child restart policy
  */
 typedef enum {
-    OL_CHILD_PERMANENT = 0,    /**< Always restart on failure */
-    OL_CHILD_TRANSIENT = 1,    /**< Restart only on abnormal exit */
-    OL_CHILD_TEMPORARY = 2     /**< Never restart */
+    OL_CHILD_PERMANENT = 0, /**< Always restart on failure */
+    OL_CHILD_TRANSIENT = 1, /**< Restart only on abnormal exit */
+    OL_CHILD_TEMPORARY = 2  /**< Never restart */
 } ol_child_policy_t;
 
 /**
  * @brief Supervisor strategy
  */
 typedef enum {
-    OL_SUP_ONE_FOR_ONE = 0,    /**< Restart only failed child */
-    OL_SUP_ONE_FOR_ALL = 1,    /**< Restart all children */
-    OL_SUP_REST_FOR_ONE = 2    /**< Restart failed and subsequent children */
+    OL_SUP_ONE_FOR_ONE = 0, /**< Restart only failed child */
+    OL_SUP_ONE_FOR_ALL = 1, /**< Restart all children */
+    OL_SUP_REST_FOR_ONE = 2 /**< Restart failed and subsequent children */
 } ol_supervisor_strategy_t;
 
 /**
  * @brief Child specification
  */
 typedef struct {
-    const char* name;          /**< Child name (for logging) */
-    ol_child_function fn;      /**< Child function */
-    void* arg;                 /**< Function argument */
-    ol_child_policy_t policy;  /**< Restart policy */
+    const char* name;             /**< Child name (for logging) */
+    ol_child_function fn;         /**< Child function */
+    void* arg;                    /**< Function argument */
+    ol_child_policy_t policy;     /**< Restart policy */
     uint32_t shutdown_timeout_ms; /**< Graceful shutdown timeout */
-    size_t   arena_size;       /**< Per-child memory arena size in bytes (0 = default) */
+    size_t
+        arena_size; /**< Per-child memory arena size in bytes (0 = default) */
 } ol_child_spec_t;
 
 /**
  * @brief Child status information
  */
 typedef struct {
-    uint32_t id;               /**< Child ID */
-    const char* name;          /**< Child name */
-    bool is_running;           /**< Running status */
-    int exit_status;           /**< Last exit status */
-    int restart_count;         /**< Number of restarts */
-    uint64_t uptime_ms;        /**< Current uptime */
+    uint32_t id;        /**< Child ID */
+    const char* name;   /**< Child name */
+    bool is_running;    /**< Running status */
+    int exit_status;    /**< Last exit status */
+    int restart_count;  /**< Number of restarts */
+    uint64_t uptime_ms; /**< Current uptime */
 } ol_child_status_t;
 
 /**
@@ -94,12 +95,12 @@ typedef struct {
  * Filled by ol_supervisor_get_stats().
  */
 typedef struct {
-    size_t   child_count;              /**< Current number of managed children */
-    size_t   max_concurrent_children;  /**< Peak number of children seen */
-    uint64_t total_restarts;           /**< Total child restarts performed */
-    uint64_t total_crashes;            /**< Total child crashes observed */
-    uint64_t uptime_ms;                /**< Supervisor uptime in ms */
-    int      restarts_in_window;       /**< Restarts in the current intensity window */
+    size_t child_count;             /**< Current number of managed children */
+    size_t max_concurrent_children; /**< Peak number of children seen */
+    uint64_t total_restarts;        /**< Total child restarts performed */
+    uint64_t total_crashes;         /**< Total child crashes observed */
+    uint64_t uptime_ms;             /**< Supervisor uptime in ms */
+    int restarts_in_window; /**< Restarts in the current intensity window */
 } ol_supervisor_stats_t;
 
 /**
@@ -110,7 +111,7 @@ typedef struct {
     int max_restarts;                  /**< Max restarts in window */
     int restart_window_ms;             /**< Restart window in ms */
     bool enable_logging;               /**< Enable supervisor logging */
-    uint32_t shutdown_timeout_ms;      /**< Max ms to wait for graceful child stop */
+    uint32_t shutdown_timeout_ms; /**< Max ms to wait for graceful child stop */
 } ol_supervisor_config_t;
 
 /* ==================== Supervisor Lifecycle ==================== */
@@ -156,7 +157,8 @@ void ol_supervisor_destroy(ol_supervisor_t* supervisor);
  * @param spec Child specification
  * @return uint32_t Child ID, 0 on error
  */
-uint32_t ol_supervisor_add_child(ol_supervisor_t* supervisor, const ol_child_spec_t* spec);
+uint32_t ol_supervisor_add_child(ol_supervisor_t* supervisor,
+                                 const ol_child_spec_t* spec);
 
 /**
  * @brief Remove a child from supervisor
@@ -166,7 +168,9 @@ uint32_t ol_supervisor_add_child(ol_supervisor_t* supervisor, const ol_child_spe
  * @param graceful If true, wait for graceful stop
  * @return int 0 on success, -1 on error
  */
-int ol_supervisor_remove_child(ol_supervisor_t* supervisor, uint32_t child_id, bool graceful);
+int ol_supervisor_remove_child(ol_supervisor_t* supervisor,
+                               uint32_t child_id,
+                               bool graceful);
 
 /**
  * @brief Restart a specific child
@@ -185,7 +189,8 @@ int ol_supervisor_restart_child(ol_supervisor_t* supervisor, uint32_t child_id);
  * @param status Output status structure
  * @return int 0 on success, -1 on error
  */
-int ol_supervisor_get_child_status(ol_supervisor_t* supervisor, uint32_t child_id, 
+int ol_supervisor_get_child_status(ol_supervisor_t* supervisor,
+                                   uint32_t child_id,
                                    ol_child_status_t* status);
 
 /* ==================== Introspection ==================== */
@@ -213,7 +218,8 @@ bool ol_supervisor_is_running(const ol_supervisor_t* supervisor);
  * @param config Output configuration
  * @return int 0 on success, -1 on error
  */
-int ol_supervisor_get_config(const ol_supervisor_t* supervisor, ol_supervisor_config_t* config);
+int ol_supervisor_get_config(const ol_supervisor_t* supervisor,
+                             ol_supervisor_config_t* config);
 
 /**
  * @brief Set supervisor configuration
@@ -222,7 +228,8 @@ int ol_supervisor_get_config(const ol_supervisor_t* supervisor, ol_supervisor_co
  * @param config New configuration
  * @return int 0 on success, -1 on error
  */
-int ol_supervisor_set_config(ol_supervisor_t* supervisor, const ol_supervisor_config_t* config);
+int ol_supervisor_set_config(ol_supervisor_t* supervisor,
+                             const ol_supervisor_config_t* config);
 
 /**
  * @brief Get live supervisor statistics
@@ -231,7 +238,8 @@ int ol_supervisor_set_config(ol_supervisor_t* supervisor, const ol_supervisor_co
  * @param stats Output statistics structure (must not be NULL)
  * @return int 0 on success, -1 on error
  */
-int ol_supervisor_get_stats(const ol_supervisor_t* supervisor, ol_supervisor_stats_t* stats);
+int ol_supervisor_get_stats(const ol_supervisor_t* supervisor,
+                            ol_supervisor_stats_t* stats);
 
 /* ==================== Utility Functions ==================== */
 
@@ -252,8 +260,11 @@ ol_supervisor_config_t ol_supervisor_default_config(void);
  * @param shutdown_timeout_ms Shutdown timeout
  * @return ol_child_spec_t Child specification
  */
-ol_child_spec_t ol_child_spec_create(const char* name, ol_child_function fn, void* arg,
-                                     ol_child_policy_t policy, uint32_t shutdown_timeout_ms);
+ol_child_spec_t ol_child_spec_create(const char* name,
+                                     ol_child_function fn,
+                                     void* arg,
+                                     ol_child_policy_t policy,
+                                     uint32_t shutdown_timeout_ms);
 
 #ifdef __cplusplus
 }

@@ -15,10 +15,10 @@
 #include <errno.h>
 
 #if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
+#include <windows.h>
 #else
-    #include <time.h>
-    #include <unistd.h>
+#include <time.h>
+#include <unistd.h>
 #endif
 
 /* --------------------------------------------------------------------------
@@ -29,16 +29,16 @@
 
 /* Windows implementation using QueryPerformanceCounter */
 static int64_t ol_monotonic_now_ns_impl(void) {
-    static LARGE_INTEGER frequency = {0};
+    static LARGE_INTEGER frequency = { 0 };
     LARGE_INTEGER counter;
-    
+
     if (frequency.QuadPart == 0) {
         QueryPerformanceFrequency(&frequency);
         if (frequency.QuadPart == 0) {
             return 0; /* Should never happen */
         }
     }
-    
+
     QueryPerformanceCounter(&counter);
     return (counter.QuadPart * 1000000000LL) / frequency.QuadPart;
 }
@@ -48,12 +48,12 @@ static int64_t ol_monotonic_now_ns_impl(void) {
 /* POSIX with CLOCK_MONOTONIC support */
 static int64_t ol_monotonic_now_ns_impl(void) {
     struct timespec ts;
-    
+
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
         /* Fallback to CLOCK_REALTIME if monotonic is unavailable */
         clock_gettime(CLOCK_REALTIME, &ts);
     }
-    
+
     return ((int64_t)ts.tv_sec * 1000000000LL) + ts.tv_nsec;
 }
 
@@ -80,7 +80,7 @@ int64_t ol_monotonic_now_ns(void) {
 ol_deadline_t ol_deadline_from_ns(int64_t ns_from_now) {
     ol_deadline_t d;
     int64_t now = ol_monotonic_now_ns();
-    
+
     if (ns_from_now <= 0) {
         d.when_ns = now;
     } else {
@@ -91,13 +91,13 @@ ol_deadline_t ol_deadline_from_ns(int64_t ns_from_now) {
             d.when_ns = now + ns_from_now;
         }
     }
-    
+
     return d;
 }
 
 ol_deadline_t ol_deadline_from_ms(int64_t ms_from_now) {
     int64_t ns = 0;
-    
+
     if (ms_from_now > 0) {
         if (ms_from_now > (INT64_MAX / 1000000LL)) {
             ns = INT64_MAX;
@@ -105,13 +105,13 @@ ol_deadline_t ol_deadline_from_ms(int64_t ms_from_now) {
             ns = ms_from_now * 1000000LL;
         }
     }
-    
+
     return ol_deadline_from_ns(ns);
 }
 
 ol_deadline_t ol_deadline_from_sec(double seconds) {
     int64_t ns = 0;
-    
+
     if (seconds > 0.0) {
         double ns_double = seconds * 1e9;
         if (ns_double > (double)INT64_MAX) {
@@ -120,7 +120,7 @@ ol_deadline_t ol_deadline_from_sec(double seconds) {
             ns = (int64_t)ns_double;
         }
     }
-    
+
     return ol_deadline_from_ns(ns);
 }
 
@@ -144,23 +144,24 @@ void ol_sleep_until(ol_deadline_t dl) {
     if (rem_ns <= 0) {
         return;
     }
-    
+
 #if defined(_WIN32) || defined(_WIN64)
     /* Windows sleep with high precision */
     int64_t ms = rem_ns / 1000000LL;
     if (ms > 0) {
         Sleep((DWORD)ms);
     }
-    
+
     /* Handle sub-millisecond remainder with busy wait */
     int64_t ns_remainder = rem_ns % 1000000LL;
     if (ns_remainder > 0) {
         LARGE_INTEGER frequency, start, end;
         QueryPerformanceFrequency(&frequency);
         QueryPerformanceCounter(&start);
-        
-        int64_t target_cycles = (ns_remainder * frequency.QuadPart) / 1000000000LL;
-        
+
+        int64_t target_cycles =
+            (ns_remainder * frequency.QuadPart) / 1000000000LL;
+
         do {
             QueryPerformanceCounter(&end);
         } while ((end.QuadPart - start.QuadPart) < target_cycles);
@@ -170,7 +171,7 @@ void ol_sleep_until(ol_deadline_t dl) {
     struct timespec req;
     req.tv_sec = rem_ns / 1000000000LL;
     req.tv_nsec = rem_ns % 1000000000LL;
-    
+
     while (nanosleep(&req, &req) == -1 && errno == EINTR) {
         /* Restart if interrupted by signal */
         continue;
@@ -182,16 +183,16 @@ int ol_clamp_poll_timeout_ms(int64_t remaining_ms) {
     if (remaining_ms <= 0) {
         return 0;
     }
-    
+
     /* Cap at 30 seconds to avoid integer overflow in poll/select APIs */
     if (remaining_ms > 30000) {
         return 30000;
     }
-    
+
     /* Ensure it fits in 32-bit signed int */
     if (remaining_ms > 0x7FFFFFFF) {
         return 0x7FFFFFFF;
     }
-    
+
     return (int)remaining_ms;
 }

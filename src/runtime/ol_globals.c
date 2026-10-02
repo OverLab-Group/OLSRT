@@ -14,10 +14,12 @@ ol_runtime_globals_t OL_GLOBALS;
  * depend on these globals being correctly initialized.
  * ----------------------------------------------------- */
 int ol_globals_init(void) {
-    OL_GLOBALS.thread_count = 0;       // No threads active at startup
-    OL_GLOBALS.stream_count = 0;       // No streams active at startup
-    OL_GLOBALS.debug_mode   = false;   // Debug disabled by default
-    strncpy(OL_GLOBALS.runtime_id, "OLSRT_RUNTIME_DEFAULT", sizeof(OL_GLOBALS.runtime_id) - 1);
+    OL_GLOBALS.thread_count = 0;   // No threads active at startup
+    OL_GLOBALS.stream_count = 0;   // No streams active at startup
+    OL_GLOBALS.debug_mode = false; // Debug disabled by default
+    strncpy(OL_GLOBALS.runtime_id,
+            "OLSRT_RUNTIME_DEFAULT",
+            sizeof(OL_GLOBALS.runtime_id) - 1);
 
     // Ensure null termination of runtime_id
     OL_GLOBALS.runtime_id[sizeof(OL_GLOBALS.runtime_id) - 1] = '\0';
@@ -34,7 +36,7 @@ int ol_globals_init(void) {
 int ol_globals_shutdown(void) {
     OL_GLOBALS.thread_count = 0;
     OL_GLOBALS.stream_count = 0;
-    OL_GLOBALS.debug_mode   = false;
+    OL_GLOBALS.debug_mode = false;
     memset(OL_GLOBALS.runtime_id, 0, sizeof(OL_GLOBALS.runtime_id));
 
     return OL_STATUS_OK;
@@ -45,12 +47,13 @@ int ol_globals_shutdown(void) {
  * Converts version macros into a human-readable string.
  * Useful for CLI output and logging.
  * ----------------------------------------------------- */
-void ol_get_version(char *buffer, size_t size) {
+void ol_get_version(char* buffer, size_t size) {
     if (buffer == NULL || size == 0) {
         return; // Defensive check
     }
 
-    snprintf(buffer, size,
+    snprintf(buffer,
+             size,
              "OLSRT v%d.%d.%d",
              OL_VERSION_MAJOR,
              OL_VERSION_MINOR,

@@ -18,41 +18,41 @@ extern "C" {
 #endif
 
 #if OL_PLATFORM_WINDOWS
-    /* Windows implementation using CRITICAL_SECTION and CONDITION_VARIABLE */
-    #include <windows.h>
-    
-    /** @brief Mutex type (Windows CRITICAL_SECTION) */
-    typedef struct {
-        CRITICAL_SECTION cs;
-    } ol_mutex_t;
-    
-    /** @brief Condition variable type (Windows CONDITION_VARIABLE) */
-    typedef struct {
-        CONDITION_VARIABLE cv;
-    } ol_cond_t;
-    
-    /** @brief Read-write lock type (Windows SRWLOCK) */
-    typedef struct {
-        SRWLOCK rw;
-    } ol_rwlock_t;
+/* Windows implementation using CRITICAL_SECTION and CONDITION_VARIABLE */
+#include <windows.h>
+
+/** @brief Mutex type (Windows CRITICAL_SECTION) */
+typedef struct {
+    CRITICAL_SECTION cs;
+} ol_mutex_t;
+
+/** @brief Condition variable type (Windows CONDITION_VARIABLE) */
+typedef struct {
+    CONDITION_VARIABLE cv;
+} ol_cond_t;
+
+/** @brief Read-write lock type (Windows SRWLOCK) */
+typedef struct {
+    SRWLOCK rw;
+} ol_rwlock_t;
 #else
-    /* POSIX implementation using pthreads */
-    #include <pthread.h>
-    
-    /** @brief Mutex type (POSIX pthread_mutex_t) */
-    typedef struct {
-        pthread_mutex_t m;
-    } ol_mutex_t;
-    
-    /** @brief Condition variable type (POSIX pthread_cond_t) */
-    typedef struct {
-        pthread_cond_t c;
-    } ol_cond_t;
-    
-    /** @brief Read-write lock type (POSIX pthread_rwlock_t) */
-    typedef struct {
-        pthread_rwlock_t rw;
-    } ol_rwlock_t;
+/* POSIX implementation using pthreads */
+#include <pthread.h>
+
+/** @brief Mutex type (POSIX pthread_mutex_t) */
+typedef struct {
+    pthread_mutex_t m;
+} ol_mutex_t;
+
+/** @brief Condition variable type (POSIX pthread_cond_t) */
+typedef struct {
+    pthread_cond_t c;
+} ol_cond_t;
+
+/** @brief Read-write lock type (POSIX pthread_rwlock_t) */
+typedef struct {
+    pthread_rwlock_t rw;
+} ol_rwlock_t;
 #endif
 
 /**
@@ -61,7 +61,7 @@ extern "C" {
  * @param m Mutex to initialize
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_mutex_init(ol_mutex_t *m);
+OL_API int ol_mutex_init(ol_mutex_t* m);
 
 /**
  * @brief Destroy a mutex
@@ -69,7 +69,7 @@ OL_API int ol_mutex_init(ol_mutex_t *m);
  * @param m Mutex to destroy
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_mutex_destroy(ol_mutex_t *m);
+OL_API int ol_mutex_destroy(ol_mutex_t* m);
 
 /**
  * @brief Lock a mutex (blocking)
@@ -77,7 +77,7 @@ OL_API int ol_mutex_destroy(ol_mutex_t *m);
  * @param m Mutex to lock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_mutex_lock(ol_mutex_t *m);
+OL_API int ol_mutex_lock(ol_mutex_t* m);
 
 /**
  * @brief Try to lock a mutex (non-blocking)
@@ -85,7 +85,7 @@ OL_API int ol_mutex_lock(ol_mutex_t *m);
  * @param m Mutex to lock
  * @return 1 if locked, 0 if would block, OL_ERROR on error
  */
-OL_API int ol_mutex_trylock(ol_mutex_t *m);
+OL_API int ol_mutex_trylock(ol_mutex_t* m);
 
 /**
  * @brief Unlock a mutex
@@ -93,7 +93,7 @@ OL_API int ol_mutex_trylock(ol_mutex_t *m);
  * @param m Mutex to unlock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_mutex_unlock(ol_mutex_t *m);
+OL_API int ol_mutex_unlock(ol_mutex_t* m);
 
 /**
  * @brief Initialize a condition variable
@@ -101,7 +101,7 @@ OL_API int ol_mutex_unlock(ol_mutex_t *m);
  * @param c Condition variable to initialize
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_cond_init(ol_cond_t *c);
+OL_API int ol_cond_init(ol_cond_t* c);
 
 /**
  * @brief Destroy a condition variable
@@ -109,7 +109,7 @@ OL_API int ol_cond_init(ol_cond_t *c);
  * @param c Condition variable to destroy
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_cond_destroy(ol_cond_t *c);
+OL_API int ol_cond_destroy(ol_cond_t* c);
 
 /**
  * @brief Wait on condition variable until deadline
@@ -119,9 +119,7 @@ OL_API int ol_cond_destroy(ol_cond_t *c);
  * @param deadline_ns Absolute deadline in nanoseconds (0 for infinite)
  * @return 1 if signaled, 0 if timeout, OL_ERROR on error
  */
-OL_API int ol_cond_wait_until(ol_cond_t *c,
-                              ol_mutex_t *m,
-                              int64_t deadline_ns);
+OL_API int ol_cond_wait_until(ol_cond_t* c, ol_mutex_t* m, int64_t deadline_ns);
 
 /**
  * @brief Signal one waiter on condition variable
@@ -129,7 +127,7 @@ OL_API int ol_cond_wait_until(ol_cond_t *c,
  * @param c Condition variable
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_cond_signal(ol_cond_t *c);
+OL_API int ol_cond_signal(ol_cond_t* c);
 
 /**
  * @brief Broadcast to all waiters on condition variable
@@ -137,7 +135,7 @@ OL_API int ol_cond_signal(ol_cond_t *c);
  * @param c Condition variable
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_cond_broadcast(ol_cond_t *c);
+OL_API int ol_cond_broadcast(ol_cond_t* c);
 
 /**
  * @brief Initialize a read-write lock
@@ -145,7 +143,7 @@ OL_API int ol_cond_broadcast(ol_cond_t *c);
  * @param rw Read-write lock to initialize
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_init(ol_rwlock_t *rw);
+OL_API int ol_rwlock_init(ol_rwlock_t* rw);
 
 /**
  * @brief Destroy a read-write lock
@@ -153,7 +151,7 @@ OL_API int ol_rwlock_init(ol_rwlock_t *rw);
  * @param rw Read-write lock to destroy
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_destroy(ol_rwlock_t *rw);
+OL_API int ol_rwlock_destroy(ol_rwlock_t* rw);
 
 /**
  * @brief Acquire read lock (shared)
@@ -161,7 +159,7 @@ OL_API int ol_rwlock_destroy(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_rdlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_rdlock(ol_rwlock_t* rw);
 
 /**
  * @brief Try to acquire read lock (non-blocking)
@@ -169,7 +167,7 @@ OL_API int ol_rwlock_rdlock(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return 1 if locked, 0 if would block, OL_ERROR on error
  */
-OL_API int ol_rwlock_tryrdlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_tryrdlock(ol_rwlock_t* rw);
 
 /**
  * @brief Release read lock
@@ -177,7 +175,7 @@ OL_API int ol_rwlock_tryrdlock(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_rdunlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_rdunlock(ol_rwlock_t* rw);
 
 /**
  * @brief Acquire write lock (exclusive)
@@ -185,7 +183,7 @@ OL_API int ol_rwlock_rdunlock(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_wrlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_wrlock(ol_rwlock_t* rw);
 
 /**
  * @brief Try to acquire write lock (non-blocking)
@@ -193,7 +191,7 @@ OL_API int ol_rwlock_wrlock(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return 1 if locked, 0 if would block, OL_ERROR on error
  */
-OL_API int ol_rwlock_trywrlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_trywrlock(ol_rwlock_t* rw);
 
 /**
  * @brief Release write lock
@@ -201,7 +199,7 @@ OL_API int ol_rwlock_trywrlock(ol_rwlock_t *rw);
  * @param rw Read-write lock
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_rwlock_wrunlock(ol_rwlock_t *rw);
+OL_API int ol_rwlock_wrunlock(ol_rwlock_t* rw);
 
 #ifdef __cplusplus
 }

@@ -42,10 +42,10 @@ typedef uint64_t ol_pid_t;
  * speed, size, and human-readability.
  */
 typedef enum {
-    OL_SERIALIZE_BINARY,      /**< Raw binary format (fastest, smallest) */
-    OL_SERIALIZE_MSGPACK,     /**< MessagePack format (good balance) */
-    OL_SERIALIZE_JSON,        /**< JSON format (human readable, largest) */
-    OL_SERIALIZE_CUSTOM       /**< Custom format with user callbacks */
+    OL_SERIALIZE_BINARY,  /**< Raw binary format (fastest, smallest) */
+    OL_SERIALIZE_MSGPACK, /**< MessagePack format (good balance) */
+    OL_SERIALIZE_JSON,    /**< JSON format (human readable, largest) */
+    OL_SERIALIZE_CUSTOM   /**< Custom format with user callbacks */
 } ol_serialize_format_t;
 
 /**
@@ -55,10 +55,10 @@ typedef enum {
  * multiple features simultaneously.
  */
 typedef enum {
-    OL_SERIALIZE_COMPRESS    = 1 << 0, /**< Enable data compression */
-    OL_SERIALIZE_ENCRYPT     = 1 << 1, /**< Enable data encryption */
-    OL_SERIALIZE_VALIDATE    = 1 << 2, /**< Add integrity checksum */
-    OL_SERIALIZE_SHALLOW     = 1 << 3  /**< Shallow copy (no deep serialization) */
+    OL_SERIALIZE_COMPRESS = 1 << 0, /**< Enable data compression */
+    OL_SERIALIZE_ENCRYPT = 1 << 1,  /**< Enable data encryption */
+    OL_SERIALIZE_VALIDATE = 1 << 2, /**< Add integrity checksum */
+    OL_SERIALIZE_SHALLOW = 1 << 3   /**< Shallow copy (no deep serialization) */
 } ol_serialize_flags_t;
 
 /**
@@ -68,14 +68,14 @@ typedef enum {
  * deserialization, validation, and routing.
  */
 typedef struct {
-    uint8_t* data;            /**< Serialized data buffer (header + payload) */
-    size_t size;              /**< Total buffer size in bytes */
+    uint8_t* data; /**< Serialized data buffer (header + payload) */
+    size_t size;   /**< Total buffer size in bytes */
     ol_serialize_format_t format; /**< Serialization format used */
-    uint32_t flags;           /**< Serialization flags applied */
-    uint64_t checksum;        /**< Data integrity checksum */
-    uint64_t timestamp;       /**< Serialization timestamp (nanoseconds) */
-    ol_pid_t sender_pid;      /**< Sender process ID (0 = unknown) */
-    ol_pid_t receiver_pid;    /**< Receiver process ID (0 = broadcast) */
+    uint32_t flags;               /**< Serialization flags applied */
+    uint64_t checksum;            /**< Data integrity checksum */
+    uint64_t timestamp;           /**< Serialization timestamp (nanoseconds) */
+    ol_pid_t sender_pid;          /**< Sender process ID (0 = unknown) */
+    ol_pid_t receiver_pid;        /**< Receiver process ID (0 = broadcast) */
 } ol_serialized_msg_t;
 
 /**
@@ -93,7 +93,7 @@ typedef struct {
      * @return void* Serialized data buffer
      */
     void* (*serialize)(void* data, size_t* out_size);
-    
+
     /**
      * @brief Deserialize custom data
      * 
@@ -102,7 +102,7 @@ typedef struct {
      * @return void* Deserialized data
      */
     void* (*deserialize)(void* serialized, size_t size);
-    
+
     /**
      * @brief Free serialized data
      * 
@@ -131,11 +131,12 @@ typedef struct {
  * 
  * @note The returned message must be freed with ol_serialize_free().
  */
-ol_serialized_msg_t* ol_serialize(const void* data, size_t size,
-                                 ol_serialize_format_t format,
-                                 uint32_t flags,
-                                 ol_pid_t sender_pid,
-                                 ol_pid_t receiver_pid);
+ol_serialized_msg_t* ol_serialize(const void* data,
+                                  size_t size,
+                                  ol_serialize_format_t format,
+                                  uint32_t flags,
+                                  ol_pid_t sender_pid,
+                                  ol_pid_t receiver_pid);
 
 /**
  * @brief Deserialize message back to original data
@@ -154,8 +155,9 @@ ol_serialized_msg_t* ol_serialize(const void* data, size_t size,
  * 
  * @note The caller is responsible for freeing the returned data with free().
  */
-int ol_deserialize(const ol_serialized_msg_t* msg, void** out_data,
-                  size_t* out_size);
+int ol_deserialize(const ol_serialized_msg_t* msg,
+                   void** out_data,
+                   size_t* out_size);
 
 /**
  * @brief Free serialized message and associated resources
@@ -243,7 +245,8 @@ void* ol_serialize_compress(const void* data, size_t size, size_t* out_size);
  * @note This function decompresses data compressed by
  *       ol_serialize_compress(). Caller must free the returned buffer.
  */
-void* ol_serialize_decompress(const void* compressed, size_t size,
-                             size_t* out_size);
+void* ol_serialize_decompress(const void* compressed,
+                              size_t size,
+                              size_t* out_size);
 
 #endif /* OL_SERIALIZE_H */

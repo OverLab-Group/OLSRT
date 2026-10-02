@@ -11,10 +11,10 @@
  * and control filtering of log output.
  * ----------------------------------------------------- */
 typedef enum {
-    OL_LOG_DEBUG = 0,  // Detailed debug information
-    OL_LOG_INFO,       // General runtime information
-    OL_LOG_WARN,       // Warnings about potential issues
-    OL_LOG_ERROR       // Errors that require attention
+    OL_LOG_DEBUG = 0, // Detailed debug information
+    OL_LOG_INFO,      // General runtime information
+    OL_LOG_WARN,      // Warnings about potential issues
+    OL_LOG_ERROR      // Errors that require attention
 } ol_log_level_t;
 
 /* -----------------------------------------------------
@@ -23,10 +23,10 @@ typedef enum {
  * behavior dynamically (e.g., enabling/disabling debug).
  * ----------------------------------------------------- */
 typedef struct {
-    ol_log_level_t current_level;   // Minimum level to output
-    bool           to_stdout;       // Output logs to stdout
-    bool           to_file;         // Output logs to file
-    FILE          *file_handle;     // File handle if logging to file
+    ol_log_level_t current_level; // Minimum level to output
+    bool to_stdout;               // Output logs to stdout
+    bool to_file;                 // Output logs to file
+    FILE* file_handle;            // File handle if logging to file
 } ol_log_config_t;
 
 /* -----------------------------------------------------
@@ -48,7 +48,7 @@ extern ol_log_config_t OL_LOG_CONFIG;
  * @param filename Path to log file (if log_to_file is true).
  * @return 0 on success, negative on failure.
  */
-int ol_log_init(ol_log_level_t level, bool log_to_file, const char *filename);
+int ol_log_init(ol_log_level_t level, bool log_to_file, const char* filename);
 
 /**
  * @brief Shutdown logging system and release resources.
@@ -61,16 +61,30 @@ void ol_log_shutdown(void);
  * @param fmt Format string (printf-style).
  * @param ... Variable arguments.
  */
-void ol_log_write(ol_log_level_t level, const char *fmt, ...);
+void ol_log_write(ol_log_level_t level, const char* fmt, ...);
 
 /* -----------------------------------------------------
  * Convenience macros
  * These macros simplify usage and automatically
  * insert file/line information for debugging.
  * ----------------------------------------------------- */
-#define OL_LOGD(fmt, ...) ol_log_write(OL_LOG_DEBUG, "[DEBUG] %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-#define OL_LOGI(fmt, ...) ol_log_write(OL_LOG_INFO,  "[INFO]  %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-#define OL_LOGW(fmt, ...) ol_log_write(OL_LOG_WARN,  "[WARN]  %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-#define OL_LOGE(fmt, ...) ol_log_write(OL_LOG_ERROR, "[ERROR] %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define OL_LOGD(fmt, ...)                                                      \
+    ol_log_write(OL_LOG_DEBUG,                                                 \
+                 "[DEBUG] %s:%d: " fmt,                                        \
+                 __FILE__,                                                     \
+                 __LINE__,                                                     \
+                 ##__VA_ARGS__)
+#define OL_LOGI(fmt, ...)                                                      \
+    ol_log_write(                                                              \
+        OL_LOG_INFO, "[INFO]  %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define OL_LOGW(fmt, ...)                                                      \
+    ol_log_write(                                                              \
+        OL_LOG_WARN, "[WARN]  %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define OL_LOGE(fmt, ...)                                                      \
+    ol_log_write(OL_LOG_ERROR,                                                 \
+                 "[ERROR] %s:%d: " fmt,                                        \
+                 __FILE__,                                                     \
+                 __LINE__,                                                     \
+                 ##__VA_ARGS__)
 
 #endif /* OL_LOG_H */

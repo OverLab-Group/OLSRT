@@ -10,9 +10,9 @@
  * These constants are important for consistency across
  * runtime modules when dealing with time units.
  * ----------------------------------------------------- */
-#define OL_MSEC_PER_SEC   1000ULL
-#define OL_USEC_PER_SEC   1000000ULL
-#define OL_NSEC_PER_SEC   1000000000ULL
+#define OL_MSEC_PER_SEC 1000ULL
+#define OL_USEC_PER_SEC 1000000ULL
+#define OL_NSEC_PER_SEC 1000000000ULL
 
 /* -----------------------------------------------------
  * Duration structure
@@ -67,6 +67,6 @@ int64_t ol_time_to_milliseconds(ol_duration_t duration);
  * @param buffer Destination buffer.
  * @param size Buffer size.
  */
-void ol_time_format_now(char *buffer, size_t size);
+void ol_time_format_now(char* buffer, size_t size);
 
 #endif /* OL_TIME_UTILS_H */

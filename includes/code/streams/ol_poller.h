@@ -22,20 +22,20 @@ typedef struct ol_poller ol_poller_t;
 
 /** @brief Poll event structure */
 typedef struct {
-    int fd;           /**< File descriptor */
-    uint32_t mask;    /**< Event mask (OL_POLL_IN/OUT/ERR) */
-    uint64_t tag;     /**< User tag associated with fd */
+    int fd;        /**< File descriptor */
+    uint32_t mask; /**< Event mask (OL_POLL_IN/OUT/ERR) */
+    uint64_t tag;  /**< User tag associated with fd */
 } ol_poll_event_t;
 
 /** @brief Poll event masks (guarded to coexist with ol_tcp.h) */
 #ifndef OL_POLL_IN
-#define OL_POLL_IN  0x01  /**< Readable */
+#define OL_POLL_IN 0x01 /**< Readable */
 #endif
 #ifndef OL_POLL_OUT
-#define OL_POLL_OUT 0x02  /**< Writable */
+#define OL_POLL_OUT 0x02 /**< Writable */
 #endif
 #ifndef OL_POLL_ERR
-#define OL_POLL_ERR 0x04  /**< Error condition */
+#define OL_POLL_ERR 0x04 /**< Error condition */
 #endif
 
 /**
@@ -55,7 +55,7 @@ OL_API ol_poller_t* ol_poller_create(void);
  * 
  * @param p Poller to destroy
  */
-OL_API void ol_poller_destroy(ol_poller_t *p);
+OL_API void ol_poller_destroy(ol_poller_t* p);
 
 /**
  * @brief Add a file descriptor to poller
@@ -66,10 +66,7 @@ OL_API void ol_poller_destroy(ol_poller_t *p);
  * @param tag User tag associated with fd
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_poller_add(ol_poller_t *p,
-                         int fd,
-                         uint32_t mask,
-                         uint64_t tag);
+OL_API int ol_poller_add(ol_poller_t* p, int fd, uint32_t mask, uint64_t tag);
 
 /**
  * @brief Modify poller event mask for a file descriptor
@@ -80,10 +77,7 @@ OL_API int ol_poller_add(ol_poller_t *p,
  * @param tag New user tag
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_poller_mod(ol_poller_t *p,
-                         int fd,
-                         uint32_t mask,
-                         uint64_t tag);
+OL_API int ol_poller_mod(ol_poller_t* p, int fd, uint32_t mask, uint64_t tag);
 
 /**
  * @brief Remove a file descriptor from poller
@@ -92,7 +86,7 @@ OL_API int ol_poller_mod(ol_poller_t *p,
  * @param fd File descriptor to remove
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_poller_del(ol_poller_t *p, int fd);
+OL_API int ol_poller_del(ol_poller_t* p, int fd);
 
 /**
  * @brief Wait for events
@@ -103,10 +97,8 @@ OL_API int ol_poller_del(ol_poller_t *p, int fd);
  * @param cap Capacity of output array
  * @return Number of events returned (0 on timeout, negative on error)
  */
-OL_API int ol_poller_wait(ol_poller_t *p,
-                          ol_deadline_t dl,
-                          ol_poll_event_t *out,
-                          int cap);
+OL_API int
+ol_poller_wait(ol_poller_t* p, ol_deadline_t dl, ol_poll_event_t* out, int cap);
 
 #ifdef __cplusplus
 }

@@ -24,7 +24,7 @@ extern "C" {
  * @param arg User-provided argument
  * @return Pointer to result (ownership transferred to promise)
  */
-typedef void* (*ol_async_task_fn)(void *arg);
+typedef void* (*ol_async_task_fn)(void* arg);
 
 /**
  * @brief Loop callback function type
@@ -33,7 +33,9 @@ typedef void* (*ol_async_task_fn)(void *arg);
  * @param promise Promise to resolve (optional)
  * @return Pointer to result if available, NULL if promise will be resolved later
  */
-typedef void* (*ol_async_loop_fn)(ol_event_loop_t *loop, void *arg, ol_promise_t *promise);
+typedef void* (*ol_async_loop_fn)(ol_event_loop_t* loop,
+                                  void* arg,
+                                  ol_promise_t* promise);
 
 /**
  * @brief Run a task on a parallel thread pool
@@ -49,9 +51,9 @@ typedef void* (*ol_async_loop_fn)(ol_event_loop_t *loop, void *arg, ol_promise_t
  * @return Future handle, or NULL on error
  * @note The caller must destroy the returned future with ol_future_destroy()
  */
-OL_API ol_future_t* ol_async_run(ol_parallel_pool_t *pool,
+OL_API ol_future_t* ol_async_run(ol_parallel_pool_t* pool,
                                  ol_async_task_fn fn,
-                                 void *arg,
+                                 void* arg,
                                  ol_value_destructor dtor);
 
 /**
@@ -68,9 +70,9 @@ OL_API ol_future_t* ol_async_run(ol_parallel_pool_t *pool,
  * @return Future handle, or NULL on error
  * @note The caller must destroy the returned future with ol_future_destroy()
  */
-OL_API ol_future_t* ol_async_run_on_loop(ol_event_loop_t *loop,
+OL_API ol_future_t* ol_async_run_on_loop(ol_event_loop_t* loop,
                                          ol_async_loop_fn cb,
-                                         void *arg,
+                                         void* arg,
                                          ol_value_destructor dtor);
 
 #ifdef __cplusplus

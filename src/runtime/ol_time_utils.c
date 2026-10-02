@@ -18,10 +18,11 @@ int64_t ol_time_now_ns(void) {
  * Converts nanoseconds to seconds/nanoseconds for nanosleep.
  * ----------------------------------------------------- */
 void ol_time_sleep(ol_duration_t duration) {
-    if (duration.nanoseconds <= 0) return;
+    if (duration.nanoseconds <= 0)
+        return;
 
     struct timespec req;
-    req.tv_sec  = duration.nanoseconds / OL_NSEC_PER_SEC;
+    req.tv_sec = duration.nanoseconds / OL_NSEC_PER_SEC;
     req.tv_nsec = duration.nanoseconds % OL_NSEC_PER_SEC;
 
     nanosleep(&req, NULL);
@@ -56,10 +57,11 @@ int64_t ol_time_to_milliseconds(ol_duration_t duration) {
  * Format current time as human-readable string
  * Example output: "2025-11-21 21:48:00"
  * ----------------------------------------------------- */
-void ol_time_format_now(char *buffer, size_t size) {
-    if (buffer == NULL || size == 0) return;
+void ol_time_format_now(char* buffer, size_t size) {
+    if (buffer == NULL || size == 0)
+        return;
 
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
+    struct tm* tm_info = localtime(&now);
     strftime(buffer, size, "%Y-%m-%d %H:%M:%S", tm_info);
 }

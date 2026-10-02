@@ -26,7 +26,7 @@ typedef struct ol_co ol_co_t;
  * @param arg User-provided argument
  * @return Final result (ownership transferred to joiner)
  */
-typedef void* (*ol_co_entry_fn)(void *arg);
+typedef void* (*ol_co_entry_fn)(void* arg);
 
 /**
  * @brief Initialize the coroutine scheduler
@@ -50,9 +50,7 @@ OL_API void ol_coroutine_scheduler_shutdown(void);
  * @param stack_size Advisory stack size in bytes
  * @return New coroutine handle, or NULL on error
  */
-OL_API ol_co_t* ol_co_spawn(ol_co_entry_fn entry,
-                            void *arg,
-                            size_t stack_size);
+OL_API ol_co_t* ol_co_spawn(ol_co_entry_fn entry, void* arg, size_t stack_size);
 
 /**
  * @brief Resume a coroutine
@@ -61,7 +59,7 @@ OL_API ol_co_t* ol_co_spawn(ol_co_entry_fn entry,
  * @param payload Payload passed to coroutine (optional)
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_co_resume(ol_co_t *co, void *payload);
+OL_API int ol_co_resume(ol_co_t* co, void* payload);
 
 /**
  * @brief Yield from current coroutine
@@ -71,7 +69,7 @@ OL_API int ol_co_resume(ol_co_t *co, void *payload);
  * @param payload Payload to yield to caller (optional)
  * @return Payload from resuming caller
  */
-OL_API void* ol_co_yield(void *payload);
+OL_API void* ol_co_yield(void* payload);
 
 /**
  * @brief Join a coroutine
@@ -81,7 +79,7 @@ OL_API void* ol_co_yield(void *payload);
  * @param co Coroutine to join (must not be NULL)
  * @return Coroutine result, or NULL on error
  */
-OL_API void* ol_co_join(ol_co_t *co);
+OL_API void* ol_co_join(ol_co_t* co);
 
 /**
  * @brief Cancel a coroutine
@@ -92,7 +90,7 @@ OL_API void* ol_co_join(ol_co_t *co);
  * @param co Coroutine to cancel (must not be NULL)
  * @return OL_SUCCESS on success, OL_ERROR on error
  */
-OL_API int ol_co_cancel(ol_co_t *co);
+OL_API int ol_co_cancel(ol_co_t* co);
 
 /**
  * @brief Destroy a coroutine handle
@@ -102,7 +100,7 @@ OL_API int ol_co_cancel(ol_co_t *co);
  * 
  * @param co Coroutine to destroy (may be NULL)
  */
-OL_API void ol_co_destroy(ol_co_t *co);
+OL_API void ol_co_destroy(ol_co_t* co);
 
 /**
  * @brief Check if coroutine is alive
@@ -110,7 +108,7 @@ OL_API void ol_co_destroy(ol_co_t *co);
  * @param co Coroutine handle
  * @return true if not done and not canceled, false otherwise
  */
-OL_API bool ol_co_is_alive(const ol_co_t *co);
+OL_API bool ol_co_is_alive(const ol_co_t* co);
 
 /**
  * @brief Check if coroutine has been requested to cancel
@@ -118,7 +116,7 @@ OL_API bool ol_co_is_alive(const ol_co_t *co);
  * @param co Coroutine handle
  * @return true if canceled, false otherwise
  */
-OL_API bool ol_co_is_canceled(const ol_co_t *co);
+OL_API bool ol_co_is_canceled(const ol_co_t* co);
 
 #ifdef __cplusplus
 }

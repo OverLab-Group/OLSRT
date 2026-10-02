@@ -27,7 +27,7 @@ extern "C" {
  * @param deadline_ns Absolute deadline in nanoseconds (0 for infinite)
  * @return 1 on completion, OL_TIMEOUT on timeout, OL_ERROR on error
  */
-OL_API int ol_await_future(ol_future_t *f, int64_t deadline_ns);
+OL_API int ol_await_future(ol_future_t* f, int64_t deadline_ns);
 
 /**
  * @brief Await a future cooperatively from an event loop thread
@@ -42,8 +42,8 @@ OL_API int ol_await_future(ol_future_t *f, int64_t deadline_ns);
  * @return 1 on completion, OL_TIMEOUT on timeout, OL_ERROR on error
  * @warning Must only be called from the event loop thread
  */
-OL_API int ol_await_future_with_loop(ol_event_loop_t *loop,
-                                     ol_future_t *f,
+OL_API int ol_await_future_with_loop(ol_event_loop_t* loop,
+                                     ol_future_t* f,
                                      int64_t deadline_ns);
 
 #ifdef __cplusplus
