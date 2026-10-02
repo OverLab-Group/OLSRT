@@ -16,9 +16,15 @@ project(OLSRT
 # ------------------------------------------------------------------------------
 # PROJECT METADATA AND CONFIGURATION
 # ------------------------------------------------------------------------------
+#
+# The codebase uses POSIX symbols (nanosleep, sem_timedwait,
+# clock_gettime, pthread_rwlock_t, ...) and the `asm` keyword
+# in its POSIX backend. These require GNU extensions, which the
+# Makefile enables with -std=gnu11. Setting CMAKE_C_EXTENSIONS
+# ON tells CMake to use -std=gnu11 instead of -std=c11.
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_C_EXTENSIONS ON)
 
 # Enable position independent code for shared libraries
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
