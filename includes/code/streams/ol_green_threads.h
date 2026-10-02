@@ -440,7 +440,7 @@ struct ol_gt {
     atomic_bool cancel_requested;
     atomic_bool cancel_flag;
     
-} OL_ALIGNED(64);
+};
 
 /* Chase-Lev work-stealing deque. Field names and padding must match the
  * implementation in ol_green_threads.c. */
