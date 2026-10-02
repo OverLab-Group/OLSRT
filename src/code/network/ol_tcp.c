@@ -145,7 +145,7 @@ static int ep_to_sockaddr(const ol_endpoint_t* ep,
  * and recv/send call ensure_socket_registered. Both are defined
  * further down; declare them here so the compiler sees them
  * before their first use. */
-static int  ensure_socket_registered(ol_tcp_socket_t* s);
+static int ensure_socket_registered(ol_tcp_socket_t* s);
 static void ol_tcp_child_orphan_destroy(void* p);
 
 static void
@@ -207,7 +207,7 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
             child->fd = cfd;
             /* v1.3.2: read interest only, same reason as the
              * server socket above. */
-/* v1.3.2 lazy registration: the child is NOT registered here.
+            /* v1.3.2 lazy registration: the child is NOT registered here.
              * Registration happens lazily on the first
              * recv/send. This eliminates a use-after-free
              * where the child could be freed (via the
@@ -219,8 +219,8 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
             ol_mutex_init(&child->mu);
             /* Fulfill with new socket handle */
             s->state = TCP_IDLE;
-            fulfill_and_reset(&s->pend_accept, 0, child,
-                              ol_tcp_child_orphan_destroy);
+            fulfill_and_reset(
+                &s->pend_accept, 0, child, ol_tcp_child_orphan_destroy);
         }
     }
 
@@ -238,12 +238,11 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
                 set_last_error(s, err);
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, -1, NULL, NULL);
-            /* v1.3.2: disarm write interest now that
+                /* v1.3.2: disarm write interest now that
              * the send finished. */
-            if (s->reg_id) {
-                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
-                                           OL_POLL_IN);
-            }
+                if (s->reg_id) {
+                    (void)ol_event_loop_mod_io(s->loop, s->reg_id, OL_POLL_IN);
+                }
             }
         } else {
 #else
@@ -255,12 +254,11 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
                 set_last_error(s, err);
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, -1, NULL, NULL);
-            /* v1.3.2: disarm write interest now that
+                /* v1.3.2: disarm write interest now that
              * the send finished. */
-            if (s->reg_id) {
-                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
-                                           OL_POLL_IN);
-            }
+                if (s->reg_id) {
+                    (void)ol_event_loop_mod_io(s->loop, s->reg_id, OL_POLL_IN);
+                }
             }
         } else {
 #endif
@@ -270,12 +268,11 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
             if (left == 0) {
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, 0, NULL, NULL);
-            /* v1.3.2: disarm write interest now that
+                /* v1.3.2: disarm write interest now that
              * the send finished. */
-            if (s->reg_id) {
-                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
-                                           OL_POLL_IN);
-            }
+                if (s->reg_id) {
+                    (void)ol_event_loop_mod_io(s->loop, s->reg_id, OL_POLL_IN);
+                }
             }
         }
     }
@@ -415,8 +412,8 @@ int ol_tcp_socket_open(ol_tcp_socket_t* s, int family) {
      * reports a writable socket as ready on every poll,
      * which turns the loop into a spin. Write interest is
      * added on demand by ol_tcp_socket_send(). */
-    s->reg_id = ol_event_loop_register_io(
-        s->loop, (int)fd, OL_POLL_IN, tcp_io_cb, s);
+    s->reg_id =
+        ol_event_loop_register_io(s->loop, (int)fd, OL_POLL_IN, tcp_io_cb, s);
     return (s->reg_id != 0) ? 0 : -1;
 }
 
@@ -614,8 +611,8 @@ ol_future_t* ol_tcp_socket_send(ol_tcp_socket_t* s,
     /* If immediately writable, callback will drain. Otherwise, poller wake ensures loop processes. */
     /* v1.3.2: arm write interest for the duration of this send. */
     if (s->reg_id) {
-        (void)ol_event_loop_mod_io(s->loop, s->reg_id,
-                                   OL_POLL_IN | OL_POLL_OUT);
+        (void)ol_event_loop_mod_io(
+            s->loop, s->reg_id, OL_POLL_IN | OL_POLL_OUT);
     }
     (void)ol_event_loop_wake(s->loop);
     return f;

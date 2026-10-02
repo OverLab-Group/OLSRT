@@ -506,20 +506,18 @@ int ol_event_loop_run(ol_event_loop_t* loop) {
              * callback. A concurrent unregister cannot proceed
              * past its own dispatch_mutex acquisition until the
              * callback has returned. */
-            ol_event_cb cb    = NULL;
-            int         cb_fd = -1;
-            void       *cb_ud = NULL;
+            ol_event_cb cb = NULL;
+            int cb_fd = -1;
+            void* cb_ud = NULL;
 
             ol_mutex_lock(&loop->dispatch_mutex);
 
             ol_mutex_lock(&loop->mutex);
             {
-                ol_event_entry_t* entry =
-                    ol_find_event(loop, pev->tag);
-                if (entry && entry->active &&
-                    entry->type == OL_EV_IO) {
+                ol_event_entry_t* entry = ol_find_event(loop, pev->tag);
+                if (entry && entry->active && entry->type == OL_EV_IO) {
                     loop->event_dispatch_count++;
-                    cb    = entry->callback;
+                    cb = entry->callback;
                     cb_fd = entry->fd;
                     cb_ud = entry->user_data;
                 }
