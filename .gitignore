@@ -88,6 +88,7 @@ fix*.py
 wire*.py
 build*.py
 final*.py
+rewrite*.py
 
 # Personal notes
 BUGS.txt
@@ -113,8 +114,9 @@ bin/
 html/
 docu/
 workspace.tar
-.gcov
-.plist
+*.gcov
+*.plist
+*.crdownload
 
 # Editors
 .vscode/
