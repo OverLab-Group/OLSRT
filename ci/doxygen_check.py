@@ -52,14 +52,22 @@ def _balanced_close(text, open_pos):
     return -1
 
 def iter_prototypes(text):
-    """Yield (name, start_pos, params_text, has_return) for every
+    """Yield (name, line_start_pos, params_text, has_return) for every
     public function prototype in a header.
+
+    The returned position is the start of the line that contains the
+    declaration, not the position of the function name. The caller
+    (find_comment_above) expects to walk back from that position to
+    the preceding "*/".
 
     Handles trailing attribute annotations such as
         int f(int a) __attribute__((...));
         int g(int a) OL_TAKES_MSG(2);
     by scanning to the first unbalanced ')' instead of using a simple
     character class.
+
+    Function-pointer typedefs (typedef int (*fn)(void);) and lines
+    that start with #define are skipped: they are not prototypes.
     """
     seen = set()
     for m in FUNC_NAME_RE.finditer(text):
@@ -68,9 +76,14 @@ def iter_prototypes(text):
             continue
         line_start = text.rfind("\n", 0, m.start()) + 1
         line_prefix = text[line_start:m.start()]
+        stripped = line_prefix.strip()
         if "#define" in line_prefix:
             continue
         if "//" in line_prefix or "/*" in line_prefix:
+            continue
+        if stripped.startswith("typedef"):
+            continue
+        if "(*" in line_prefix:
             continue
         open_pos = m.end() - 1
         close_pos = _balanced_close(text, open_pos)
@@ -104,7 +117,7 @@ def iter_prototypes(text):
             words = head.split()
             has_return = bool(words) and words[-1] != "void"
         seen.add(name)
-        yield name, m.start(), params_text, has_return
+        yield name, line_start, params_text, has_return
 
 DEFINITION_PATTERN = re.compile(
     r"^[a-zA-Z_][\w \t\*]*?\b(?P<name>ol_\w+)\s*"
