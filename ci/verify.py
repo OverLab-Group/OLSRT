@@ -45,6 +45,17 @@ CONFIGS = [
      {"TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"}),
 ]
 
+def show_failure(out, err, max_lines=25):
+    """Print the first max_lines of out+err."""
+    combined = (out or "") + (err or "")
+    lines = combined.splitlines()
+    for ln in lines[:max_lines]:
+        print("      " + ln)
+    if len(lines) > max_lines:
+        print("      ... and %d more line(s)"
+              % (len(lines) - max_lines))
+
+
 def collect_sources():
     """Return the list of .c files under src/code/streams and the
     list of test programs (files with a `main` symbol)."""
@@ -117,9 +128,8 @@ def main(argv=None):
         with tempfile.TemporaryDirectory(prefix="olsrt_verify_") as tmp:
             rc, lib, log = build_library(tmp, cc, flags, lib_sources)
             if rc != 0:
-                r.fail("%s: library build" % name, "see output above")
-                if args.verbose:
-                    print(log)
+                r.fail("%s: library build" % name)
+                show_failure("", log)
                 continue
             r.ok("%s: library build" % name)
 
@@ -127,8 +137,7 @@ def main(argv=None):
                 rc, exe, log = build_test(tmp, cc, flags, src, lib)
                 if rc != 0:
                     r.fail("%s: build %s" % (name, src))
-                    if args.verbose:
-                        print(log)
+                    show_failure("", log)
                     continue
 
                 env = dict(os.environ)
@@ -138,8 +147,7 @@ def main(argv=None):
                 if rc != 0:
                     r.fail("%s: run %s" % (name, Path(src).stem),
                            "exit %d" % rc)
-                    if args.verbose:
-                        print(combined)
+                    show_failure("", combined)
                 else:
                     r.ok("%s: run %s" % (name, Path(src).stem))
 
