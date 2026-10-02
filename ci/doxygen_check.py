@@ -33,11 +33,78 @@ from _common import Reporter, chdir_to_root, has_tool, run
 
 HEADER_DIRS = ["includes/code/streams"]
 
-PROTOTYPE_PATTERN = re.compile(
-    r"^[a-zA-Z_][\w \t\*]*?\b(?P<name>ol_\w+)\s*"
-    r"\((?P<params>[^;{]*)\)\s*;",
-    re.MULTILINE,
-)
+FUNC_NAME_RE = re.compile(r"\b(?P<name>ol_\w+)\s*\(")
+
+def _balanced_close(text, open_pos):
+    """Return the position of the ')' matching the '(' at open_pos,
+    or -1 if unbalanced."""
+    depth = 0
+    i = open_pos
+    while i < len(text):
+        c = text[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+def iter_prototypes(text):
+    """Yield (name, start_pos, params_text, has_return) for every
+    public function prototype in a header.
+
+    Handles trailing attribute annotations such as
+        int f(int a) __attribute__((...));
+        int g(int a) OL_TAKES_MSG(2);
+    by scanning to the first unbalanced ')' instead of using a simple
+    character class.
+    """
+    seen = set()
+    for m in FUNC_NAME_RE.finditer(text):
+        name = m.group("name")
+        if name in seen:
+            continue
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        line_prefix = text[line_start:m.start()]
+        if "#define" in line_prefix:
+            continue
+        if "//" in line_prefix or "/*" in line_prefix:
+            continue
+        open_pos = m.end() - 1
+        close_pos = _balanced_close(text, open_pos)
+        if close_pos < 0:
+            continue
+        # Find the terminating ';' after any attributes.
+        depth = 0
+        j = close_pos + 1
+        found = False
+        while j < len(text):
+            c = text[j]
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif c == ";" and depth == 0:
+                found = True
+                break
+            elif c == "{" and depth == 0:
+                break
+            j += 1
+        if not found:
+            continue
+        params_text = text[open_pos + 1:close_pos]
+        head = text[line_start:m.start()].rstrip()
+        if "*" in head:
+            has_return = True
+        else:
+            words = head.split()
+            has_return = bool(words) and words[-1] != "void"
+        seen.add(name)
+        yield name, m.start(), params_text, has_return
 
 DEFINITION_PATTERN = re.compile(
     r"^[a-zA-Z_][\w \t\*]*?\b(?P<name>ol_\w+)\s*"
@@ -119,16 +186,13 @@ def collect_declarations():
     for hdir in HEADER_DIRS:
         for hpath in sorted(Path(hdir).glob("*.h")):
             text = hpath.read_text(encoding="utf-8")
-            for m in PROTOTYPE_PATTERN.finditer(text):
-                name = m.group("name")
+            for name, _start, params_text, has_return in iter_prototypes(text):
                 if name in decls:
                     continue
-                params = param_names(m.group("params"))
-                line = text[m.start():text.find("\n", m.start())]
-                head = line.split(name, 1)[0]
-                has_return = "void" not in head
+                params = param_names(params_text)
                 decls[name] = (str(hpath), params, has_return)
     return decls
+
 
 def collect_definitions():
     """Return name -> (source_path, text, position)."""
@@ -173,12 +237,12 @@ def collect_header_positions():
     for hdir in HEADER_DIRS:
         for hpath in sorted(Path(hdir).glob("*.h")):
             text = hpath.read_text(encoding="utf-8")
-            for m in PROTOTYPE_PATTERN.finditer(text):
-                name = m.group("name")
+            for name, start, _params, _ret in iter_prototypes(text):
                 if name in positions:
                     continue
-                positions[name] = (str(hpath), m.start())
+                positions[name] = (str(hpath), start)
     return positions
+
 
 def structural_pass(reporter, verbose):
     decls = collect_declarations()
