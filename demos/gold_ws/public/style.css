@@ -1,0 +1,23 @@
+/* Fallback stylesheet for static-file testing. */
+
+:root {
+    --bg:       #0f0b18;
+    --text:     #e8e2ff;
+    --accent:   #7b49ff;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    padding: 48px;
+}
+
+h1 { color: var(--accent); }
+
+code {
+    background: #1a1630;
+    padding: 2px 6px;
+    border-radius: 6px;
+}

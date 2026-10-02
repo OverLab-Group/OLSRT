@@ -140,6 +140,14 @@ static int ep_to_sockaddr(const ol_endpoint_t* ep,
 }
 
 /* IO callback registered on event loop */
+/* forward declarations for lazy registration.
+ * tcp_io_cb's accept branch refers to ol_tcp_child_orphan_destroy,
+ * and recv/send call ensure_socket_registered. Both are defined
+ * further down; declare them here so the compiler sees them
+ * before their first use. */
+static int  ensure_socket_registered(ol_tcp_socket_t* s);
+static void ol_tcp_child_orphan_destroy(void* p);
+
 static void
 tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
     (void)type;
@@ -180,8 +188,15 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
 #else
         ol_fd_t cfd = accept(s->fd, (struct sockaddr*)&ss, &sl);
         if (cfd < 0) {
-            set_last_error(s, ol_last_error());
-            fulfill_and_reset(&s->pend_accept, -1, NULL, NULL);
+            int err = ol_last_error();
+            /* v1.3.2: a spurious readiness notification
+             * must not reject the accept promise. Leave
+             * the socket in TCP_ACCEPTING and wait for
+             * the next event. */
+            if (err != EAGAIN && err != EWOULDBLOCK) {
+                set_last_error(s, err);
+                fulfill_and_reset(&s->pend_accept, -1, NULL, NULL);
+            }
         } else {
 #endif
             (void)ol_set_nonblock(cfd);
@@ -190,15 +205,22 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
                 (ol_tcp_socket_t*)calloc(1, sizeof(ol_tcp_socket_t));
             child->loop = s->loop;
             child->fd = cfd;
-            child->reg_id = ol_event_loop_register_io(
-                s->loop, (int)cfd, OL_POLL_IN | OL_POLL_OUT, tcp_io_cb, child);
+            /* v1.3.2: read interest only, same reason as the
+             * server socket above. */
+/* v1.3.2 lazy registration: the child is NOT registered here.
+             * Registration happens lazily on the first
+             * recv/send. This eliminates a use-after-free
+             * where the child could be freed (via the
+             * promise destructor) while still registered. */
+            child->reg_id = 0;
             child->state = TCP_IDLE;
             child->last_err = 0;
             child->is_server = false;
             ol_mutex_init(&child->mu);
             /* Fulfill with new socket handle */
             s->state = TCP_IDLE;
-            fulfill_and_reset(&s->pend_accept, 0, child, (void (*)(void*))free);
+            fulfill_and_reset(&s->pend_accept, 0, child,
+                              ol_tcp_child_orphan_destroy);
         }
     }
 
@@ -216,6 +238,12 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
                 set_last_error(s, err);
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, -1, NULL, NULL);
+            /* v1.3.2: disarm write interest now that
+             * the send finished. */
+            if (s->reg_id) {
+                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
+                                           OL_POLL_IN);
+            }
             }
         } else {
 #else
@@ -227,6 +255,12 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
                 set_last_error(s, err);
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, -1, NULL, NULL);
+            /* v1.3.2: disarm write interest now that
+             * the send finished. */
+            if (s->reg_id) {
+                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
+                                           OL_POLL_IN);
+            }
             }
         } else {
 #endif
@@ -236,6 +270,12 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
             if (left == 0) {
                 s->state = TCP_IDLE;
                 fulfill_and_reset(&s->pend_send, 0, NULL, NULL);
+            /* v1.3.2: disarm write interest now that
+             * the send finished. */
+            if (s->reg_id) {
+                (void)ol_event_loop_mod_io(s->loop, s->reg_id,
+                                           OL_POLL_IN);
+            }
             }
         }
     }
@@ -291,6 +331,39 @@ tcp_io_cb(ol_event_loop_t* loop, ol_ev_type_t type, int fd, void* ud) {
     ol_mutex_unlock(&s->mu);
 }
 
+/* v1.3.2 lazy registration: ensure the socket is registered with the
+ * event loop before an async op that needs poller events.
+ * Idempotent; safe to call multiple times. */
+static int ensure_socket_registered(ol_tcp_socket_t* s) {
+    if (!s)
+        return -1;
+    if (s->reg_id != 0)
+        return 0;
+    if (s->fd == OL_INVALID_FD)
+        return -1;
+    s->reg_id = ol_event_loop_register_io(
+        s->loop, (int)s->fd, OL_POLL_IN, tcp_io_cb, s);
+    return (s->reg_id != 0) ? 0 : -1;
+}
+
+/* v1.3.2 lazy registration: destructor for an accept child that the
+ * caller never claimed. Closes the fd and frees the struct.
+ * Does NOT touch the event loop (the child was never
+ * registered, and unregistering from inside dispatch would
+ * deadlock on dispatch_mutex). */
+static void ol_tcp_child_orphan_destroy(void* p) {
+    ol_tcp_socket_t* s = (ol_tcp_socket_t*)p;
+    if (!s)
+        return;
+    if (s->fd != OL_INVALID_FD) {
+        (void)ol_close_fd(s->fd);
+        s->fd = OL_INVALID_FD;
+    }
+    ol_mutex_destroy(&s->mu);
+    free(s);
+}
+
+
 /* Public API */
 
 ol_tcp_socket_t* ol_tcp_socket_create(ol_event_loop_t* loop) {
@@ -338,8 +411,12 @@ int ol_tcp_socket_open(ol_tcp_socket_t* s, int family) {
     }
 
     s->fd = fd;
+    /* v1.3.2: read interest only. Level-triggered epoll
+     * reports a writable socket as ready on every poll,
+     * which turns the loop into a spin. Write interest is
+     * added on demand by ol_tcp_socket_send(). */
     s->reg_id = ol_event_loop_register_io(
-        s->loop, (int)fd, OL_POLL_IN | OL_POLL_OUT, tcp_io_cb, s);
+        s->loop, (int)fd, OL_POLL_IN, tcp_io_cb, s);
     return (s->reg_id != 0) ? 0 : -1;
 }
 
@@ -397,12 +474,30 @@ ol_future_t* ol_tcp_socket_accept(ol_tcp_socket_t* s, int64_t deadline_ns) {
         ol_mutex_unlock(&s->mu);
         return NULL;
     }
+
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
     s->pend_accept.promise = p;
     s->pend_accept.deadline_ns = deadline_ns;
     s->state = TCP_ACCEPTING;
     ol_mutex_unlock(&s->mu);
 
-    ol_future_t* f = ol_promise_get_future(p);
+    /* Match the wake that recv/send/connect already perform. This
+     * removes the dependency on poller timing for the accept path. */
+    (void)ol_event_loop_wake(s->loop);
+
     return f;
 }
 
@@ -447,12 +542,27 @@ ol_future_t* ol_tcp_socket_connect(ol_tcp_socket_t* s,
         ol_mutex_unlock(&s->mu);
         return NULL;
     }
+
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
     s->pend_connect.promise = p;
     s->pend_connect.deadline_ns = deadline_ns;
     s->state = TCP_CONNECTING;
     ol_mutex_unlock(&s->mu);
 
-    return ol_promise_get_future(p);
+    return f;
 }
 
 ol_future_t* ol_tcp_socket_send(ol_tcp_socket_t* s,
@@ -461,6 +571,11 @@ ol_future_t* ol_tcp_socket_send(ol_tcp_socket_t* s,
                                 int64_t deadline_ns) {
     if (!s || s->fd == OL_INVALID_FD || !buf || len == 0)
         return NULL;
+
+    /* v1.3.2 lazy registration: register on first use. */
+    if (ensure_socket_registered(s) != 0) {
+        return NULL;
+    }
 
     ol_mutex_lock(&s->mu);
     if (s->state != TCP_IDLE || s->pend_send.promise) {
@@ -474,6 +589,21 @@ ol_future_t* ol_tcp_socket_send(ol_tcp_socket_t* s,
         return NULL;
     }
 
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
+
     s->pend_send.promise = p;
     s->pend_send.send_buf = (void*)buf;
     s->pend_send.want_len = len;
@@ -482,15 +612,24 @@ ol_future_t* ol_tcp_socket_send(ol_tcp_socket_t* s,
     ol_mutex_unlock(&s->mu);
 
     /* If immediately writable, callback will drain. Otherwise, poller wake ensures loop processes. */
+    /* v1.3.2: arm write interest for the duration of this send. */
+    if (s->reg_id) {
+        (void)ol_event_loop_mod_io(s->loop, s->reg_id,
+                                   OL_POLL_IN | OL_POLL_OUT);
+    }
     (void)ol_event_loop_wake(s->loop);
-
-    return ol_promise_get_future(p);
+    return f;
 }
 
 ol_future_t*
 ol_tcp_socket_recv(ol_tcp_socket_t* s, size_t max_len, int64_t deadline_ns) {
     if (!s || s->fd == OL_INVALID_FD || max_len == 0)
         return NULL;
+
+    /* v1.3.2 lazy registration: register on first use. */
+    if (ensure_socket_registered(s) != 0) {
+        return NULL;
+    }
 
     ol_mutex_lock(&s->mu);
     if (s->state != TCP_IDLE || s->pend_recv.promise) {
@@ -503,6 +642,21 @@ ol_tcp_socket_recv(ol_tcp_socket_t* s, size_t max_len, int64_t deadline_ns) {
         ol_mutex_unlock(&s->mu);
         return NULL;
     }
+
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
     s->pend_recv.promise = p;
     s->pend_recv.want_len = max_len;
     s->pend_recv.deadline_ns = deadline_ns;
@@ -510,7 +664,7 @@ ol_tcp_socket_recv(ol_tcp_socket_t* s, size_t max_len, int64_t deadline_ns) {
     ol_mutex_unlock(&s->mu);
 
     (void)ol_event_loop_wake(s->loop);
-    return ol_promise_get_future(p);
+    return f;
 }
 
 int ol_tcp_socket_close(ol_tcp_socket_t* s) {

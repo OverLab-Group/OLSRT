@@ -1,5 +1,8 @@
 #include "network/ol_udp.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "ol_event_loop.h"
 #include "ol_promise.h"
 #include "ol_lock_mutex.h"
@@ -354,6 +357,21 @@ ol_future_t* ol_udp_socket_sendto(ol_udp_socket_t* s,
         return NULL;
     }
 
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
+
     s->pend_send.promise = p;
     s->pend_send.send_buf = (void*)buf;
     s->pend_send.want_len = len;
@@ -364,7 +382,7 @@ ol_future_t* ol_udp_socket_sendto(ol_udp_socket_t* s,
     ol_mutex_unlock(&s->mu);
 
     (void)ol_event_loop_wake(s->loop);
-    return ol_promise_get_future(p);
+    return f;
 }
 
 ol_future_t* ol_udp_socket_recvfrom(ol_udp_socket_t* s,
@@ -385,6 +403,21 @@ ol_future_t* ol_udp_socket_recvfrom(ol_udp_socket_t* s,
         return NULL;
     }
 
+    /* v1.3.2 fix: create the future BEFORE releasing s->mu
+     *
+     * Once s->mu is released the event loop can
+     * complete the operation and call
+     * ol_promise_destroy. If the future has not
+     * already taken its reference, the core is
+     * freed and the worker would read freed
+     * memory. */
+    ol_future_t* f = ol_promise_get_future(p);
+    if (!f) {
+        ol_promise_destroy(p);
+        ol_mutex_unlock(&s->mu);
+        return NULL;
+    }
+
     s->pend_recv.promise = p;
     s->pend_recv.want_len = max_len;
     s->pend_recv.deadline_ns = deadline_ns;
@@ -392,7 +425,7 @@ ol_future_t* ol_udp_socket_recvfrom(ol_udp_socket_t* s,
     ol_mutex_unlock(&s->mu);
 
     (void)ol_event_loop_wake(s->loop);
-    return ol_promise_get_future(p);
+    return f;
 }
 
 int ol_udp_socket_close(ol_udp_socket_t* s) {

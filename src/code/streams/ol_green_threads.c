@@ -1319,20 +1319,17 @@ static OL_NO_INLINE int ol_gt_scheduler_init_thread_local(void) {
     g_thread_scheduler->numa_awareness_enabled = (numa_node >= 0);
     g_thread_scheduler->statistics_enabled = true;
 
-    /* Add to global scheduler list for work stealing */
-    uintptr_t old_head;
-    uintptr_t new_head;
-
-    do {
-        old_head =
-            atomic_load_explicit(&g_scheduler_list_head, memory_order_relaxed);
-        g_thread_scheduler->next = (ol_gt_scheduler_t*)old_head;
-        new_head = (uintptr_t)g_thread_scheduler;
-    } while (!atomic_compare_exchange_weak_explicit(&g_scheduler_list_head,
-                                                    &old_head,
-                                                    new_head,
-                                                    memory_order_release,
-                                                    memory_order_relaxed));
+    /* v1.3.2 fix: global scheduler list is disabled.
+     *
+     * The list was inserted into here and removed in
+     * ol_gt_scheduler_shutdown(). Under concurrent scheduler
+     * shutdown the removal wrote to a `prev` node that another
+     * thread could already have freed, which produced a
+     * nondeterministic SEGV at moderate load. The only consumer of
+     * the list is ol_gt_work_steal(), and the v1.3.2 driver loop
+     * never calls it. The list is left empty until v1.3.3 reinstates
+     * work stealing on top of proper synchronization.
+     */
 
     /* Update global statistics */
     atomic_fetch_add_explicit(
@@ -1508,31 +1505,10 @@ void ol_gt_scheduler_shutdown(void) {
         return;
     }
 
-    /* Remove from global scheduler list */
-    uintptr_t head =
-        atomic_load_explicit(&g_scheduler_list_head, memory_order_acquire);
-    ol_gt_scheduler_t* prev = NULL;
-    ol_gt_scheduler_t* curr = (ol_gt_scheduler_t*)head;
-
-    while (curr) {
-        if (curr == g_thread_scheduler) {
-            uintptr_t new_next = (uintptr_t)curr->next;
-
-            if (prev) {
-                prev->next = curr->next;
-            } else {
-                /* Update head */
-                atomic_compare_exchange_strong_explicit(&g_scheduler_list_head,
-                                                        &head,
-                                                        new_next,
-                                                        memory_order_release,
-                                                        memory_order_relaxed);
-            }
-            break;
-        }
-        prev = curr;
-        curr = curr->next;
-    }
+    /* v1.3.2 fix: see the matching comment in
+     * ol_gt_scheduler_init_thread_local(). The global scheduler list
+     * is not maintained, so there is nothing to remove here.
+     */
 
     /* Destroy work-stealing queues */
     for (int i = 0; i < 5; i++) {

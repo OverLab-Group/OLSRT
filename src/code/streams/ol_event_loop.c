@@ -59,6 +59,11 @@ struct ol_event_loop {
     bool running;     /**< Whether loop is running */
     bool should_stop; /**< Stop request flag */
 
+    /* v1.3.2 fix: dispatch_mutex serializes IO callback
+     * dispatch with ol_event_loop_unregister. Held for the
+     * full duration of the user callback. */
+    ol_mutex_t dispatch_mutex;
+
     /* Wake mechanism */
     int wake_read_fd;  /**< Read end of wake pipe */
     int wake_write_fd; /**< Write end of wake pipe */
@@ -345,8 +350,13 @@ ol_event_loop_t* ol_event_loop_create(void) {
         return NULL;
     }
 
-    /* Initialize mutex */
+    /* Initialize mutexes */
     if (ol_mutex_init(&loop->mutex) != OL_SUCCESS) {
+        free(loop);
+        return NULL;
+    }
+    if (ol_mutex_init(&loop->dispatch_mutex) != OL_SUCCESS) {
+        ol_mutex_destroy(&loop->mutex);
         free(loop);
         return NULL;
     }
@@ -437,6 +447,7 @@ void ol_event_loop_destroy(ol_event_loop_t* loop) {
     free(loop->events);
 
     /* Destroy mutex */
+    ol_mutex_destroy(&loop->dispatch_mutex);
     ol_mutex_destroy(&loop->mutex);
 
     /* Free loop structure */
@@ -489,20 +500,39 @@ int ol_event_loop_run(ol_event_loop_t* loop) {
                 continue;
             }
 
-            /* Find and dispatch I/O event */
+            /* Find and dispatch I/O event.
+             *
+             * v1.3.2 fix: dispatch_mutex is held across the
+             * callback. A concurrent unregister cannot proceed
+             * past its own dispatch_mutex acquisition until the
+             * callback has returned. */
+            ol_event_cb cb    = NULL;
+            int         cb_fd = -1;
+            void       *cb_ud = NULL;
+
+            ol_mutex_lock(&loop->dispatch_mutex);
+
             ol_mutex_lock(&loop->mutex);
-            ol_event_entry_t* entry = ol_find_event(loop, pev->tag);
-            ol_mutex_unlock(&loop->mutex);
-
-            if (entry && entry->active && entry->type == OL_EV_IO) {
-                loop->event_dispatch_count++;
-
-                if (entry->callback) {
-                    entry->callback(
-                        loop, OL_EV_IO, entry->fd, entry->user_data);
+            {
+                ol_event_entry_t* entry =
+                    ol_find_event(loop, pev->tag);
+                if (entry && entry->active &&
+                    entry->type == OL_EV_IO) {
+                    loop->event_dispatch_count++;
+                    cb    = entry->callback;
+                    cb_fd = entry->fd;
+                    cb_ud = entry->user_data;
                 }
             }
+            ol_mutex_unlock(&loop->mutex);
+
+            if (cb) {
+                cb(loop, OL_EV_IO, cb_fd, cb_ud);
+            }
+
+            ol_mutex_unlock(&loop->dispatch_mutex);
         }
+
 
         /* Process timers */
         ol_mutex_lock(&loop->mutex);
@@ -670,29 +700,34 @@ int ol_event_loop_unregister(ol_event_loop_t* loop, uint64_t id) {
         return OL_ERROR;
     }
 
+    /* v1.3.2 fix: acquire dispatch_mutex first. If the loop
+     * thread is inside an IO callback, this blocks until
+     * the callback returns, so the caller can safely free
+     * user_data afterwards. */
+    ol_mutex_lock(&loop->dispatch_mutex);
+
     ol_mutex_lock(&loop->mutex);
 
     ol_event_entry_t* entry = ol_find_event(loop, id);
     if (!entry) {
         ol_mutex_unlock(&loop->mutex);
+        ol_mutex_unlock(&loop->dispatch_mutex);
         return OL_ERROR;
     }
 
-    /* Remove from poller if I/O event */
     if (entry->type == OL_EV_IO) {
         ol_poller_del(loop->poller, entry->fd);
     }
 
-    /* Mark as inactive */
     entry->active = false;
 
-    /* Compact if many inactive entries */
     if (loop->event_count > 32 &&
         loop->event_count > loop->event_capacity / 2) {
         ol_compact_events(loop);
     }
 
     ol_mutex_unlock(&loop->mutex);
+    ol_mutex_unlock(&loop->dispatch_mutex);
     return OL_SUCCESS;
 }
 

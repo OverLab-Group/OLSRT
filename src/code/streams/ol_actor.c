@@ -336,6 +336,20 @@ static bool actor_mailbox_try_send_fast(actor_mailbox_t* mb, void* msg) {
     if (size > mb->peak_size)
         mb->peak_size = size;
 
+    /* v1.3.2 fix: wake the consumer. Without this, a consumer
+     * blocked in actor_mailbox_batch_recv() only observes this
+     * message after its 100 ms timed wait expires, adding ~100 ms
+     * of latency to every ask/reply handled through the fast path.
+     *
+     * POSIX allows pthread_cond_signal() without holding the
+     * associated mutex; the state the waiter cares about (tail,
+     * and the ring buffer entry it points at) has already been
+     * published with RELEASE. If the signal is lost in the rare
+     * window between the consumer's last check and its entry into
+     * pthread_cond_timedwait(), the consumer's timeout bounds the
+     * damage. */
+    ol_cond_signal(&mb->not_empty);
+
     return true;
 }
 
@@ -406,14 +420,25 @@ static size_t actor_mailbox_batch_recv(actor_mailbox_t* mb,
             break;
         }
 
-        /* Wait for messages with timeout */
+        /* Wait for messages with timeout.
+         *
+         * v1.3.2 fix: the ring-buffer check above happens without
+         * mb->mutex. A producer that publishes to the ring buffer
+         * and signals between that check and our cond_wait would
+         * have its signal dropped. Re-check the ring buffer here,
+         * under the mutex, so a message that arrived in that
+         * window is seen immediately. */
         ol_mutex_lock(&mb->mutex);
         if (mb->overflow_count == 0) {
-            int result = ol_cond_wait_until(
-                &mb->not_empty, &mb->mutex, deadline.when_ns);
-            if (result <= 0) {
-                ol_mutex_unlock(&mb->mutex);
-                break; /* Timeout or error */
+            size_t head2 = __atomic_load_n(&mb->head, __ATOMIC_RELAXED);
+            size_t tail2 = __atomic_load_n(&mb->tail, __ATOMIC_ACQUIRE);
+            if (head2 == tail2) {
+                int result = ol_cond_wait_until(
+                    &mb->not_empty, &mb->mutex, deadline.when_ns);
+                if (result <= 0) {
+                    ol_mutex_unlock(&mb->mutex);
+                    break; /* Timeout or error */
+                }
             }
         }
         ol_mutex_unlock(&mb->mutex);
@@ -482,8 +507,12 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
             break;
         }
 
+        /* v1.3.2: timeout reduced from 100 ms to 10 ms. With the
+         * signal in actor_mailbox_try_send_fast() the timeout
+         * should not fire during normal operation; the smaller
+         * value bounds worst-case latency if the signal is lost. */
         size_t batch_size = actor_mailbox_batch_recv(
-            actor->mailbox, batch, ACTOR_BATCH_SIZE, 100);
+            actor->mailbox, batch, ACTOR_BATCH_SIZE, 10);
         if (batch_size == 0)
             continue;
 

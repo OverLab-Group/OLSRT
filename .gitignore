@@ -185,3 +185,6 @@ changepart.py
 /CHANGENOW.md
 /CHANGETO.md
 /cleanup*
+# Session backup files
+*.bak2
+*.rej
