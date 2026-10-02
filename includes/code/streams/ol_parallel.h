@@ -29,6 +29,16 @@ typedef void (*ol_task_fn)(void *arg);
 ol_parallel_pool_t* ol_parallel_create(size_t num_threads);
 
 /* Destroy the pool; equivalent to shutdown with drain=true then free resources. */
+/**
+ * @brief Destroy a thread pool.
+ *
+ * @details
+ * Equivalent to ol_parallel_shutdown(pool, true) followed by a
+ * resource release. Pending tasks are drained before workers exit.
+ *
+ * @param pool Pool handle; NULL is a no-op.
+ */
+
 void ol_parallel_destroy(ol_parallel_pool_t *pool);
 
 /* Submit a task to the pool (non-blocking).
@@ -47,6 +57,13 @@ void ol_parallel_destroy(ol_parallel_pool_t *pool);
 int ol_parallel_submit(ol_parallel_pool_t *pool, ol_task_fn fn, void *arg);
 
 /* Wait until the queue is empty and all currently submitted tasks finish. */
+/**
+ * @brief Wait until the queue is empty and all tasks have finished.
+ *
+ * @param pool Pool handle.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_parallel_flush(ol_parallel_pool_t *pool);
 
 /* Shutdown:
@@ -66,7 +83,21 @@ int ol_parallel_flush(ol_parallel_pool_t *pool);
 int ol_parallel_shutdown(ol_parallel_pool_t *pool, bool drain);
 
 /* Introspection (best-effort) */
+/**
+ * @brief Return the number of worker threads in the pool.
+ *
+ * @param pool Pool handle.
+ * @return Worker count, or 0 if @p pool is NULL.
+ */
+
 size_t ol_parallel_thread_count(const ol_parallel_pool_t *pool);
+/**
+ * @brief Return the current number of queued tasks.
+ *
+ * @param pool Pool handle.
+ * @return Queue size, or 0 if @p pool is NULL.
+ */
+
 size_t ol_parallel_queue_size(const ol_parallel_pool_t *pool);
 /**
  * @brief Check whether the pool is running.

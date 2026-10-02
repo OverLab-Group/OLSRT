@@ -92,6 +92,13 @@ ol_subscription_t* ol_stream_subscribe(
 int ol_subscription_request(ol_subscription_t *sub, size_t n);
 
 /* Unsubscribe: stop receiving further items. Idempotent. */
+/**
+ * @brief Stop receiving items on a subscription.
+ *
+ * @param sub Subscription handle.
+ * @return 0 on success, -1 on error. Idempotent.
+ */
+
 int ol_subscription_unsubscribe(ol_subscription_t *sub);
 
 /* Destroy subscription object (after unsubscribe or completion). */
@@ -109,6 +116,14 @@ void ol_subscription_destroy(ol_subscription_t *sub);
  * - signal error or completion
  * Returns 0 on success.
  */
+/**
+ * @brief Push one item into a source stream.
+ *
+ * @param s    Stream handle.
+ * @param item Item pointer. Ownership follows the stream's destructor.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_stream_emit_next(ol_stream_t *s, void *item);
 /**
  * @brief Signal an error on a source stream.
@@ -119,6 +134,13 @@ int ol_stream_emit_next(ol_stream_t *s, void *item);
  */
 
 int ol_stream_emit_error(ol_stream_t *s, int error_code);
+/**
+ * @brief Signal normal completion on a source stream.
+ *
+ * @param s Stream handle.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_stream_emit_complete(ol_stream_t *s);
 
 /* Operators: all return a new stream that depends on the input stream.
@@ -155,6 +177,14 @@ typedef bool (*ol_filter_fn)(const void *item, void *user_data);
 ol_stream_t* ol_stream_filter(ol_stream_t *src, ol_filter_fn pred, void *user_data);
 
 /* Take: take first N items then complete */
+/**
+ * @brief Forward only the first @p n items, then complete.
+ *
+ * @param src Source stream.
+ * @param n   Number of items to forward.
+ * @return New stream handle, or NULL on failure.
+ */
+
 ol_stream_t* ol_stream_take(ol_stream_t *src, size_t n);
 
 /* Merge: interleave items from a and b */
@@ -210,6 +240,13 @@ ol_stream_t* ol_stream_timer(ol_event_loop_t *loop, int64_t period_ns, size_t co
 ol_stream_t* ol_stream_from_fd(ol_event_loop_t *loop, int fd, uint32_t mask);
 
 /* Introspection */
+/**
+ * @brief Check whether a stream has completed or errored.
+ *
+ * @param s Stream handle.
+ * @return true if the stream is in a terminal state.
+ */
+
 bool   ol_stream_is_completed(const ol_stream_t *s);
 /**
  * @brief Return the number of active subscribers.

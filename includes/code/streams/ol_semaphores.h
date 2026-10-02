@@ -27,6 +27,13 @@ typedef struct ol_sem ol_sem_t;
 int ol_sem_init(ol_sem_t *s, unsigned int initial, unsigned int max_count);
 
 /* Destroy semaphore and release resources. */
+/**
+ * @brief Destroy a semaphore.
+ *
+ * @param s Semaphore handle.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_sem_destroy(ol_sem_t *s);
 
 /* Increment (post) the semaphore by 1.
@@ -45,6 +52,13 @@ int ol_sem_post(ol_sem_t *s);
 /* Try to decrement (wait) without blocking.
  * Returns 1 if acquired, 0 if would-block, -1 on error.
  */
+/**
+ * @brief Non-blocking decrement.
+ *
+ * @param s Semaphore handle.
+ * @return 1 if acquired, 0 if would block, -1 on error.
+ */
+
 int ol_sem_trywait(ol_sem_t *s);
 
 /* Decrement (wait) with absolute deadline in ns (monotonic).
@@ -63,6 +77,14 @@ int ol_sem_trywait(ol_sem_t *s);
 int ol_sem_wait_until(ol_sem_t *s, int64_t deadline_ns);
 
 /* Get current count (best-effort, non-atomic snapshot). */
+/**
+ * @brief Read the current count.
+ *
+ * @param s         Semaphore handle.
+ * @param out_value Output: current count.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_sem_getvalue(ol_sem_t *s, int *out_value);
 
 #ifdef __cplusplus

@@ -100,8 +100,32 @@ ol_subject_t* ol_subject_create(ol_event_loop_t *loop, ol_item_destructor dtor);
 void ol_subject_destroy(ol_subject_t *s);
 
 /* Subject API: push signals into the subject. */
+/**
+ * @brief Push one item into the subject.
+ *
+ * @param s    Subject handle.
+ * @param item Item pointer; ownership follows the subject's
+ *             destructor.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_subject_on_next(ol_subject_t *s, void *item);
+/**
+ * @brief Signal an error to subscribers.
+ *
+ * @param s          Subject handle.
+ * @param error_code Error code forwarded to observers.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_subject_on_error(ol_subject_t *s, int error_code);
+/**
+ * @brief Signal normal completion to subscribers.
+ *
+ * @param s Subject handle.
+ * @return 0 on success, -1 on error.
+ */
+
 int ol_subject_on_complete(ol_subject_t *s);
 
 /* Convert subject to observable (returned pointer is the same underlying object). */
@@ -117,6 +141,15 @@ ol_observable_t* ol_subject_as_observable(ol_subject_t *s);
 /* Create an empty cold observable (user will emit via internal API or operators will drive source).
  * Usually you use operators (timer/from_fd) to create sources.
  */
+/**
+ * @brief Create an empty cold observable.
+ *
+ * @param loop Event loop that drives derived operators.
+ * @param dtor Item destructor.
+ * @return Observable handle, or NULL on failure.
+ * @see ol_observable_destroy, ol_observable_subscribe
+ */
+
 ol_observable_t* ol_observable_create(ol_event_loop_t *loop, ol_item_destructor dtor);
 
 /* Destroy observable (completes, frees). */
@@ -132,6 +165,19 @@ void ol_observable_destroy(ol_observable_t *o);
 /* Subscribe to an observable. Returns a subscription handle or NULL.
  * demand: initial requested item count (0 => caller will request later).
  */
+/**
+ * @brief Subscribe to an observable.
+ *
+ * @param o           Observable handle.
+ * @param on_next     Callback invoked for each item.
+ * @param on_error    Callback invoked on error (may be NULL).
+ * @param on_complete Callback invoked on completion (may be NULL).
+ * @param demand      Initial demand.
+ * @param user_data   Opaque pointer forwarded to all callbacks.
+ * @return Subscription handle, or NULL on failure.
+ * @see ol_rx_request, ol_rx_unsubscribe
+ */
+
 ol_rx_subscription_t* ol_observable_subscribe(
     ol_observable_t *o,
     ol_rx_on_next on_next,
@@ -153,7 +199,21 @@ ol_rx_subscription_t* ol_observable_subscribe(
 int ol_rx_request(ol_rx_subscription_t *sub, size_t n);
 
 /* Unsubscribe and destroy subscription. Idempotent. */
+/**
+ * @brief Stop receiving items on a subscription.
+ *
+ * @param sub Subscription handle.
+ * @return 0 on success, -1 on error. Idempotent.
+ */
+
 int  ol_rx_unsubscribe(ol_rx_subscription_t *sub);
+/**
+ * @brief Destroy a subscription object.
+ *
+ * @param sub Subscription handle. Call after unsubscribe or
+ *            completion to release the handle itself.
+ */
+
 void ol_rx_subscription_destroy(ol_rx_subscription_t *sub);
 
 /* Operators: return new observable bound to the same loop. Caller must destroy. */
@@ -184,6 +244,14 @@ ol_observable_t* ol_rx_map(ol_observable_t *src, ol_rx_map_fn fn, void *user_dat
 ol_observable_t* ol_rx_filter(ol_observable_t *src, ol_rx_filter_fn pred, void *user_data);
 
 /* Take: take first N items then complete. */
+/**
+ * @brief Forward only the first @p n items, then complete.
+ *
+ * @param src Source observable.
+ * @param n   Number of items to forward.
+ * @return New observable handle, or NULL on failure.
+ */
+
 ol_observable_t* ol_rx_take(ol_observable_t *src, size_t n);
 
 /* Merge: interleave items from two observables. */
@@ -210,6 +278,15 @@ ol_observable_t* ol_rx_merge(ol_observable_t *a, ol_observable_t *b, ol_item_des
 ol_observable_t* ol_rx_debounce(ol_observable_t *src, int64_t interval_ns);
 
 /* Timer: emit NULL ticks periodically; count=1 => one-shot. */
+/**
+ * @brief Create an observable that ticks on a timer.
+ *
+ * @param loop      Event loop that drives the timer.
+ * @param period_ns Period between ticks in nanoseconds.
+ * @param count     Number of ticks (1 for a one-shot).
+ * @return New observable handle, or NULL on failure.
+ */
+
 ol_observable_t* ol_rx_timer(ol_event_loop_t *loop, int64_t period_ns, size_t count);
 
 /* From fd: emit NULL when fd is ready for mask (OL_POLL_IN/OUT). */
@@ -225,6 +302,13 @@ ol_observable_t* ol_rx_timer(ol_event_loop_t *loop, int64_t period_ns, size_t co
 ol_observable_t* ol_rx_from_fd(ol_event_loop_t *loop, int fd, uint32_t mask);
 
 /* Introspection */
+/**
+ * @brief Check whether an observable has completed or errored.
+ *
+ * @param o Observable handle.
+ * @return true if the observable is in a terminal state.
+ */
+
 bool   ol_rx_completed(const ol_observable_t *o);
 /**
  * @brief Return the number of active subscribers.

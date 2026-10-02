@@ -94,7 +94,21 @@ int ol_df_emit(ol_df_node_t *from, int port_index, void *item);
  */
 
 size_t ol_df_node_out_ports(const ol_df_node_t *n);
+/**
+ * @brief Return the number of nodes currently in the graph.
+ *
+ * @param g Graph handle; NULL is tolerated.
+ * @return Node count, or 0 if @p g is NULL.
+ */
+
 size_t ol_df_graph_node_count(const ol_df_graph_t *g);
+/**
+ * @brief Return the number of edges currently in the graph.
+ *
+ * @param g Graph handle; NULL is tolerated.
+ * @return Edge count, or 0 if @p g is NULL.
+ */
+
 size_t ol_df_graph_edge_count(const ol_df_graph_t *g);
 bool   ol_df_graph_is_running(const ol_df_graph_t *g);
 

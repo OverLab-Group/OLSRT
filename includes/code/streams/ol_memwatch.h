@@ -72,9 +72,39 @@ void *ol_memwatch_track_alloc(size_t size, const char *file, int line);
 void ol_memwatch_track_free(void *ptr, const char *file, int line);
 
 /* Wrapped allocation functions */
+/**
+ * @brief malloc wrapped by the memory watcher.
+ *
+ * @param size Number of bytes to allocate.
+ * @return Pointer to the allocation, or NULL on failure.
+ * @see ol_memwatch_free
+ */
+
 void *ol_memwatch_malloc(size_t size);
+/**
+ * @brief calloc wrapped by the memory watcher.
+ *
+ * @param nmemb Number of elements.
+ * @param size  Size of each element in bytes.
+ * @return Zero-initialised buffer, or NULL on failure.
+ */
+
 void *ol_memwatch_calloc(size_t nmemb, size_t size);
+/**
+ * @brief realloc wrapped by the memory watcher.
+ *
+ * @param ptr  Existing allocation, or NULL for a fresh allocation.
+ * @param size New size in bytes.
+ * @return Reallocated buffer, or NULL on failure.
+ */
+
 void *ol_memwatch_realloc(void *ptr, size_t size);
+/**
+ * @brief free wrapped by the memory watcher.
+ *
+ * @param ptr Allocation to release; NULL is a no-op.
+ */
+
 void ol_memwatch_free(void *ptr);
 
 #ifdef __cplusplus
