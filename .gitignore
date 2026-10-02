@@ -1,135 +1,72 @@
-```
-# Compiled and build artifacts
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
-# Dependencies
-venv/
-.venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-target/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-
-# Backups created by fix scripts
-*.orig
-*.orig2
-*.save
-*.v*
-
-# Wave 1 local tools and backups
-*.orig
-*.orig2
-*.orig3
-*.save
-*.bak
-*~
-__pycache__/
-*.py[cod]
-
-# Personal scripts (not part of the library)
-*patches.py
-apply*.py
-add*patches.py
-fix*.py
-wire*.py
-build*.py
-final*.py
-rewrite*.py
-
-# Personal notes
-BUGS.txt
-FOUND_BUG.txt
-TEMP.txt
-dump.txt
-log.txt
-errors.txt
-bash.sh
-*.sh
-tools/*
-docs/v*.md
-
-# Accidental shell outputs
-Building
-compiler:
-workdir:
-OLSRT
-
-# Local build outputs
+# Build output
 build/
 bin/
-html/
-docu/
-workspace.tar
-*.gcov
-*.plist
-*.crdownload
+*.o
+*.so
+*.a
+*.d
 
-# Editors
+# Personal
+fix*
+*.fix
+purge*
+*.pre
+*.pre*
+cleanup*
+docs/v*
+PURGE*
+docu/
+run*
+*run.sh
+
+# CHANGEPart
+changepart.py
+CHANGETO.md
+CHANGENOW.md
+
+# IDE
 .vscode/
 .idea/
 *.swp
-.DS_Store
+*.swo
+*~
 
-# Demos — build artifacts
-demos/*.o
-demos/*.so
-demos/libolsrt.so
+# Python
+__pycache__/
+*.pyc
 
-# Demo build artifacts
+# Session backup files
+*.bak
+*.bak2
+*.bak3
+*.orig
+*.rej
+
+# Build-time template fragments
+# The project uses plain Makefile + CMake; no configure step
+# generates these files, so they should never be tracked.
+*.in
+
+# Editor temp files
+*.tmp
+
+# CMake build directory (in-tree)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+
+# ASan / coverage artefacts
+*.gcda
+*.gcno
+*.gcov
+
+# gold_ws build output
+demos/gold_ws/gold_ws
+demos/gold_ws/*.o
+demos/gold_ws/libolsrt.so
+
+# Demo binaries
 demos/01_hello_actor
 demos/02_channel
 demos/03_parallel
@@ -137,54 +74,9 @@ demos/04_timers
 demos/05_promise
 demos/06_dataflow
 demos/07_http_server
-demos/libolsrt.so
-demos/*.o
+demos/08_coroutines
+demos/09_supervisor
+demos/10_reactive
+demos/11_streams
 
-# Network fix backups
-src/code/network/*.orig
-includes/code/network/*.orig
-includes/code/streams/ol_poller.h.orig
-
-# Backups
-*.pre_v*
-*.before*
-src/code/streams/*.pre_v*
-includes/code/streams/*.pre_v*
-src/code/network/*.pre_v*
-includes/code/network/*.pre_v*
-includes/code/network/*.before*
-src/code/streams/*.before*
-includes/code/streams/*.before*
-src/code/network/*.before*
-
-# Changepart Files
-CHANGENOW.md
-CHANGETO.md
-changepart.py
-
-# ---------------------------------------------------------------------------
-# Temporary maintenance scripts at the repository root.
-#
-# Every fix script, commit helper, or diagnostic written during a
-# maintenance session lives at the root and is intentionally excluded
-# from the repository. The permanent command-line tool changepart.py
-# is the only .py file that belongs here.
-# ---------------------------------------------------------------------------
-/add_*.py
-/apply_*.py
-/build_wave1*.py
-/check*.py
-/ci_fix_*.py
-/commit_*.py
-/diagnose_*.py
-/enrich_*.py
-/finalize_*.py
-/fix_*.py
-/gen_*.py
-/revert_*.py
-/CHANGENOW.md
-/CHANGETO.md
-/cleanup*
-# Session backup files
-*.bak2
-*.rej
+# Editor and session backups

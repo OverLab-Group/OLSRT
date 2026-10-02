@@ -8,17 +8,19 @@
  *   - push directly into a node (works today)
  *   - multi-hop delivery through an outbound edge (known v1.3.2 gap)
  *
- * Multi-hop does not work in v1.3.2 because df_worker() polls only
- * each node's self_inbox; it never drains the per-edge inboxes that
- * ol_df_emit() writes into. The test detects this and prints SKIP
- * instead of FAIL, matching the CHANGELOG note that edge-inbox
- * draining is targeted for v1.3.3 (ROADMAP 4.4).
+ * Threading note
+ * --------------
+ * sink_handler runs on a pool worker thread. wait_for_sink runs on
+ * the main thread. The shared counter g_sink_value is _Atomic so
+ * that the two accesses are properly synchronized; without it TSan
+ * reports a data race (correctly).
  */
 
 #include "ol_common.h"
 #include "ol_dataflow.h"
 #include "ol_deadlines.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,14 +65,17 @@ static void small_sleep_ms(long ms)
 
 /* ------------------------------------------------------------------ */
 
-static int g_sink_value = -1;
+/* Written by pool workers, read by the main thread. Atomic so both
+ * sides see each other's stores in a well-defined order. */
+static _Atomic int g_sink_value = -1;
 
 static int sink_handler(void *ctx, void *item,
                         int (*emit)(void *, int, void *), void *emit_ctx)
 {
     (void)ctx; (void)emit; (void)emit_ctx;
-    g_sink_value = *(int *)item;
+    int v = *(int *)item;
     free(item);
+    atomic_store_explicit(&g_sink_value, v, memory_order_release);
     return 0;
 }
 
@@ -87,12 +92,26 @@ static int doubler_handler(void *ctx, void *item,
     return 0;
 }
 
-/* Wait for the sink to be filled or the deadline to expire. */
+static void reset_sink(void)
+{
+    atomic_store_explicit(&g_sink_value, -1, memory_order_release);
+}
+
+static int sink_ready(void)
+{
+    return atomic_load_explicit(&g_sink_value, memory_order_acquire) != -1;
+}
+
+static int sink_get(void)
+{
+    return atomic_load_explicit(&g_sink_value, memory_order_acquire);
+}
+
 static void wait_for_sink(long timeout_ms)
 {
     long waited = 0;
     while (waited < timeout_ms) {
-        if (g_sink_value != -1) return;
+        if (sink_ready()) return;
         small_sleep_ms(5);
         waited += 5;
     }
@@ -130,14 +149,14 @@ static void test_push_to_node(void)
 
     ol_df_graph_start(g);
 
-    g_sink_value = -1;
+    reset_sink();
     int *v = (int *)malloc(sizeof(int));
     *v = 99;
     int r = ol_df_push(g, sink, v);
     EXPECT(r == 0, "ol_df_push returned 0");
 
     wait_for_sink(500);
-    EXPECT(g_sink_value == 99, "sink received the pushed value");
+    EXPECT(sink_get() == 99, "sink received the pushed value");
 
     ol_df_graph_stop(g);
     ol_df_graph_destroy(g);
@@ -172,7 +191,7 @@ static void test_multi_hop(void)
     ol_df_graph_t *g = ol_df_graph_create(2);
     if (!g) { EXPECT(0, "graph create failed"); return; }
 
-    ol_df_node_t *src = ol_df_node_create(g, NULL,           NULL, 1);
+    ol_df_node_t *src = ol_df_node_create(g, NULL,            NULL, 1);
     ol_df_node_t *mid = ol_df_node_create(g, doubler_handler, NULL, 1);
     ol_df_node_t *snk = ol_df_node_create(g, sink_handler,    NULL, 0);
 
@@ -188,14 +207,14 @@ static void test_multi_hop(void)
 
     ol_df_graph_start(g);
 
-    g_sink_value = -1;
+    reset_sink();
     int *v = (int *)malloc(sizeof(int));
     *v = 21;
     ol_df_push(g, src, v);
 
     wait_for_sink(400);
 
-    if (g_sink_value == 42) {
+    if (sink_get() == 42) {
         EXPECT(1, "multi-hop delivered doubled value");
     } else {
         /* Known v1.3.2 gap. See ROADMAP 4.4. */
