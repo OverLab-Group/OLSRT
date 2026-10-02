@@ -194,19 +194,60 @@ DEFINITION_PATTERN = re.compile(
 
 def find_comment_above(text, pos):
     """Return (start, end) of the Doxygen block immediately above
-    `pos`, or None."""
+    `pos`, or None.
+
+    Handles multi-line declarations: when the function name is on a
+    continuation line (e.g. after a split return type), the comment
+    block sits above the line that carries the return type. The
+    function first tries the standard walk; if that fails, it walks
+    up through the declaration line by line until a boundary or the
+    block is reached."""
+
+    # First attempt: standard walk over whitespace, then "*/".
     p = pos
     while p > 0 and text[p - 1] in " \t\r\n":
         p -= 1
-    if p < 2 or text[p - 2:p] != "*/":
-        return None
-    end = p
-    idx = text.rfind("/**", 0, end)
-    if idx < 0:
-        return None
-    if "*/" in text[idx + 3:end - 2]:
-        return None
-    return idx, end
+    if p >= 2 and text[p - 2:p] == "*/":
+        idx = text.rfind("/**", 0, p)
+        if idx >= 0 and "*/" not in text[idx + 3:p - 2]:
+            return idx, p
+
+    # Second attempt: walk up line by line through the declaration.
+    line_start = text.rfind("\n", 0, pos) + 1
+    while line_start > 0:
+        prev_end = line_start - 1
+        prev_start = text.rfind("\n", 0, prev_end) + 1
+        prev_line = text[prev_start:prev_end].rstrip()
+        stripped = prev_line.strip()
+
+        # Blank line: no block above.
+        if not stripped:
+            return None
+
+        # Comment line. If it closes a block, that block is our
+        # documentation.
+        if (stripped.startswith("*")
+                or stripped.startswith("//")
+                or stripped.startswith("/*")):
+            if stripped.endswith("*/"):
+                idx = text.rfind("/**", 0, prev_end)
+                if (idx >= 0
+                        and "*/" not in text[idx + 3:prev_end - 2]):
+                    return idx, prev_end
+            return None
+
+        # Statement boundary: not part of our declaration.
+        if (stripped.endswith(";")
+                or stripped.endswith("}")
+                or stripped.endswith("{")):
+            return None
+        if stripped.startswith("#"):
+            return None
+
+        # Continuation line, keep walking up.
+        line_start = prev_start
+
+    return None
 
 def param_names(param_string):
     """Extract parameter names from a C parameter list."""
