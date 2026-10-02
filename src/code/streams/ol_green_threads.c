@@ -438,6 +438,7 @@ static OL_FORCE_INLINE void ol_ctx_make_x86_64(ol_ctx_x86_64_t* ctx,
 /**
  * @brief Save ARM64 context (assembly)
  */
+#if OL_ARCH_AARCH64
 static OL_FORCE_INLINE void ol_ctx_save_aarch64(ol_ctx_aarch64_t* ctx) {
     asm volatile(
         /* Save integer registers */
@@ -542,10 +543,13 @@ static OL_FORCE_INLINE void ol_ctx_make_aarch64(ol_ctx_aarch64_t* ctx,
     /* Set argument in x19 (callee-saved) */
     ctx->x19 = (uintptr_t)arg;
 }
+#endif /* OL_ARCH_AARCH64 */
+
 
 /**
  * @brief Save ARM context (assembly)
  */
+#if OL_ARCH_ARM
 static OL_FORCE_INLINE void ol_ctx_save_arm(ol_ctx_arm_t* ctx) {
     asm volatile(
         /* Save integer registers */
@@ -639,6 +643,8 @@ static OL_FORCE_INLINE void ol_ctx_make_arm(ol_ctx_arm_t* ctx,
     /* Set argument in r4 (callee-saved) */
     ctx->r4 = (uintptr_t)arg;
 }
+#endif /* OL_ARCH_ARM */
+
 
 #endif /* OL_PLATFORM_POSIX */
 
