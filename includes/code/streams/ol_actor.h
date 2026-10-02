@@ -32,6 +32,28 @@
 extern "C" {
 #endif
 
+/*
+ * Ownership annotation for clang's static analyzer.
+ *
+ * ol_actor_send, ol_actor_try_send and ol_actor_send_timeout take
+ * ownership of the message in all paths: on success the mailbox
+ * stores it and the actor's destructor releases it later; on any
+ * failure the same destructor releases it immediately. The analyzer
+ * cannot see through the call, so without this annotation it assumes
+ * the caller leaks the message. ownership_takes tells the analyzer
+ * that the pointer is consumed by the call.
+ *
+ * The attribute is a clang extension; the macro expands to nothing
+ * on other compilers.
+ */
+#if defined(__clang__)
+#  define OL_TAKES_MSG(arg_index) \
+        __attribute__((ownership_takes(malloc, arg_index)))
+#else
+#  define OL_TAKES_MSG(arg_index)
+#endif
+
+
 /* ==================== Forward Declarations ==================== */
 
 /**
@@ -214,7 +236,8 @@ void ol_actor_destroy(ol_actor_t* actor);
  * @warning The message must be allocated with ol_arena_alloc() if the actor
  *          uses arena-based memory management.
  */
-int ol_actor_send(ol_actor_t* actor, void* msg);
+int ol_actor_send(ol_actor_t* actor, void* msg)
+    OL_TAKES_MSG(2);
 
 /**
  * @brief Send message to actor with timeout
@@ -230,7 +253,8 @@ int ol_actor_send(ol_actor_t* actor, void* msg);
  * @note For bounded mailboxes, this function waits up to timeout_ms for space
  *       to become available.
  */
-int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms);
+int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms)
+    OL_TAKES_MSG(2);
 
 /**
  * @brief Try to send message without blocking
@@ -244,7 +268,8 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms);
  * 
  * @note This function never blocks. It returns immediately with the result.
  */
-int ol_actor_try_send(ol_actor_t* actor, void* msg);
+int ol_actor_try_send(ol_actor_t* actor, void* msg)
+    OL_TAKES_MSG(2);
 
 /**
  * @brief Ask actor for response (request/response pattern)
