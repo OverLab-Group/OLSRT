@@ -1113,6 +1113,14 @@ ol_future_t* ol_actor_ask(ol_actor_t* actor, void* msg) {
 
     /* Send envelope to actor */
     int send_result = ol_actor_send(actor, envelope);
+
+    /* The message is now owned by the actor: on success it
+     * lives in the mailbox until the message destructor runs,
+     * and on failure the same destructor releases it
+     * immediately inside ol_actor_send. Clearing the local
+     * pointer tells the static analyzer that we no longer
+     * hold the allocation, and it is the truth. */
+    envelope = NULL;
     if (send_result != 0) {
         /* Failed to send. ol_actor_send may have already invoked the
          * message destructor, which frees the envelope. We must NOT
