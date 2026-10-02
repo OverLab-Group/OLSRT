@@ -52,9 +52,12 @@ def run_tool(reporter, tool_name, exe, verbose, extra_args=None):
     rc, out, err = run(cmd, timeout=600)
     combined = out + err
     if rc != 0:
-        reporter.fail("valgrind %s" % tool_name)
-        if verbose:
-            print(combined)
+        reporter.fail("valgrind %s" % tool_name, "exit %d" % rc)
+        lines = combined.splitlines()
+        for ln in lines[:25]:
+            print("      " + ln)
+        if len(lines) > 25:
+            print("      ... and %d more line(s)" % (len(lines) - 25))
     else:
         reporter.ok("valgrind %s" % tool_name)
 
