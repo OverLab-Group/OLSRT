@@ -126,9 +126,14 @@ def main(argv=None):
     print()
 
     ran = False
+    # Only the first available formatter runs. Uncristify and
+    # astyle are fallbacks for systems without clang-format;
+    # they do not produce the same output, so running all of
+    # them at once would fail no matter how the code looks.
     for fn in (check_clang_format, check_uncrustify, check_astyle):
         if fn(r, sources, args.verbose):
             ran = True
+            break
 
     if not ran:
         r.skip("all formatters", "none of clang-format, uncrustify, "
