@@ -203,15 +203,21 @@ install(DIRECTORY includes/
 )
 
 # Generate pkg-config file
-option(GENERATE_PKGCONFIG "Generate pkg-config file" ON)
-if(GENERATE_PKGCONFIG)
+#
+# Disabled by default in v1.3.2. The .in file is a stub and the
+# accompanying install(EXPORT) rule is not yet in the tree, so
+# enabling the option would fail at configure time. The EXISTS
+# guard means the block runs only when a real configuration file
+# is present.
+option(GENERATE_PKGCONFIG "Generate pkg-config file" OFF)
+if(GENERATE_PKGCONFIG AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/olsrt-config.cmake.in")
     include(CMakePackageConfigHelpers)
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/olsrt-config.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/olsrt-config.cmake"
         INSTALL_DESTINATION lib/cmake/olsrt
     )
-    message(STATUS "📄 pkg-config file generation enabled")
+    message(STATUS "pkg-config file generation enabled")
 endif()
 
 # ------------------------------------------------------------------------------

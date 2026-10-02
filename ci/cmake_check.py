@@ -23,6 +23,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import Reporter, chdir_to_root, has_tool, run
 
+def show_failure(out, err, max_lines=20):
+    """Print the first max_lines of out+err."""
+    text = (out or "") + (err or "")
+    lines = text.splitlines()
+    for ln in lines[:max_lines]:
+        print("      " + ln)
+    if len(lines) > max_lines:
+        print("      ... and %d more line(s)"
+              % (len(lines) - max_lines))
+
+
 def main(argv=None):
     chdir_to_root()
     ap = argparse.ArgumentParser(description=__doc__)
@@ -54,8 +65,7 @@ def main(argv=None):
             timeout=180)
         if rc != 0:
             r.fail("configure")
-            if args.verbose:
-                print(out + err)
+            show_failure(out, err)
             return r.exit_code()
         r.ok("configure")
 
@@ -64,8 +74,7 @@ def main(argv=None):
             timeout=600)
         if rc != 0:
             r.fail("build")
-            if args.verbose:
-                print(out + err)
+            show_failure(out, err)
             return r.exit_code()
         r.ok("build")
 
@@ -74,8 +83,7 @@ def main(argv=None):
             timeout=180)
         if rc != 0:
             r.fail("install")
-            if args.verbose:
-                print(out + err)
+            show_failure(out, err)
             return r.exit_code()
         r.ok("install")
 
