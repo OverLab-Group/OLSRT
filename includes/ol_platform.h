@@ -141,6 +141,12 @@
 /* Atomic operations abstraction */
 #include <stdatomic.h>
 
+/* Standard headers used by the inline helpers below. The file
+ * is self-contained: it is the first thing every other header
+ * includes, so it must not rely on transitive includes. */
+#include <stddef.h>
+#include <stdint.h>
+
 /* Platform-specific includes */
 #if OL_OS_WINDOWS
 #include <windows.h>
@@ -149,6 +155,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sched.h>
+#include <pthread.h>
 #endif
 
 /* Yield processor */
