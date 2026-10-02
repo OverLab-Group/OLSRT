@@ -73,7 +73,7 @@ def build_library(tmpdir, cc, flags, lib_sources):
     cmd += flags.split()
     cmd += ["-I" + d for d in INCLUDE_DIRS]
     cmd += lib_sources
-    cmd += ["-o", out, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", out, "-lpthread", "-lrt", "-ldl", "-lnuma"]
     rc, stdout, stderr = run(cmd)
     return rc, out, stdout + stderr
 
@@ -85,7 +85,7 @@ def build_test(tmpdir, cc, flags, src, lib):
     cmd += ["-I" + d for d in INCLUDE_DIRS]
     cmd += [src, "-L" + tmpdir, "-lolsrt",
             "-Wl,-rpath," + tmpdir, "-lpthread", "-lrt", "-ldl",
-            "-o", out]
+            "-lnuma", "-o", out]
     rc, stdout, stderr = run(cmd)
     return rc, out, stdout + stderr
 
