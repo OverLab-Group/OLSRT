@@ -220,8 +220,22 @@ def find_comment_above(text, pos):
         prev_line = text[prev_start:prev_end].rstrip()
         stripped = prev_line.strip()
 
-        # Blank line: no block above.
+        # Blank line: check one line further up. The codebase often
+        # places a blank line between the Doxygen block and the
+        # declaration continuation, so giving up at the first blank
+        # would miss the block.
         if not stripped:
+            up_prev_end = prev_start - 1
+            if up_prev_end <= 0:
+                return None
+            up_prev_start = text.rfind("\n", 0, up_prev_end) + 1
+            up_line = text[up_prev_start:up_prev_end].rstrip()
+            up_stripped = up_line.strip()
+            if up_stripped.endswith("*/"):
+                idx = text.rfind("/**", 0, up_prev_end)
+                if (idx >= 0
+                        and "*/" not in text[idx + 3:up_prev_end - 2]):
+                    return idx, up_prev_end
             return None
 
         # Comment line. If it closes a block, that block is our
