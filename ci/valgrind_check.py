@@ -29,7 +29,8 @@ def build_plain(cc, tmp, lib_sources):
     cmd += ["-I" + i for i in INCLUDES]
     cmd += lib_sources
     cmd += ["-o", out] + LINK_LIBS
-    return run(cmd), out
+    rc, stdout, stderr = run(cmd)
+    return rc, stdout, stderr, out
 
 def build_test(cc, tmp, src, lib):
     exe = os.path.join(tmp, Path(src).stem)
@@ -39,7 +40,8 @@ def build_test(cc, tmp, src, lib):
     cmd += ["-I" + i for i in INCLUDES]
     cmd += [src, "-L" + tmp, "-lolsrt", "-Wl,-rpath," + tmp]
     cmd += LINK_LIBS + ["-o", exe]
-    return run(cmd), exe
+    rc, stdout, stderr = run(cmd)
+    return rc, stdout, stderr, exe
 
 def run_tool(reporter, tool_name, exe, verbose, extra_args=None):
     cmd = ["valgrind", "--tool=" + tool_name, "--error-exitcode=1",
@@ -75,18 +77,20 @@ def main(argv=None):
     r = Reporter("valgrind_check", verbose=args.verbose)
 
     with tempfile.TemporaryDirectory(prefix="olsrt_valg_") as tmp:
-        rc, out, err = build_plain(args.cc, tmp, lib_sources)
+        rc, out, err, lib = build_plain(args.cc, tmp, lib_sources)
         if rc != 0:
             r.fail("library build")
-            if args.verbose:
-                print(out + err)
+            for ln in (out + err).splitlines()[:20]:
+                print("      " + ln)
             return r.exit_code()
 
         # Use test_wave1 as the primary driver.
         for src in tests:
-            rc, out, err = build_test(args.cc, tmp, src, None)
+            rc, out, err, _ = build_test(args.cc, tmp, src, None)
             if rc != 0:
                 r.fail("build %s" % Path(src).stem)
+                for ln in (out + err).splitlines()[:15]:
+                    print("      " + ln)
                 continue
             exe = os.path.join(tmp, Path(src).stem)
             for tool, extra in [

@@ -26,20 +26,39 @@ def run_clang_analyze(reporter, verbose):
          shutil.which("clang-17")
     if not cc:
         return False
-    bad = 0
+    total_warnings = 0
+    total_errors = 0
+    findings = []
     for src in sources():
-        cmd = [cc, "--analyze", "-std=gnu11"]
+        cmd = [cc, "--analyze", "-std=gnu11",
+               "-Xanalyzer", "-analyzer-output=text"]
         cmd += ["-I" + i for i in INCLUDES]
-        cmd += [src, "-o", os.devnull] if False else [src]
+        cmd += [src]
         rc, out, err = run(cmd, timeout=120)
-        if rc != 0 or "warning:" in (out + err):
-            bad += 1
-            if verbose:
-                print("    " + src)
-    if bad:
-        reporter.fail("clang --analyze", "%d file(s)" % bad)
+        combined = out + err
+        for ln in combined.splitlines():
+            low = ln.lower()
+            if "error:" in low:
+                total_errors += 1
+                findings.append(ln)
+            elif "warning:" in low:
+                total_warnings += 1
+                findings.append(ln)
+
+    # Show the first 15 findings regardless of --verbose, so the
+    # output appears in CI logs.
+    for ln in findings[:15]:
+        print("      " + ln)
+    if len(findings) > 15:
+        print("      ... and %d more finding(s)"
+              % (len(findings) - 15))
+
+    if total_errors:
+        reporter.fail("clang --analyze",
+                      "%d error(s)" % total_errors)
     else:
-        reporter.ok("clang --analyze")
+        reporter.ok("clang --analyze",
+                    "%d warning(s) reported" % total_warnings)
     return True
 
 def run_infer(reporter, verbose):

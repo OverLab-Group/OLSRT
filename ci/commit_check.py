@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-ci/commit_check.py — verify that the last N commits follow Conventional
-Commits.
+ci/commit_check.py - verify that the last N commits follow
+Conventional Commits.
 
 The subject must match:
 
   <type>(<scope>)?: <description>
 
-where <type> is one of the types listed below. Merge commits are
-exempt. The default scan depth is 10; use --n to change it.
+Merge commits and commits whose subject begins with "wip:" are exempt,
+because wip commits are allowed during a maintenance session and are
+squashed before release.
+
+Exit code 0 iff every non-exempt commit in the range matches.
 """
 
 import argparse
@@ -22,7 +25,7 @@ from _common import Reporter, chdir_to_root, run
 TYPES = {
     "feat", "fix", "docs", "style", "refactor", "perf", "test",
     "build", "ci", "chore", "revert",
-    "actor", "network", "leaks", "wave1", "tools", "wip",
+    "actor", "network", "leaks", "wave1", "tools",
 }
 
 SUBJECT_RE = re.compile(
@@ -44,4 +47,44 @@ def main(argv=None):
 
     rc, out, err = run(
         ["git", "log", "--format=%H%x09%s", "-n", str(args.n)])
-    if rc
+    if rc != 0:
+        r.fail("git log", err.strip())
+        return r.exit_code()
+
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    if not lines:
+        r.fail("git log", "empty output")
+        return r.exit_code()
+
+    for ln in lines:
+        parts = ln.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        sha, subject = parts
+        short = sha[:7]
+
+        # Exemptions.
+        if subject.startswith("Merge "):
+            r.skip("%s (merge)" % short)
+            continue
+        if subject.startswith("wip:"):
+            r.skip("%s (wip)" % short)
+            continue
+        if subject.startswith("Revert "):
+            r.ok("%s (revert)" % short)
+            continue
+
+        m = SUBJECT_RE.match(subject)
+        if not m:
+            r.fail(short, "not Conventional: %r" % subject[:60])
+            continue
+        t = m.group("type")
+        if t not in TYPES:
+            r.fail(short, "unknown type %r" % t)
+            continue
+        r.ok("%s %s" % (short, t))
+
+    return r.exit_code()
+
+if __name__ == "__main__":
+    sys.exit(main())

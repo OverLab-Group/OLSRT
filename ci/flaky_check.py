@@ -15,7 +15,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, has_tool, run
+from _common import Reporter, chdir_to_root, has_tool, run, LINK_LIBS
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
