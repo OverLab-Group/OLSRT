@@ -63,7 +63,7 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```
+
 # Backups created by fix scripts
 *.orig
 *.orig2
@@ -113,6 +113,8 @@ bin/
 html/
 docu/
 workspace.tar
+.gcov
+.plist
 
 # Editors
 .vscode/
