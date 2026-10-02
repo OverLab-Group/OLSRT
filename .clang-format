@@ -86,8 +86,6 @@ ReflowComments: false
 CommentPragmas: '^ NOLINT|^ clang-format'
 
 # ---- Macros --------------------------------------------------------------
-# Macros are used sparingly; keep them exactly as written.
-AlignConsecutiveMacros: false
 
 # ---- C++ specific (harmless for C) ---------------------------------------
 Cpp11BracedListStyle: false
