@@ -6,6 +6,7 @@ Detected backends: clang --analyze, infer, semgrep, codeql,
 pvs-studio-analyzer.
 """
 
+import re
 import argparse
 import shutil
 import sys
