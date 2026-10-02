@@ -182,3 +182,4 @@ changepart.py
 /revert_*.py
 /CHANGENOW.md
 /CHANGETO.md
+/cleanup*
