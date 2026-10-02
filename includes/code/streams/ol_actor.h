@@ -47,10 +47,10 @@ extern "C" {
  * on other compilers.
  */
 #if defined(__clang__)
-#  define OL_TAKES_MSG(arg_index) \
-        __attribute__((ownership_takes(malloc, arg_index)))
+#define OL_TAKES_MSG(arg_index)                                                \
+    __attribute__((ownership_takes(malloc, arg_index)))
 #else
-#  define OL_TAKES_MSG(arg_index)
+#define OL_TAKES_MSG(arg_index)
 #endif
 
 
@@ -236,8 +236,7 @@ void ol_actor_destroy(ol_actor_t* actor);
  * @warning The message must be allocated with ol_arena_alloc() if the actor
  *          uses arena-based memory management.
  */
-int ol_actor_send(ol_actor_t* actor, void* msg)
-    OL_TAKES_MSG(2);
+int ol_actor_send(ol_actor_t* actor, void* msg) OL_TAKES_MSG(2);
 
 /**
  * @brief Send message to actor with timeout
@@ -268,8 +267,7 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms)
  * 
  * @note This function never blocks. It returns immediately with the result.
  */
-int ol_actor_try_send(ol_actor_t* actor, void* msg)
-    OL_TAKES_MSG(2);
+int ol_actor_try_send(ol_actor_t* actor, void* msg) OL_TAKES_MSG(2);
 
 /**
  * @brief Ask actor for response (request/response pattern)
