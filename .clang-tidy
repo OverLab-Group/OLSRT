@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# OLSRT clang-tidy configuration
+#
+# The project is C11 with POSIX extensions. This configuration enables
+# the checks that find real bugs and keeps the noisy or stylistic
+# families off, so that CI can iterate from the current state toward
+# a stricter one without failing on day one.
+#
+# ci/lint_check.py reads this file when clang-tidy is available and a
+# compile_commands.json exists. Diagnostics are reported; only
+# error-severity findings fail CI by default.
+# ---------------------------------------------------------------------------
+
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+
+  -bugprone-easily-swappable-parameters,
+  -bugprone-macro-parentheses,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -bugprone-signal-handler,
+
+  -cert-err33-c,
+  -cert-msc24-c,
+  -cert-msc30-c,
+  -cert-msc32-c,
+  -cert-msc33-c,
+
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -clang-analyzer-security.insecureAPI.strcpy,
+
+  -performance-no-int-to-ptr,
+
+  -portability-restrict-system-includes,
+  -portability-simd-intrinsics,
+
+  readability-*,
+  -readability-braces-around-statements,
+  -readability-else-after-return,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-non-const-parameter,
+  -readability-suspicious-call-argument,
+
+WarningsAsErrors: ''
+
+# Only apply checks to our own headers.
+HeaderFilterRegex: '^.*/(includes|src)/.*\.h$'
+
+FormatStyle: file
+SystemHeaders: false
+
+CheckOptions:
+  - key: bugprone-signed-char-misuse.CharTypdefsToIgnore
+    value: ''
+  - key: cert-dcl16-c.NewSuffixes
+    value: 'L;LL;LU;LLU'
+  - key: cert-err33-c.AllowFunctionPointers
+    value: 'true'
+  - key: performance-type-promotion-in-math-fn.IncludeStyle
+    value: 'llvm'

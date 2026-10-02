@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# OLSRT EditorConfig
+#
+# EditorConfig is respected by most modern editors (VSCode, Vim, Emacs,
+# Sublime, Kate, ...). It is a lightweight fallback for editors that
+# do not read .clang-format, and it keeps line endings, indentation,
+# and trailing whitespace consistent across the project.
+# ---------------------------------------------------------------------------
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# C and header files: match .clang-format.
+[*.{c,h}]
+indent_size = 4
+max_line_length = 80
+
+# C++ sources, in case any are added later.
+[*.{cc,cpp,cxx,hpp}]
+indent_size = 4
+max_line_length = 80
+
+# Markdown and reStructuredText: preserve intentional whitespace, do
+# not enforce a hard column limit (long lines are useful in prose
+# and documentation).
+[*.{md,markdown,rst}]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# YAML and JSON: 2 spaces.
+[*.{yml,yaml,json}]
+indent_size = 2
+
+# Python: 4 spaces, project style.
+[*.py]
+indent_size = 4
+max_line_length = 79
+
+# Shell scripts: tabs for indentation are common but the project uses
+# spaces; keep it consistent.
+[*.sh]
+indent_size = 4
+
+# Makefiles require tab indentation.
+[Makefile]
+indent_style = tab
+
+# CMake, Doxyfile, etc.: 4 spaces.
+[CMakeLists.txt]
+indent_size = 4
+
+[*.cmake]
+indent_size = 4
+
+[Doxyfile]
+indent_size = 4

@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# OLSRT C code style
+#
+# Matches the hand-written style used throughout the codebase:
+#   4-space indent, braces on the same line, pointer star attached to
+#   the type, 80-column limit, no reflow of Doxygen comment blocks.
+#
+# Clang-format is invoked by ci/format_check.py and by editors that
+# respect .clang-format. Do not reformat an entire file unless the
+# change is intentional; use `clang-format --lines=<start>:<end>` for
+# targeted edits.
+# ---------------------------------------------------------------------------
+
+BasedOnStyle: LLVM
+
+# ---- Language and standard ------------------------------------------------
+Language: Cpp
+Standard: c++17
+ColumnLimit: 80
+
+# ---- Indentation ----------------------------------------------------------
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+IndentCaseLabels: false
+IndentGotoLabels: false
+IndentPPDirectives: None
+IndentWrappedFunctionNames: false
+NamespaceIndentation: None
+MaxEmptyLinesToKeep: 2
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# ---- Braces --------------------------------------------------------------
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+
+# ---- Alignment -----------------------------------------------------------
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: false
+AlignEscapedNewlines: Right
+AlignTrailingComments: true
+AlignArrayOfStructures: None
+
+# ---- Pointer and reference alignment ------------------------------------
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# ---- Spaces ---------------------------------------------------------------
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpacesInAngles: false
+SpacesInContainerLiterals: false
+
+# ---- Line breaks ---------------------------------------------------------
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: false
+BinPackArguments: false
+BinPackParameters: false
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+# ---- Includes ------------------------------------------------------------
+SortIncludes: false
+IncludeBlocks: Preserve
+
+# ---- Comments ------------------------------------------------------------
+ReflowComments: false
+CommentPragmas: '^ NOLINT|^ clang-format'
+
+# ---- Macros --------------------------------------------------------------
+# Macros are used sparingly; keep them exactly as written.
+AlignConsecutiveMacros: false
+
+# ---- C++ specific (harmless for C) ---------------------------------------
+Cpp11BracedListStyle: false

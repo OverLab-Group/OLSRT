@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# OLSRT astyle configuration
+#
+# astyle is used only as a fallback in ci/format_check.py when
+# clang-format is not installed. The style matches .clang-format.
+#
+# astyle option syntax: one option per line, `--name=value` or `--name`.
+# ---------------------------------------------------------------------------
+
+# Base style: One True Brace Style (braces on the same line).
+style=1tbs
+
+# Indentation.
+indent=spaces=4
+indent-continuation=2
+indent-switches
+indent-cases
+indent-namespaces
+indent-labels
+indent-preproc-block
+indent-preproc-cond
+
+# No tabs anywhere.
+convert-tabs
+indent-col1-comments
+
+# Spacing.
+pad-oper
+pad-comma
+pad-header
+pad-paren-in
+unpad-paren
+align-pointer=type
+align-reference=type
+
+# Operator and brace handling.
+break-closing-braces
+break-one-line-headers
+add-braces
+remove-braces=false
+
+# Line wrapping.
+max-code-length=80
+max-instatement-indent=79
+
+# Comments.
+keep-one-line-statements
+keep-one-line-blocks
+preserve-date
+suffix=none
+
+# Recurse (used only when astyle is called with --recursive).
+recursive
