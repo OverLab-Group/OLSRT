@@ -1149,24 +1149,20 @@ static OL_FORCE_INLINE int ol_get_current_numa_node(void) {
  * @brief Allocate memory with NUMA awareness
  */
 static OL_NO_INLINE void* ol_numa_alloc(size_t size, size_t alignment, int numa_node) {
-    /* v1.3.2: NUMA-aware placement is disabled, but alignment is
-     * honoured. struct ol_gt_scheduler_t carries __attribute__((aligned(64)))
-     * and plain malloc only guarantees alignof(max_align_t) (~16 bytes),
-     * which UBSan flags as a misaligned access.
+    /* v1.3.2: NUMA-aware allocation is disabled. The current codebase
+     * has no member that requires alignment greater than what malloc
+     * guarantees (alignof(max_align_t), 16 bytes on x86_64). The
+     * earlier aligned(64) annotations on struct ol_stack_pool and
+     * struct ol_gt_scheduler.tls have been removed, so plain malloc
+     * is sufficient.
      *
-     * posix_memalign returns a pointer that can be released with free(),
-     * so ol_numa_free does not need a paired change. NUMA itself will
-     * return in v1.4 with an allocator that tracks the origin. */
+     * Using posix_memalign here broke ASan's free interceptor on
+     * large alignments, so it is deliberately not used. NUMA will
+     * return in v1.4 with a paired allocator that tracks its origin. */
+    (void)alignment;
     (void)numa_node;
     if (size == 0) return NULL;
-    if (alignment <= sizeof(void*)) {
-        return malloc(size);
-    }
-    void* ptr = NULL;
-    if (posix_memalign(&ptr, alignment, size) != 0) {
-        return NULL;
-    }
-    return ptr;
+    return malloc(size);
 }
 
 /**

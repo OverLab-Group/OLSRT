@@ -476,7 +476,7 @@ struct ol_stack_pool {
     atomic_uint_fast64_t allocations;
     atomic_uint_fast64_t deallocations;
     uint8_t padding[64];
-} __attribute__((aligned(64)));
+};
 
 struct ol_gt_scheduler {
     /* Per-thread scheduler instance */
@@ -510,8 +510,13 @@ struct ol_gt_scheduler {
     bool numa_awareness_enabled;
     bool statistics_enabled;
     
-    /* Thread-local storage */
-    alignas(64) uint8_t tls[256];
+    /* Thread-local storage. The 64-byte alignment was
+     * removed in v1.3.2 because it forced the whole
+     * struct to require 64-byte alignment, and plain
+     * malloc only guarantees 16 bytes. The field is not
+     * accessed through atomic operations that need a
+     * specific alignment. */
+    uint8_t tls[256];
 };
 
 /** @endcond */
