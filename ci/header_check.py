@@ -47,11 +47,24 @@ def check_guard(reporter, hdr):
     reporter.ok("guard %s" % hdr)
 
 def check_self_contained(reporter, hdr, cc, verbose):
+    # The header lives in a subdirectory of includes/. To test
+    # that it is self-contained, we compile a fresh translation
+    # unit that includes it BY ITS BASENAME and pass the
+    # header's own directory (plus the shared include paths) on
+    # the -I line. The previous version embedded the full
+    # relative path in the include statement, which cannot be
+    # resolved through the -I flags alone.
+    hdr_path = Path(hdr).resolve()
+    hdr_dir = str(hdr_path.parent)
+    hdr_name = hdr_path.name
+
     with tempfile.TemporaryDirectory(prefix="olsrt_hdr_") as tmp:
         src = os.path.join(tmp, "probe.c")
         with open(src, "w") as f:
-            f.write('#include "%s"\nint main(void){return 0;}\n' % hdr)
-        cmd = [cc, "-std=gnu11", "-fsyntax-only"]
+            f.write('#include "%s"\nint main(void){return 0;}\n'
+                    % hdr_name)
+        cmd = [cc, "-std=gnu11", "-fsyntax-only",
+               "-I" + hdr_dir]
         cmd += ["-I" + i for i in INCLUDE_DIRS]
         cmd += [src]
         rc, out, err = run(cmd)
