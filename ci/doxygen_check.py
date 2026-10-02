@@ -79,8 +79,18 @@ def iter_prototypes(text):
         stripped = line_prefix.strip()
         if "#define" in line_prefix:
             continue
+        # Comment lines: Doxygen continuation ("* ...") and C / C++
+        # style comment openers. Without these rules a documentation
+        # example such as
+        #     * ol_channel_send_deadline(ch, msg, deadline);
+        # would be treated as a prototype.
+        if stripped.startswith("*"):
+            continue
+        if stripped.startswith("//") or stripped.startswith("/*"):
+            continue
         if "//" in line_prefix or "/*" in line_prefix:
             continue
+        # Function-pointer typedefs and typedefs in general.
         if stripped.startswith("typedef"):
             continue
         if "(*" in line_prefix:
