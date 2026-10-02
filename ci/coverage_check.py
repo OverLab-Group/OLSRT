@@ -15,7 +15,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, has_tool, run
+from _common import (Reporter, chdir_to_root, has_tool,
+                     run, LINK_LIBS)
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
@@ -34,7 +35,7 @@ def build_with_coverage(tmp, cc, lib_sources):
         objs.append(obj)
     lib = os.path.join(tmp, "libolsrt.so")
     cmd = [cc, "-shared", "--coverage"] + objs
-    cmd += ["-o", lib, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", lib] + LINK_LIBS
     rc, out, err = run(cmd)
     if rc != 0:
         return None, lib, out + err
@@ -70,8 +71,8 @@ def main(argv=None):
         cmd = [args.cc, "-std=gnu11", "-g", "--coverage"]
         cmd += ["-I" + i for i in INCLUDES]
         cmd += [test_src, "-L" + tmp, "-lolsrt",
-                "-Wl,-rpath," + tmp, "-lpthread", "-lrt", "-ldl",
-                "-o", exe]
+                "-Wl,-rpath," + tmp]
+        cmd += LINK_LIBS + ["-o", exe]
         rc, out, err = run(cmd)
         if rc != 0:
             r.fail("test build")

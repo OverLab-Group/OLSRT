@@ -96,6 +96,21 @@ def read_version():
         return None
     return "%s.%s.%s" % (major.group(1), minor.group(1), patch.group(1))
 
+
+# ---------------------------------------------------------------------
+# Platform link flags
+# ---------------------------------------------------------------------
+
+# The OLSRT shared library references libnuma on any Linux host that
+# ships <numa.h>. Every tool that links the library must pass -lnuma
+# or the link step fails with "undefined reference to numa_available".
+# Keeping the list here means a single edit covers all callers.
+LINK_LIBS = ["-lpthread", "-lrt", "-ldl", "-lnuma"]
+
+# Space-separated form for callers that build a shell-style command.
+LINK_LIBS_STR = " ".join(LINK_LIBS)
+
+
 # ---------------------------------------------------------------------
 # Reporter
 # ---------------------------------------------------------------------

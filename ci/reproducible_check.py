@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, run
+from _common import Reporter, chdir_to_root, run, LINK_LIBS
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
@@ -31,7 +31,7 @@ def build(tmp, cc):
            "-ffile-prefix-map=" + str(Path.cwd()) + "=."]
     cmd += ["-I" + i for i in INCLUDES]
     cmd += sources
-    cmd += ["-o", lib, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", lib] + LINK_LIBS
     env = dict(os.environ)
     env["SOURCE_DATE_EPOCH"] = EPOCH
     rc, out, err = run(cmd, env=env)

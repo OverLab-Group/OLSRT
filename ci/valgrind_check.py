@@ -16,7 +16,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, has_tool, run
+from _common import (Reporter, chdir_to_root, has_tool,
+                     run, LINK_LIBS)
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
@@ -27,7 +28,7 @@ def build_plain(cc, tmp, lib_sources):
            "-fno-omit-frame-pointer"]
     cmd += ["-I" + i for i in INCLUDES]
     cmd += lib_sources
-    cmd += ["-o", out, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", out] + LINK_LIBS
     return run(cmd), out
 
 def build_test(cc, tmp, src, lib):
@@ -36,9 +37,8 @@ def build_test(cc, tmp, src, lib):
            "-I" + INCLUDES[0]]
     cmd = [cc, "-std=gnu11", "-g", "-O0"]
     cmd += ["-I" + i for i in INCLUDES]
-    cmd += [src, "-L" + tmp, "-lolsrt",
-            "-Wl,-rpath," + tmp, "-lpthread", "-lrt", "-ldl",
-            "-o", exe]
+    cmd += [src, "-L" + tmp, "-lolsrt", "-Wl,-rpath," + tmp]
+    cmd += LINK_LIBS + ["-o", exe]
     return run(cmd), exe
 
 def run_tool(reporter, tool_name, exe, verbose, extra_args=None):

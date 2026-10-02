@@ -17,7 +17,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, has_tool, run
+from _common import (Reporter, chdir_to_root, has_tool,
+                     run, LINK_LIBS)
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
@@ -29,7 +30,7 @@ def build(tmp, cc):
     cmd = [cc, "-std=gnu11", "-fPIC", "-shared", "-O2"]
     cmd += ["-I" + i for i in INCLUDES]
     cmd += sources
-    cmd += ["-o", lib, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", lib] + LINK_LIBS
     rc, out, err = run(cmd)
     return lib, rc, out + err
 

@@ -24,7 +24,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import Reporter, chdir_to_root, has_tool, run
+from _common import (Reporter, chdir_to_root, has_tool,
+                     run, LINK_LIBS)
 
 INCLUDES = ["includes", "includes/code", "includes/code/streams",
             "includes/runtime"]
@@ -50,7 +51,7 @@ def build(tmp, cc, flags, sources, out_name):
     cmd += flags.split()
     cmd += ["-I" + i for i in INCLUDES]
     cmd += sources
-    cmd += ["-o", out, "-lpthread", "-lrt", "-ldl"]
+    cmd += ["-o", out] + LINK_LIBS
     return run(cmd)
 
 def main(argv=None):
@@ -95,12 +96,13 @@ def main(argv=None):
                 cmd += flags.split()
                 cmd += ["-I" + i for i in INCLUDES]
                 cmd += [src, "-L" + tmp, "-lolsrt",
-                        "-Wl,-rpath," + tmp,
-                        "-lpthread", "-lrt", "-ldl",
-                        "-o", exe]
+                        "-Wl,-rpath," + tmp]
+                cmd += LINK_LIBS + ["-o", exe]
                 rc, out, err = run(cmd)
                 if rc != 0:
                     r.fail("%s: build %s" % (name, Path(src).stem))
+                    for ln in (out + err).splitlines()[:15]:
+                        print("      " + ln)
                     failed = True
                     continue
                 env = dict(os.environ)
@@ -108,8 +110,8 @@ def main(argv=None):
                 rc, out, err = run([exe], env=env, timeout=120)
                 if rc != 0:
                     r.fail("%s: run %s" % (name, Path(src).stem))
-                    if args.verbose:
-                        print(out + err)
+                    for ln in (out + err).splitlines()[:15]:
+                        print("      " + ln)
                     failed = True
 
             if not failed:

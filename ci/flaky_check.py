@@ -40,7 +40,7 @@ def main(argv=None):
         cmd = [args.cc, "-std=gnu11", "-fPIC", "-shared", "-O2"]
         cmd += ["-I" + i for i in INCLUDES]
         cmd += lib_sources
-        cmd += ["-o", lib, "-lpthread", "-lrt", "-ldl"]
+        cmd += ["-o", lib] + LINK_LIBS
         rc, out, err = run(cmd)
         if rc != 0:
             r.fail("library build")
@@ -55,8 +55,8 @@ def main(argv=None):
             cmd = [args.cc, "-std=gnu11", "-O2"]
             cmd += ["-I" + i for i in INCLUDES]
             cmd += [src, "-L" + tmp, "-lolsrt",
-                    "-Wl,-rpath," + tmp, "-lpthread", "-lrt",
-                    "-ldl", "-o", exe]
+                    "-Wl,-rpath," + tmp]
+            cmd += LINK_LIBS + ["-o", exe]
             rc, out, err = run(cmd)
             if rc != 0:
                 r.fail("build %s" % Path(src).stem)
