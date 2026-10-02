@@ -51,9 +51,71 @@ def _balanced_close(text, open_pos):
         i += 1
     return -1
 
+def _comment_intervals(text):
+    """Return a sorted list of (start, end) positions covering every
+    comment and string literal in text."""
+    intervals = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        # String or character literal.
+        if c == '"' or c == "'":
+            quote = c
+            start = i
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2
+                    continue
+                if text[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            intervals.append((start, i))
+            continue
+        # Line comment.
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            start = i
+            j = text.find("\n", i)
+            if j < 0:
+                j = n
+            intervals.append((start, j))
+            i = j
+            continue
+        # Block comment.
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            start = i
+            j = text.find("*/", i + 2)
+            if j < 0:
+                j = n
+            else:
+                j += 2
+            intervals.append((start, j))
+            i = j
+            continue
+        i += 1
+    return intervals
+
+def _inside_intervals(pos, intervals):
+    """True if pos lies inside one of the (start, end) intervals."""
+    lo, hi = 0, len(intervals)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        s, e = intervals[mid]
+        if pos < s:
+            hi = mid
+        elif pos >= e:
+            lo = mid + 1
+        else:
+            return True
+    return False
+
 def iter_prototypes(text):
     """Yield (name, line_start_pos, params_text, has_return) for every
     public function prototype in a header.
+
+    Candidates inside comments or string literals are rejected.
 
     The returned position is the start of the line that contains the
     declaration, not the position of the function name. The caller
@@ -70,25 +132,20 @@ def iter_prototypes(text):
     that start with #define are skipped: they are not prototypes.
     """
     seen = set()
+    intervals = _comment_intervals(text)
     for m in FUNC_NAME_RE.finditer(text):
         name = m.group("name")
         if name in seen:
+            continue
+        # Reject anything that lives inside a comment or a string.
+        # This catches Doxygen code samples that look exactly like a
+        # real declaration.
+        if _inside_intervals(m.start(), intervals):
             continue
         line_start = text.rfind("\n", 0, m.start()) + 1
         line_prefix = text[line_start:m.start()]
         stripped = line_prefix.strip()
         if "#define" in line_prefix:
-            continue
-        # Comment lines: Doxygen continuation ("* ...") and C / C++
-        # style comment openers. Without these rules a documentation
-        # example such as
-        #     * ol_channel_send_deadline(ch, msg, deadline);
-        # would be treated as a prototype.
-        if stripped.startswith("*"):
-            continue
-        if stripped.startswith("//") or stripped.startswith("/*"):
-            continue
-        if "//" in line_prefix or "/*" in line_prefix:
             continue
         # Function-pointer typedefs and typedefs in general.
         if stripped.startswith("typedef"):
