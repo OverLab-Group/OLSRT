@@ -388,7 +388,14 @@ typedef struct ol_gt_statistics {
 /* Forward declarations for internal structures */
 struct ol_gt {
     /* Basic metadata (192 bytes) */
-    alignas(64) atomic_uint_fast32_t state;
+    /* The alignas(64) that used to decorate this member is
+     * removed. It forced the entire struct ol_gt to require
+     * 64-byte alignment, which plain malloc does not
+     * guarantee on all platforms, and UBSan flagged the
+     * resulting misaligned access. The attribute was a
+     * false-sharing optimisation; each ol_gt is owned by a
+     * single scheduler thread, so it is not needed. */
+    atomic_uint_fast32_t state;
     ol_gt_entry_fn entry;
     void* arg;
     
