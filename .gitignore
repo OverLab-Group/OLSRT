@@ -159,3 +159,26 @@ src/code/network/*.before*
 CHANGENOW.md
 CHANGETO.md
 changepart.py
+
+# ---------------------------------------------------------------------------
+# Temporary maintenance scripts at the repository root.
+#
+# Every fix script, commit helper, or diagnostic written during a
+# maintenance session lives at the root and is intentionally excluded
+# from the repository. The permanent command-line tool changepart.py
+# is the only .py file that belongs here.
+# ---------------------------------------------------------------------------
+/add_*.py
+/apply_*.py
+/build_wave1*.py
+/check*.py
+/ci_fix_*.py
+/commit_*.py
+/diagnose_*.py
+/enrich_*.py
+/finalize_*.py
+/fix_*.py
+/gen_*.py
+/revert_*.py
+/CHANGENOW.md
+/CHANGETO.md
