@@ -178,7 +178,18 @@ static OL_ALIGNED(OL_CACHE_LINE_SIZE)
  * @brief Global scheduler list for work stealing
  * @note Protected by atomic operations
  */
-static atomic_uintptr_t g_scheduler_list_head = ATOMIC_VAR_INIT(0);
+/* v1.3.3: clang rejects atomic_fetch_add_explicit on plain
+ * uint64_t pointers. GCC accepts them as an extension. The
+ * statistics counters (ol_gt_statistics_t) are plain uint64_t
+ * for ABI reasons, so route the operations that touch them
+ * through the __atomic_* builtins, which work on plain
+ * integer pointers on both compilers. Fields that are
+ * already _Atomic (pool->hits, bucket->count, ...) keep the
+ * C11 atomic functions. */
+#define OL_STATS_ADD(ptr, val) \
+    __atomic_fetch_add((ptr), (val), __ATOMIC_RELAXED)
+
+static atomic_uintptr_t g_scheduler_list_head = 0;
 
 /**
  * @brief Global statistics
@@ -189,7 +200,7 @@ static ol_gt_statistics_t g_global_stats = { 0 };
 /**
  * @brief Last error code
  */
-static atomic_int g_last_error = ATOMIC_VAR_INIT(OL_GT_SUCCESS);
+static atomic_int g_last_error = OL_GT_SUCCESS;
 
 /* ==================== v1.3.2 Driver State ==================== */
 
@@ -1332,8 +1343,7 @@ static OL_NO_INLINE int ol_gt_scheduler_init_thread_local(void) {
      */
 
     /* Update global statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.total_spawned, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.total_spawned, 1);
 
     return 0;
 }
@@ -1361,13 +1371,9 @@ static OL_NO_INLINE void* ol_gt_work_steal(void) {
                     ol_work_stealing_queue_steal(&other->queues[priority]);
                 if (task) {
                     /* Update statistics */
-                    atomic_fetch_add_explicit(
-                        &g_global_stats.work_stolen, 1, memory_order_relaxed);
+                    OL_STATS_ADD(&g_global_stats.work_stolen, 1);
                     if (g_thread_scheduler->statistics_enabled) {
-                        atomic_fetch_add_explicit(
-                            &g_thread_scheduler->global_stats.work_stolen,
-                            1,
-                            memory_order_relaxed);
+                        OL_STATS_ADD(&g_thread_scheduler->global_stats.work_stolen, 1);
                     }
                     return task;
                 }
@@ -1402,14 +1408,10 @@ static OL_FORCE_INLINE bool ol_gt_should_preempt(void) {
             &g_thread_scheduler->last_preemption, now, memory_order_relaxed);
 
         /* Update statistics */
-        atomic_fetch_add_explicit(
-            &g_global_stats.preemptive_yields, 1, memory_order_relaxed);
+        OL_STATS_ADD(&g_global_stats.preemptive_yields, 1);
         if (g_thread_scheduler->statistics_enabled &&
             g_thread_scheduler->current) {
-            atomic_fetch_add_explicit(
-                &g_thread_scheduler->current->stats.preemptive_yields,
-                1,
-                memory_order_relaxed);
+            OL_STATS_ADD(&g_thread_scheduler->current->stats.preemptive_yields, 1);
         }
 
         return true;
@@ -1523,8 +1525,7 @@ void ol_gt_scheduler_shutdown(void) {
     g_thread_scheduler = NULL;
 
     /* Update global statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.total_destroyed, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.total_destroyed, 1);
 }
 
 /**
@@ -1780,13 +1781,9 @@ ol_gt_spawn_ex(ol_gt_entry_fn entry, void* arg, const ol_gt_config_t* config) {
     }
 
     /* Update statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.total_spawned, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.total_spawned, 1);
     if (g_thread_scheduler->statistics_enabled) {
-        atomic_fetch_add_explicit(
-            &g_thread_scheduler->global_stats.total_spawned,
-            1,
-            memory_order_relaxed);
+        OL_STATS_ADD(&g_thread_scheduler->global_stats.total_spawned, 1);
     }
 
     return gt;
@@ -1851,11 +1848,9 @@ int ol_gt_resume(ol_gt_t* gt) {
     ol_work_stealing_queue_push(&g_thread_scheduler->queues[gt->priority], gt);
 
     /* Update statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.context_switches, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.context_switches, 1);
     if (g_thread_scheduler->statistics_enabled) {
-        atomic_fetch_add_explicit(
-            &gt->stats.context_switches, 1, memory_order_relaxed);
+        OL_STATS_ADD(&gt->stats.context_switches, 1);
     }
 
     return 0;
@@ -1889,11 +1884,9 @@ void ol_gt_yield(void) {
     if (!current)
         return;
 
-    atomic_fetch_add_explicit(
-        &g_global_stats.voluntary_yields, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.voluntary_yields, 1);
     if (g_thread_scheduler->statistics_enabled) {
-        atomic_fetch_add_explicit(
-            &current->stats.voluntary_yields, 1, memory_order_relaxed);
+        OL_STATS_ADD(&current->stats.voluntary_yields, 1);
     }
 
     /* Save the current green thread's context. */
@@ -1959,8 +1952,7 @@ int ol_gt_join(ol_gt_t* gt) {
     }
 
     /* Update statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.total_destroyed, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.total_destroyed, 1);
 
     return 0;
 }
@@ -2011,8 +2003,7 @@ void ol_gt_destroy(ol_gt_t* gt) {
     ol_numa_free(gt, sizeof(ol_gt_t));
 
     /* Update statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.total_destroyed, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.total_destroyed, 1);
 }
 
 /**
@@ -2039,11 +2030,9 @@ int ol_gt_cancel(ol_gt_t* gt) {
     atomic_store_explicit(&gt->cancel_flag, true, memory_order_release);
 
     /* Update statistics */
-    atomic_fetch_add_explicit(
-        &g_global_stats.cancellation_requests, 1, memory_order_relaxed);
+    OL_STATS_ADD(&g_global_stats.cancellation_requests, 1);
     if (g_thread_scheduler && g_thread_scheduler->statistics_enabled) {
-        atomic_fetch_add_explicit(
-            &gt->stats.cancellation_requests, 1, memory_order_relaxed);
+        OL_STATS_ADD(&gt->stats.cancellation_requests, 1);
     }
 
     return 0;
@@ -2147,7 +2136,13 @@ int ol_gt_get_statistics(const ol_gt_t* gt, ol_gt_statistics_t* stats) {
                                                     memory_order_relaxed);
             if (usage > watermark) {
                 atomic_store_explicit(
-                    &gt->stack_watermark, usage, memory_order_relaxed);
+                    /* v1.3.3: gt is const, but the
+                     * watermark is a running maximum and
+                     * no other thread reads it while we
+                     * write. Cast away const at this single
+                     * site. */
+                    (_Atomic size_t*)&gt->stack_watermark,
+                    usage, memory_order_relaxed);
             }
             stats->peak_stack_usage = atomic_load_explicit(
                 &gt->stack_watermark, memory_order_relaxed);

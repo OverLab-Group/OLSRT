@@ -56,7 +56,9 @@ extern "C" {
 #if defined(__GNUC__) || defined(__clang__)
 #define OL_LIKELY(x) __builtin_expect(!!(x), 1)
 #define OL_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#ifndef OL_ALWAYS_INLINE
 #define OL_ALWAYS_INLINE __attribute__((always_inline)) inline
+#endif
 #define OL_NOINLINE __attribute__((noinline))
 #define OL_ALIGNED(x) __attribute__((aligned(x)))
 #define OL_PACKED __attribute__((packed))

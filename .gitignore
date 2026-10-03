@@ -18,6 +18,7 @@ PURGE*
 docu/
 run*
 *run.sh
+*.broken
 
 # CHANGEPart
 changepart.py
