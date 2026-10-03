@@ -186,7 +186,7 @@ static OL_ALIGNED(OL_CACHE_LINE_SIZE)
  * integer pointers on both compilers. Fields that are
  * already _Atomic (pool->hits, bucket->count, ...) keep the
  * C11 atomic functions. */
-#define OL_STATS_ADD(ptr, val) \
+#define OL_STATS_ADD(ptr, val)                                                 \
     __atomic_fetch_add((ptr), (val), __ATOMIC_RELAXED)
 
 static atomic_uintptr_t g_scheduler_list_head = 0;
@@ -1373,7 +1373,8 @@ static OL_NO_INLINE void* ol_gt_work_steal(void) {
                     /* Update statistics */
                     OL_STATS_ADD(&g_global_stats.work_stolen, 1);
                     if (g_thread_scheduler->statistics_enabled) {
-                        OL_STATS_ADD(&g_thread_scheduler->global_stats.work_stolen, 1);
+                        OL_STATS_ADD(
+                            &g_thread_scheduler->global_stats.work_stolen, 1);
                     }
                     return task;
                 }
@@ -1411,7 +1412,8 @@ static OL_FORCE_INLINE bool ol_gt_should_preempt(void) {
         OL_STATS_ADD(&g_global_stats.preemptive_yields, 1);
         if (g_thread_scheduler->statistics_enabled &&
             g_thread_scheduler->current) {
-            OL_STATS_ADD(&g_thread_scheduler->current->stats.preemptive_yields, 1);
+            OL_STATS_ADD(&g_thread_scheduler->current->stats.preemptive_yields,
+                         1);
         }
 
         return true;
@@ -2142,7 +2144,8 @@ int ol_gt_get_statistics(const ol_gt_t* gt, ol_gt_statistics_t* stats) {
                      * write. Cast away const at this single
                      * site. */
                     (_Atomic size_t*)&gt->stack_watermark,
-                    usage, memory_order_relaxed);
+                    usage,
+                    memory_order_relaxed);
             }
             stats->peak_stack_usage = atomic_load_explicit(
                 &gt->stack_watermark, memory_order_relaxed);
