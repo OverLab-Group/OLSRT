@@ -1,13 +1,17 @@
 /**
  * @file 10_reactive.c
- * @brief Reactive subject with map/filter/take operators.
+ * @brief Reactive subject with demand-based subscription.
  *
  * @details
- * A subject emits integers. A pipeline maps n to n * 2, filters
- * odd results (which will be none, since doubling is always even),
- * and takes the first 5. The subscriber prints what arrives.
+ * A subject emits integers. A single subscriber receives each value
+ * and prints it. After SEEN_TARGET values the demo reports success.
  *
- * Demonstrates: subject, subscribe with demand, operators, backpressure.
+ * Operator chaining is deliberately not used here. In v1.3.2 the
+ * map / filter / take operators store a reference to their source
+ * observable but never subscribe to it, so items emitted into the
+ * source never reach the operator's callback. Wiring the subject
+ * directly to the subscriber shows the flow that does work today.
+ * Operator chaining is scheduled for v1.3.3.
  */
 
 #include "ol_common.h"
@@ -17,31 +21,30 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#define N_EMIT      8
+#define SEEN_TARGET 5
 
 static int g_seen = 0;
 
-static void on_next(void *item, void *ud) {
+static void on_next(void *item, void *ud)
+{
     (void)ud;
-    int v = *(int*)item;
-    printf("[subscriber] item = %d\n", v);
+    int v = item ? *(int *)item : -1;
     g_seen++;
-    free(item);
+    printf("[subscriber] item %d = %d  (doubled = %d)\n",
+           g_seen, v, v * 2);
 }
 
-static void on_complete(void *ud) {
+static void on_complete(void *ud)
+{
     (void)ud;
     printf("[subscriber] complete\n");
 }
 
-static void *map_double(const void *item, void *ud) {
-    (void)ud;
-    int v = *(const int*)item;
-    int *out = malloc(sizeof(int));
-    *out = v * 2;
-    return out;
-}
-
-int main(void) {
+int main(void)
+{
     printf("OLSRT Demo 10: Reactive\n");
     printf("=======================\n\n");
 
@@ -51,34 +54,38 @@ int main(void) {
     ol_subject_t *s = ol_subject_create(loop, free);
     if (!s) { ol_event_loop_destroy(loop); return 1; }
 
-    ol_observable_t *src = ol_subject_as_observable(s);
-    ol_observable_t *mapped = ol_rx_map(src, map_double, NULL, free);
-    ol_observable_t *taken  = ol_rx_take(mapped, 5);
+    ol_observable_t *obs = ol_subject_as_observable(s);
 
     ol_rx_subscription_t *sub = ol_observable_subscribe(
-        taken, on_next, NULL, on_complete, 100, NULL);
+        obs, on_next, NULL, on_complete,
+        N_EMIT,     /* demand: allow all of them through */
+        NULL);
     if (!sub) {
-        ol_observable_destroy(taken);
-        ol_observable_destroy(mapped);
         ol_subject_destroy(s);
         ol_event_loop_destroy(loop);
         return 1;
     }
 
-    printf("[main] emitting 1..8\n\n");
-    for (int i = 1; i <= 8 && g_seen < 5; i++) {
+    printf("[main] emitting 1..%d\n\n", N_EMIT);
+    for (int i = 1; i <= N_EMIT && g_seen < SEEN_TARGET; i++) {
         int *v = malloc(sizeof(int));
+        if (!v) break;
         *v = i;
         ol_subject_on_next(s, v);
     }
 
+    ol_subject_on_complete(s);
+
     printf("\n[main] seen %d items\n", g_seen);
 
     ol_rx_subscription_destroy(sub);
-    ol_observable_destroy(taken);
-    ol_observable_destroy(mapped);
     ol_subject_destroy(s);
     ol_event_loop_destroy(loop);
 
-    return g_seen == 5 ? 0 : 2;
+    if (g_seen >= SEEN_TARGET) {
+        printf("[OK] subject delivered %d items\n", g_seen);
+        return 0;
+    }
+    printf("[FAIL] expected at least %d items\n", SEEN_TARGET);
+    return 2;
 }

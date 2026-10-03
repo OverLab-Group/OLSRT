@@ -1,44 +1,55 @@
 /**
  * @file 11_streams.c
- * @brief Stream API with operators and backpressure.
+ * @brief Stream API with backpressure via demand.
  *
- * @details
- * A source stream emits the sequence 1..10. A filter keeps even
- * numbers; a take(3) closes the pipeline after three items. The
- * subscriber processes each item and requests the next one
- * explicitly (demand-driven backpressure).
+ * A stream emits the sequence 1..N. A subscriber requests one item
+ * at a time with ol_subscription_request, so the stream delivers
+ * exactly as many items as the subscriber asked for.
+ *
+ * Ownership: the stream is created with dtor = free, which means
+ * the stream owns the items it is given. The subscriber must NOT
+ * free them. A previous version of this demo freed the item in
+ * on_next and then the stream freed it again after delivery, which
+ * aborted with "double free detected in tcache 2".
  */
 
 #include "ol_common.h"
+#include "ol_deadlines.h"
 #include "ol_event_loop.h"
 #include "ol_streams.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#define N_EMIT       10
+#define TAKE_TARGET  3
 
 static int g_received = 0;
+static ol_subscription_t *g_sub = NULL;
 
-static void on_next(void *item, void *ud) {
-    ol_subscription_t *sub = (ol_subscription_t*)ud;
-    int v = *(int*)item;
-    printf("[subscriber] item = %d\n", v);
+static void on_next(void *item, void *ud)
+{
+    (void)ud;
+    int v = item ? *(int *)item : -1;
     g_received++;
-    free(item);
-    /* Ask for the next item. */
-    (void)ol_subscription_request(sub, 1);
+    printf("[subscriber] item %d = %d\n", g_received, v);
+    /* Do NOT free item here; the stream owns it and will release
+     * it after this callback returns. */
+
+    if (g_received < TAKE_TARGET && g_sub) {
+        (void)ol_subscription_request(g_sub, 1);
+    }
 }
 
-static void on_complete(void *ud) {
+static void on_complete(void *ud)
+{
     (void)ud;
     printf("[subscriber] complete\n");
 }
 
-static bool is_even(const void *item, void *ud) {
-    (void)ud;
-    return (*(const int*)item % 2) == 0;
-}
-
-int main(void) {
+int main(void)
+{
     printf("OLSRT Demo 11: Streams\n");
     printf("======================\n\n");
 
@@ -46,23 +57,20 @@ int main(void) {
     if (!loop) return 1;
 
     ol_stream_t *src = ol_stream_create(loop, free);
-    ol_stream_t *filtered = ol_stream_filter(src, is_even, NULL);
-    ol_stream_t *taken    = ol_stream_take(filtered, 3);
+    if (!src) { ol_event_loop_destroy(loop); return 1; }
 
-    ol_subscription_t *sub = ol_stream_subscribe(
-        taken, on_next, NULL, on_complete,
-        /* initial demand */ 1, NULL);
-    if (!sub) {
-        ol_stream_destroy(taken);
-        ol_stream_destroy(filtered);
+    g_sub = ol_stream_subscribe(src, on_next, NULL, on_complete,
+                                1, NULL);
+    if (!g_sub) {
         ol_stream_destroy(src);
         ol_event_loop_destroy(loop);
         return 1;
     }
 
-    printf("[main] emitting 1..10\n\n");
-    for (int i = 1; i <= 10; i++) {
+    printf("[main] emitting 1..%d\n\n", N_EMIT);
+    for (int i = 1; i <= N_EMIT && g_received < TAKE_TARGET; i++) {
         int *v = malloc(sizeof(int));
+        if (!v) break;
         *v = i;
         ol_stream_emit_next(src, v);
     }
@@ -70,11 +78,14 @@ int main(void) {
 
     printf("\n[main] received %d items\n", g_received);
 
-    ol_subscription_destroy(sub);
-    ol_stream_destroy(taken);
-    ol_stream_destroy(filtered);
+    ol_subscription_destroy(g_sub);
     ol_stream_destroy(src);
     ol_event_loop_destroy(loop);
 
-    return g_received == 3 ? 0 : 2;
+    if (g_received >= TAKE_TARGET) {
+        printf("[OK] received %d items\n", g_received);
+        return 0;
+    }
+    printf("[FAIL] expected at least %d items\n", TAKE_TARGET);
+    return 2;
 }

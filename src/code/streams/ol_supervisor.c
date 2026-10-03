@@ -569,16 +569,18 @@ static void ol_supervisor_process_entry(ol_process_t* process, void* arg) {
         supervisor_process_events(supervisor);
 
         /* Check children status */
+        /* v1.3.2: detect crashes in the scan loop and restart the
+         * child directly. The previous code only enqueued a type-4
+         * event, and the type-4 handler was empty, so nothing ever
+         * counted the crash or brought the child back. */
         ol_mutex_lock(&supervisor->children_mutex);
 
         child_info_t* child = supervisor->children_list;
         while (child) {
-            /* Check if child needs restart */
             if (child->state & CHILD_STATE_CRASHED) {
-                /* Enqueue restart event */
-                supervisor_enqueue_event(supervisor, 4, child->id, NULL, 0);
+                supervisor->total_crashes++;
+                (void)supervisor_restart_child(supervisor, child);
             }
-
             child = child->next;
         }
 
@@ -727,7 +729,15 @@ ol_supervisor_t* ol_supervisor_create(const ol_supervisor_config_t* config) {
     supervisor->total_restarts = 0;
     supervisor->total_crashes = 0;
     supervisor->max_concurrent_children = 0;
-    supervisor->state = 0;
+    /* v1.3.2: start the driver thread with state already RUNNING.
+     * The previous version left state at 0 and relied on
+     * ol_supervisor_start to set it, but the process driver thread
+     * could run ol_supervisor_process_entry before start() was
+     * called. The entry's outer while loop read state once, saw 0,
+     * and returned. Nothing ever scanned the children for crashes
+     * after that. */
+    supervisor->state = SUPERVISOR_STATE_RUNNING;
+    supervisor->start_time = ol_monotonic_now_ns();
     supervisor->shutting_down = false;
 
     /* Create supervisor process */

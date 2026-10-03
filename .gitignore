@@ -81,3 +81,19 @@ demos/10_reactive
 demos/11_streams
 
 # Editor and session backups
+
+# Demo binaries
+demos/08_coroutines
+demos/09_supervisor
+demos/10_reactive
+demos/11_streams
+demos/12_semaphores
+demos/13_actor_supervisor
+demos/14_actor_channel
+demos/15_reactive_loop
+demos/16_full_stack
+
+# One-shot session scripts
+make_demos_12_16.py
+fix_*.py
+patch_*.py

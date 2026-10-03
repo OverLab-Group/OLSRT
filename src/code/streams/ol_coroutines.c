@@ -233,9 +233,23 @@ void* ol_co_join(ol_co_t* co) {
         return co->result;
     }
 
-    /* Join underlying green thread */
-    if (ol_gt_join(co->gt) != OL_SUCCESS) {
-        return NULL;
+    /* v1.3.2 fix: drive the green thread to completion from the
+     * caller's OS thread.
+     *
+     * ol_gt_join() calls ol_gt_yield() while waiting. When join is
+     * called from a thread that is not itself inside a green thread
+     * (the normal case for ol_co_join), ol_gt_yield() has no
+     * scheduler context to switch to and returns immediately, so
+     * the caller spins without ever running the coroutine it is
+     * waiting for. The demo hung.
+     *
+     * Resume the coroutine until it reaches a terminal state. */
+    int spins = 0;
+    while (ol_gt_is_alive(co->gt)) {
+        if (ol_gt_resume(co->gt) != OL_SUCCESS)
+            break;
+        if (++spins > 1000000)
+            break;
     }
 
     co->joined = true;

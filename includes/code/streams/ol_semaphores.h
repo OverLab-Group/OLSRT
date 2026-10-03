@@ -9,82 +9,35 @@
 extern "C" {
 #endif
 
-typedef struct ol_sem ol_sem_t;
-
-/* Initialize a counting semaphore with initial and maximum counts.
- * For standard semantics, set max_count >= initial and >0.
- */
-/**
- * @brief Initialize a counting semaphore.
+/*
+ * v1.3.2: ol_sem_t is a complete type.
  *
- * @param s         Semaphore to initialize.
- * @param initial   Initial count.
- * @param max_count Maximum count (must be >= initial and > 0).
- * @return 0 on success, -1 on error.
- * @see ol_sem_destroy
+ * The previous header declared it as an incomplete typedef while
+ * ol_sem_init asked the caller to provide storage. Callers had no
+ * way to know the struct size, so the type was unusable on the
+ * stack. The struct is now fully defined here; the implementation
+ * no longer redeclares it.
  */
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+typedef struct {
+    HANDLE       h;         /* Win32 semaphore handle */
+    unsigned int max_count; /* advisory upper bound */
+} ol_sem_t;
+#else
+#include <semaphore.h>
+typedef struct {
+    sem_t        sem;       /* POSIX counting semaphore */
+    unsigned int max_count; /* advisory upper bound */
+} ol_sem_t;
+#endif
 
 int ol_sem_init(ol_sem_t* s, unsigned int initial, unsigned int max_count);
-
-/* Destroy semaphore and release resources. */
-/**
- * @brief Destroy a semaphore.
- *
- * @param s Semaphore handle.
- * @return 0 on success, -1 on error.
- */
-
 int ol_sem_destroy(ol_sem_t* s);
-
-/* Increment (post) the semaphore by 1.
- * Returns 0 on success; -1 if already at max_count or error.
- */
-/**
- * @brief Increment the semaphore by one.
- *
- * @param s Semaphore handle.
- * @return 0 on success, -1 if the count is already at max_count or on
- *         error.
- */
-
 int ol_sem_post(ol_sem_t* s);
-
-/* Try to decrement (wait) without blocking.
- * Returns 1 if acquired, 0 if would-block, -1 on error.
- */
-/**
- * @brief Non-blocking decrement.
- *
- * @param s Semaphore handle.
- * @return 1 if acquired, 0 if would block, -1 on error.
- */
-
 int ol_sem_trywait(ol_sem_t* s);
-
-/* Decrement (wait) with absolute deadline in ns (monotonic).
- * deadline_ns <= 0 means infinite wait.
- * Returns 0 if acquired, -3 on timeout, -1 on error.
- */
-/**
- * @brief Decrement with an absolute deadline.
- *
- * @param s           Semaphore handle.
- * @param deadline_ns Absolute monotonic deadline in nanoseconds.
- *                    0 or negative means wait forever.
- * @return 0 on success, -3 on timeout, -1 on error.
- */
-
 int ol_sem_wait_until(ol_sem_t* s, int64_t deadline_ns);
-
-/* Get current count (best-effort, non-atomic snapshot). */
-/**
- * @brief Read the current count.
- *
- * @param s         Semaphore handle.
- * @param out_value Output: current count.
- * @return 0 on success, -1 on error.
- */
-
 int ol_sem_getvalue(ol_sem_t* s, int* out_value);
 
 #ifdef __cplusplus

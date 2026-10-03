@@ -557,6 +557,16 @@ ol_future_t* ol_tcp_socket_connect(ol_tcp_socket_t* s,
     s->pend_connect.promise = p;
     s->pend_connect.deadline_ns = deadline_ns;
     s->state = TCP_CONNECTING;
+
+    /* v1.3.2: arm write interest for the connect. The socket is
+     * registered with OL_POLL_IN only; without adding OL_POLL_OUT
+     * here the loop never observes the writable event that
+     * completes the connect. */
+    if (s->reg_id) {
+        (void)ol_event_loop_mod_io(s->loop, s->reg_id,
+                                   OL_POLL_IN | OL_POLL_OUT);
+    }
+
     ol_mutex_unlock(&s->mu);
 
     return f;
