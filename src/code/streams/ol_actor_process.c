@@ -37,6 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdatomic.h> /* v1.3.3: C11 atomics for state and exit reason */
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -431,8 +432,8 @@ static void ol_process_trampoline(void* arg) {
 
     /* Update process state to RUNNING */
     ol_mutex_lock(&process->state_mutex);
-    __atomic_store_n(
-        (uint32_t*)&process->state, OL_PROCESS_RUNNING, __ATOMIC_RELEASE);
+    atomic_store_explicit(
+        &process->state, OL_PROCESS_RUNNING, memory_order_release);
     process->start_time = ol_monotonic_now_ns();
     process->system_thread_id = OL_GET_TID();
     ol_mutex_unlock(&process->state_mutex);
@@ -441,7 +442,7 @@ static void ol_process_trampoline(void* arg) {
     bool trap_exit = (process->flags & OL_PROCESS_TRAP_EXIT) != 0;
 
     /* Main process loop */
-    while (__atomic_load_n((uint32_t*)&process->state, __ATOMIC_ACQUIRE) ==
+    while (atomic_load_explicit(&process->state, memory_order_acquire) ==
            OL_PROCESS_RUNNING) {
         /* Check for exit signals (unless trapping exits) */
         if (!trap_exit && process->exit_info.reason != OL_EXIT_NORMAL) {
@@ -475,8 +476,8 @@ static void ol_process_trampoline(void* arg) {
     ol_mutex_lock(&process->state_mutex);
 
     if (process->state == OL_PROCESS_RUNNING) {
-        __atomic_store_n(
-            (uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
+        atomic_store_explicit(
+            &process->state, OL_PROCESS_DONE, memory_order_release);
     }
 
     /* NOTE(v1.3.2): do NOT destroy the green thread from within
@@ -530,9 +531,8 @@ static void ol_process_send_exit(ol_process_t* process,
     }
 
     /* Set exit information */
-    __atomic_store_n((uint32_t*)&process->exit_info.reason,
-                     (uint32_t)reason,
-                     __ATOMIC_RELEASE);
+    atomic_store_explicit(
+        &process->exit_info.reason, reason, memory_order_release);
     process->exit_info.timestamp = ol_monotonic_now_ns();
 
     /* Copy exit data if provided */
@@ -550,16 +550,16 @@ static void ol_process_send_exit(ol_process_t* process,
     /* Update process state based on exit reason */
     switch (reason) {
     case OL_EXIT_NORMAL:
-        __atomic_store_n(
-            (uint32_t*)&process->state, OL_PROCESS_DONE, __ATOMIC_RELEASE);
+        atomic_store_explicit(
+            &process->state, OL_PROCESS_DONE, memory_order_release);
         break;
     case OL_EXIT_KILL:
-        __atomic_store_n(
-            (uint32_t*)&process->state, OL_PROCESS_KILLED, __ATOMIC_RELEASE);
+        atomic_store_explicit(
+            &process->state, OL_PROCESS_KILLED, memory_order_release);
         break;
     default:
-        __atomic_store_n(
-            (uint32_t*)&process->state, OL_PROCESS_CRASHED, __ATOMIC_RELEASE);
+        atomic_store_explicit(
+            &process->state, OL_PROCESS_CRASHED, memory_order_release);
         break;
     }
 
