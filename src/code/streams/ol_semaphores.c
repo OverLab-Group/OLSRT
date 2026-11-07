@@ -160,8 +160,8 @@ int ol_sem_wait_until(ol_sem_t* s, int64_t deadline_ns) {
     struct timespec mono_ts;
     if (clock_gettime(CLOCK_MONOTONIC, &mono_ts) != 0)
         return -1;
-    int64_t now_mono_ns = (int64_t)mono_ts.tv_sec * 1000000000LL
-                        + (int64_t)mono_ts.tv_nsec;
+    int64_t now_mono_ns =
+        (int64_t)mono_ts.tv_sec * 1000000000LL + (int64_t)mono_ts.tv_nsec;
 
     int64_t rel_ns = deadline_ns - now_mono_ns;
     if (rel_ns <= 0)
@@ -170,11 +170,11 @@ int ol_sem_wait_until(ol_sem_t* s, int64_t deadline_ns) {
     struct timespec real_ts;
     if (clock_gettime(CLOCK_REALTIME, &real_ts) != 0)
         return -1;
-    int64_t abs_real_ns = (int64_t)real_ts.tv_sec * 1000000000LL
-                        + (int64_t)real_ts.tv_nsec + rel_ns;
+    int64_t abs_real_ns = (int64_t)real_ts.tv_sec * 1000000000LL +
+                          (int64_t)real_ts.tv_nsec + rel_ns;
 
     struct timespec ts;
-    ts.tv_sec  = abs_real_ns / 1000000000LL;
+    ts.tv_sec = abs_real_ns / 1000000000LL;
     ts.tv_nsec = abs_real_ns % 1000000000LL;
 
     int r = sem_timedwait(&s->sem, &ts);
