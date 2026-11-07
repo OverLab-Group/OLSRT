@@ -6,6 +6,64 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.3] — 2026-11-08
+
+> **Bug-fix release.** Closes every P0 and P1 issue from the v1.3.2
+> post-mortem, plus a set of P2 cleanups. No public API changes.
+> All 23 CI tools report PASS. See `V1.3.3-REPORT.md` for the full
+> analysis.
+
+### Fixed
+
+#### Actor
+- **`ol_actor_reply_error` double-free.** Called `ol_promise_destroy`
+  twice on the same pointer. (P0)
+- **Startup handshake busy-poll.** Replaced the 1 ms `usleep` loop
+  with a condition variable. (P1)
+- **Missing wake in `ol_actor_start` / `_stop` / `_close`.** All
+  three now broadcast `state_cond`. (P1)
+- **State cond/mutex leaked in `ol_actor_destroy`.** (P1)
+- **`_Atomic` mixed with `__atomic_*` casts.** (P2)
+
+#### Process
+- **Same `_Atomic`/`__atomic_*` mixing in `ol_actor_process.c`.** (P2)
+
+#### Supervisor
+- **Non-atomic child-ID counter.** Could collide across supervisors. (P0)
+- **Restart race with crash scan.** Hold `children_mutex` across
+  the whole restart. (P1)
+- **`child_info_t` fields race (TSan).** Now `_Atomic`. (P2)
+- **`ol_supervisor_t` shared fields race (TSan).** Now `_Atomic`. (P2)
+
+#### Dataflow
+- **Multi-hop delivery broken.** Edge `next` pointer served two
+  different linked lists; the port-list wiring clobbered the
+  graph-list wiring. Split into `next` / `next_port`. (P0)
+- **Worker busy-spun when idle.** Now 1 ms `nanosleep`. (P0)
+
+#### Reactive
+- **`ol_subject` shallow-copied a `pthread_mutex_t`.** Undefined
+  behaviour. `ol_subject_t` is now a type alias for
+  `ol_observable_t`. (P1)
+
+#### Green threads
+- **Stack pool max bucket was 128 KB; default is 256 KB.** Extended
+  to 10 buckets up to 512 KB. (P2)
+- **`OL_PAGE_SIZE` data race.** Initialized once via
+  `__attribute__((constructor))`. (P2)
+- **Duplicate NUMA forward declarations on Apple.** (P2)
+
+#### Semaphores
+- **Missing doxygen for `ol_sem_*`.** (P2)
+
+### Verification
+- 46 fixes applied and verified
+- `tests/test_v133_fixes.c` — 30 assertions, 6 tests, all pass
+- ASan · UBSan · LSan · TSan all clean
+- `ci/run_all.py` — **23/23 PASS**
+
+---
+
 ## [1.3.2] — 2026-10-02
 
 > **Wave 2 — Production Ready.**
