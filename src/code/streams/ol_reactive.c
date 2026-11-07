@@ -41,10 +41,9 @@ struct ol_observable {
     ol_mutex_t mu;
 };
 
-struct ol_subject {
-    /* Subject is an observable that users drive via on_next/on_error/on_complete */
-    ol_observable_t base;
-};
+/* v1.3.3: struct ol_subject removed. ol_subject_t is an alias for
+ * ol_observable_t (see header), so no separate struct is needed.
+ */
 
 /* Utilities */
 
@@ -184,56 +183,17 @@ static ol_observable_t* observable_alloc(ol_event_loop_t* loop,
 
 ol_subject_t* ol_subject_create(ol_event_loop_t* loop,
                                 ol_item_destructor dtor) {
-    ol_subject_t* s = (ol_subject_t*)calloc(1, sizeof(ol_subject_t));
-    if (!s)
-        return NULL;
-    ol_observable_t* o = observable_alloc(loop, dtor);
-    if (!o) {
-        free(s);
-        return NULL;
-    }
-    /* Place observable storage inside subject object for single allocation if desired.
-     * Here we embed by copying; but to keep semantics correct, we keep subject as owning 'base'. */
-    s->base = *o;
-    free(o);
-    return s;
+    /* v1.3.3: direct return; no struct copy, no mutex duplication. */
+    return (ol_subject_t*)observable_alloc(loop, dtor);
 }
 
 void ol_subject_destroy(ol_subject_t* s) {
-    if (!s)
-        return;
-
-    ol_observable_t* o = &s->base;
-
-    ol_mutex_lock(&o->mu);
-    /* Unregister IO callback if present */
-    if (o->on_src_next == NULL && o->src_a == NULL && o->src_b == NULL &&
-        o->op.fd.fd > 0 && o->op.fd.reg_id != 0) {
-        (void)ol_event_loop_unregister(o->loop, o->op.fd.reg_id);
-        o->op.fd.reg_id = 0;
-    }
-    if (o->on_src_next && o->src_a && o->op.debounce.timer_id != 0) {
-        (void)ol_event_loop_unregister(o->loop, o->op.debounce.timer_id);
-        o->op.debounce.timer_id = 0;
-    }
-    /* Complete if not already */
-    if (o->state == RX_PENDING) {
-        o->state = RX_COMPLETE;
-        broadcast_complete(o);
-    } else if (o->state == RX_ERROR) {
-        broadcast_error(o, o->error_code);
-    }
-    q_clear(o);
-    for (ol_rx_subscription_t* sub = o->subs_head; sub; sub = sub->next)
-        sub->unsubscribed = true;
-    ol_mutex_unlock(&o->mu);
-
-    ol_mutex_destroy(&o->mu);
-    free(s);
+    /* v1.3.3: subjects and observables are the same object now. */
+    ol_observable_destroy((ol_observable_t*)s);
 }
 
 ol_observable_t* ol_subject_as_observable(ol_subject_t* s) {
-    return s ? &s->base : NULL;
+    return (ol_observable_t*)s;
 }
 
 ol_observable_t* ol_observable_create(ol_event_loop_t* loop,
@@ -276,7 +236,7 @@ void ol_observable_destroy(ol_observable_t* o) {
 int ol_subject_on_next(ol_subject_t* s, void* item) {
     if (!s)
         return -1;
-    ol_observable_t* o = &s->base;
+    ol_observable_t* o = (ol_observable_t*)s;
 
     /* Operator-wired? route through operator */
     if (o->on_src_next) {
@@ -320,7 +280,7 @@ int ol_subject_on_next(ol_subject_t* s, void* item) {
 int ol_subject_on_error(ol_subject_t* s, int error_code) {
     if (!s)
         return -1;
-    ol_observable_t* o = &s->base;
+    ol_observable_t* o = (ol_observable_t*)s;
     ol_mutex_lock(&o->mu);
     if (o->state != RX_PENDING) {
         ol_mutex_unlock(&o->mu);
@@ -337,7 +297,7 @@ int ol_subject_on_error(ol_subject_t* s, int error_code) {
 int ol_subject_on_complete(ol_subject_t* s) {
     if (!s)
         return -1;
-    ol_observable_t* o = &s->base;
+    ol_observable_t* o = (ol_observable_t*)s;
     ol_mutex_lock(&o->mu);
     if (o->state != RX_PENDING) {
         ol_mutex_unlock(&o->mu);
@@ -600,10 +560,13 @@ ol_rx_timer(ol_event_loop_t* loop, int64_t period_ns, size_t count) {
     if (!s)
         return NULL;
     ol_deadline_t first = ol_deadline_from_ns(period_ns);
-    uint64_t id = ol_event_loop_register_timer(
-        loop, first, (count == 1) ? 0 : period_ns, loop_cb_timer, &s->base);
+    uint64_t id = ol_event_loop_register_timer(loop,
+                                               first,
+                                               (count == 1) ? 0 : period_ns,
+                                               loop_cb_timer,
+                                               (ol_observable_t*)s);
     (void)id;
-    return &s->base;
+    return (ol_observable_t*)s;
 }
 
 /* IO source */
@@ -614,17 +577,17 @@ ol_observable_t* ol_rx_from_fd(ol_event_loop_t* loop, int fd, uint32_t mask) {
     if (!s)
         return NULL;
 
-    uint64_t id =
-        ol_event_loop_register_io(loop, fd, mask, loop_cb_io, &s->base);
+    uint64_t id = ol_event_loop_register_io(
+        loop, fd, mask, loop_cb_io, (ol_observable_t*)s);
     if (id == 0) {
         ol_subject_destroy(s);
         return NULL;
     }
 
-    s->base.op.fd.fd = fd;
-    s->base.op.fd.mask = mask;
-    s->base.op.fd.reg_id = id;
-    return &s->base;
+    s->op.fd.fd = fd;
+    s->op.fd.mask = mask;
+    s->op.fd.reg_id = id;
+    return (ol_observable_t*)s;
 }
 
 /* Introspection */

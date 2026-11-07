@@ -71,7 +71,12 @@ typedef struct ol_subscription {
     struct ol_subscription* next;
 } ol_rx_subscription_t;
 
-typedef struct ol_subject ol_subject_t;
+/* v1.3.3: ol_subject_t is an alias for ol_observable_t. The previous
+ * implementation embedded an ol_observable_t inside struct ol_subject
+ * and copied it (including its mutex), which is undefined behaviour
+ * and fragile. Subjects are now observables with a producer-side API;
+ * no struct-level copy is performed. */
+typedef struct ol_observable ol_subject_t;
 
 /* Create a subject (hot observable) with optional item destructor for ownership. */
 /**
