@@ -10,7 +10,7 @@
  * ----------------------------------------------------- */
 #define OL_VERSION_MAJOR 1
 #define OL_VERSION_MINOR 3
-#define OL_VERSION_PATCH 2
+#define OL_VERSION_PATCH 3
 
 /* -----------------------------------------------------
  * Core runtime configuration
