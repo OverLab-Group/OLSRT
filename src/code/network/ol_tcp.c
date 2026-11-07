@@ -563,8 +563,8 @@ ol_future_t* ol_tcp_socket_connect(ol_tcp_socket_t* s,
      * here the loop never observes the writable event that
      * completes the connect. */
     if (s->reg_id) {
-        (void)ol_event_loop_mod_io(s->loop, s->reg_id,
-                                   OL_POLL_IN | OL_POLL_OUT);
+        (void)ol_event_loop_mod_io(
+            s->loop, s->reg_id, OL_POLL_IN | OL_POLL_OUT);
     }
 
     ol_mutex_unlock(&s->mu);
