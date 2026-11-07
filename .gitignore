@@ -97,3 +97,4 @@ demos/16_full_stack
 make_demos_12_16.py
 fix_*.py
 patch_*.py
+*.crdownload
