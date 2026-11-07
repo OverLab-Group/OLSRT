@@ -1,0 +1,45 @@
+# Makefile.v133 — build and run the v1.3.3 regression suite.
+#
+# Separate from the project's main Makefile so that `make linux`,
+# `make all-platforms`, etc. keep working unchanged.
+#
+# Usage (from project root):
+#   make -C demos                 # build libolsrt.so once
+#   make -f Makefile.v133 run     # build and run the test
+#   make -f Makefile.v133 clean
+
+CC      ?= cc
+CFLAGS  := -std=gnu11 -O1 -g -Wall -Wextra \
+           -Wno-unused-parameter -D_GNU_SOURCE
+
+INCLUDES := -Iincludes \
+            -Iincludes/code \
+            -Iincludes/code/streams \
+            -Iincludes/code/network \
+            -Iincludes/runtime
+
+LDLIBS  := -Ldemos -lolsrt "-Wl,-rpath,$(CURDIR)/demos" \
+           -lpthread -lrt -ldl -lnuma
+
+BIN  := test_v133_fixes
+SRC  := tests/test_v133_fixes.c
+
+.PHONY: all run clean
+
+all: $(BIN)
+
+$(BIN): $(SRC) demos/libolsrt.so
+	$(CC) $(CFLAGS) $(INCLUDES) $< $(LDLIBS) -o $@
+
+demos/libolsrt.so:
+	@echo "error: demos/libolsrt.so not found." >&2
+	@echo "       Run: make -C demos" >&2
+	@exit 1
+
+run: $(BIN)
+	./$(BIN)
+
+clean:
+	rm -f $(BIN)
+
+# END OF FILE Makefile.v133
