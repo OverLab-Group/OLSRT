@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdatomic.h> /* v1.3.3: atomic child ID counter */
 
 /* ==================== Internal Constants ==================== */
 
@@ -51,13 +52,24 @@ typedef struct child_info {
     ol_process_t* process; /**< Child process */
     ol_child_spec_t spec;  /**< Child specification */
 
-    /* State tracking */
-    volatile uint32_t state;    /**< Child state flags */
-    int exit_status;            /**< Last exit status */
-    int restart_count;          /**< Number of restarts */
-    uint64_t start_time;        /**< Start timestamp */
-    uint64_t last_restart_time; /**< Last restart timestamp */
-    uint64_t last_crash_time;   /**< Last crash timestamp */
+    /* State tracking.
+     * v1.3.3 P2-20: these fields are written by the child's own
+     * process thread and read concurrently by the supervisor's
+     * crash scan and public status API. Making them _Atomic makes
+     * every existing access (`child->state = X`,
+     * `child->state |= FLAG`, plain reads, `child->restart_count++`)
+     * atomic without any other code change. This clears the TSan
+     * data race at supervisor_child_process_entry line 211.
+     *
+     * volatile was insufficient: it stops compiler reordering but
+     * does not prevent CPU-level torn reads on weakly-ordered
+     * architectures, and does not satisfy C11's data-race rules. */
+    _Atomic uint32_t state;             /**< Child state flags */
+    _Atomic int exit_status;            /**< Last exit status */
+    _Atomic int restart_count;          /**< Number of restarts */
+    _Atomic uint64_t start_time;        /**< Start timestamp */
+    _Atomic uint64_t last_restart_time; /**< Last restart timestamp */
+    _Atomic uint64_t last_crash_time;   /**< Last crash timestamp */
 
     /* Performance metrics */
     uint64_t total_uptime_ms;     /**< Total uptime */
@@ -101,18 +113,22 @@ struct ol_supervisor {
     ol_process_t* process;         /**< Supervisor process */
     ol_supervisor_config_t config; /**< Supervisor configuration */
 
-    /* Child management */
+    /* Child management (v1.3.3 P2-21: child_count is _Atomic because
+     * it is written under children_mutex but read by
+     * ol_supervisor_get_stats without the mutex.) */
     child_info_t* children_list; /**< Doubly-linked list of children */
     child_info_t* children_tail; /**< Tail of list for fast append */
-    size_t child_count;          /**< Number of children */
+    _Atomic size_t child_count;  /**< Number of children */
 
     /* Fast child lookup */
     ol_hashmap_t* child_id_map;  /**< Hashmap for ID -> child lookup */
     ol_hashmap_t* child_pid_map; /**< Hashmap for PID -> child lookup */
 
-    /* Restart tracking */
-    uint64_t restart_window_start; /**< Start of restart window */
-    int restart_count_in_window;   /**< Restarts in current window */
+    /* Restart tracking (v1.3.3 P2-21: _Atomic — written by
+     * supervisor_can_restart under children_mutex, read by
+     * ol_supervisor_set_max_restarts and get_stats without lock.) */
+    _Atomic uint64_t restart_window_start; /**< Start of restart window */
+    _Atomic int restart_count_in_window;   /**< Restarts in current window */
 
     /* Event processing */
     supervisor_event_t* event_queue; /**< Circular event queue */
@@ -125,18 +141,22 @@ struct ol_supervisor {
     ol_mutex_t event_mutex;    /**< Protects event queue */
     ol_cond_t event_cond;      /**< Condition for event processing */
 
-    /* Statistics */
-    uint64_t start_time;              /**< Supervisor start time */
-    uint64_t total_restarts;          /**< Total restarts performed */
-    uint64_t total_crashes;           /**< Total child crashes */
-    uint64_t max_concurrent_children; /**< Peak child count */
+    /* Statistics (v1.3.3 P2-21: _Atomic — written by the supervisor
+     * process thread, read by ol_supervisor_get_stats from any thread
+     * without a lock.) */
+    _Atomic uint64_t start_time;
+    _Atomic uint64_t total_restarts;
+    _Atomic uint64_t total_crashes;
+    _Atomic uint64_t max_concurrent_children;
 
     /* Memory management */
     ol_arena_t* child_arena; /**< Arena for child structures */
 
-    /* State flags */
-    volatile uint32_t state; /**< Supervisor state */
-    bool shutting_down;      /**< Shutdown in progress */
+    /* State flags (v1.3.3 P2-21: _Atomic — written by the supervisor
+     * process thread and by ol_supervisor_stop, read from multiple
+     * threads without a lock.) */
+    _Atomic uint32_t state;
+    _Atomic bool shutting_down;
 };
 
 /* Supervisor state flags */
@@ -881,8 +901,9 @@ uint32_t ol_supervisor_add_child(ol_supervisor_t* supervisor,
         return 0;
     }
 
-    static uint32_t next_child_id = 1;
-    uint32_t child_id = next_child_id++;
+    static _Atomic uint32_t next_child_id = 1;
+    uint32_t child_id =
+        atomic_fetch_add_explicit(&next_child_id, 1, memory_order_relaxed);
 
     /* Create child info */
     child_info_t* child =
@@ -950,18 +971,21 @@ int ol_supervisor_restart_child(ol_supervisor_t* supervisor,
         return -1;
     }
 
-    /* Find child */
+    /* v1.3.3: hold the children mutex across the whole restart so
+     * concurrent public calls and the supervisor crash scan cannot
+     * race on child->process. */
     ol_mutex_lock(&supervisor->children_mutex);
+
     child_info_t* child = (child_info_t*)ol_hashmap_get(
         supervisor->child_id_map, &child_id, sizeof(uint32_t));
-    ol_mutex_unlock(&supervisor->children_mutex);
-
     if (!child) {
+        ol_mutex_unlock(&supervisor->children_mutex);
         return -1;
     }
 
-    /* Restart child */
-    return supervisor_restart_child(supervisor, child);
+    int rc = supervisor_restart_child(supervisor, child);
+    ol_mutex_unlock(&supervisor->children_mutex);
+    return rc;
 }
 
 int ol_supervisor_get_child_status(ol_supervisor_t* supervisor,
