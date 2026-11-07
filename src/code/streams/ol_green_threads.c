@@ -85,17 +85,8 @@
 #include <sys/param.h>
 #include <sys/sysctl.h>
 
-/* These helpers are defined later in this file but used earlier by
- * ol_work_stealing_queue_init and ol_stack_pool_*. They are static
- * (file-local); the public header does not expose them. Declaring them
- * here prevents the compiler's implicit `extern int f()` assumption,
- * which would otherwise conflict with the actual `static void* f(...)`
- * definitions further down. */
-static OL_NO_INLINE void*
-ol_numa_alloc(size_t size, size_t alignment, int numa_node);
-static OL_NO_INLINE void ol_numa_free(void* ptr, size_t size);
-static OL_FORCE_INLINE int ol_get_current_numa_node(void);
-static OL_FORCE_INLINE int ol_get_numa_cpu_count(int numa_node);
+/* v1.3.3: duplicate NUMA forward declarations removed. The
+ * unconditional block further down is the single source of truth. */
 
 #define OL_NUMA_AVAILABLE 0 /* macOS has no NUMA support */
 #else
@@ -156,9 +147,11 @@ static const size_t OL_MAX_WORK_STEALING_QUEUE_SIZE = 1024;
 /**
  * @brief Stack pool bucket sizes (1KB, 2KB, 4KB, 8KB, 16KB, 32KB, 64KB, 128KB)
  */
-static const size_t OL_STACK_POOL_BUCKET_SIZES[8] = { 1024,  2048,  4096,
-                                                      8192,  16384, 32768,
-                                                      65536, 131072 };
+/* v1.3.3: extended to 10 entries (up to 512 KB) so 256 KB default
+ * stacks are served from the pool instead of mmap. */
+static const size_t OL_STACK_POOL_BUCKET_SIZES[10] = {
+    1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288
+};
 
 /* ==================== Thread-Local Scheduler Instance ==================== */
 
@@ -936,8 +929,8 @@ static OL_FORCE_INLINE int ol_stack_pool_init(ol_stack_pool_t* pool) {
 
     memset(pool, 0, sizeof(*pool));
 
-    /* Initialize each bucket */
-    for (int i = 0; i < 8; i++) {
+    /* Initialize each bucket (v1.3.3: 10 buckets) */
+    for (int i = 0; i < 10; i++) {
         ol_stack_bucket_t* bucket = &pool->buckets[i];
         bucket->stack_size = OL_STACK_POOL_BUCKET_SIZES[i];
         bucket->capacity = 1024; /* Initial capacity */
@@ -975,8 +968,8 @@ static OL_FORCE_INLINE void ol_stack_pool_destroy(ol_stack_pool_t* pool) {
     if (!pool)
         return;
 
-    /* Free all stacks in all buckets */
-    for (int i = 0; i < 8; i++) {
+    /* Free all stacks in all buckets (v1.3.3: 10 buckets) */
+    for (int i = 0; i < 10; i++) {
         ol_stack_bucket_t* bucket = &pool->buckets[i];
 
         if (bucket->stacks) {
@@ -1006,7 +999,7 @@ static OL_FORCE_INLINE void ol_stack_pool_destroy(ol_stack_pool_t* pool) {
  * @brief Find appropriate bucket for stack size
  */
 static OL_FORCE_INLINE int ol_stack_pool_find_bucket(size_t stack_size) {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         if (OL_STACK_POOL_BUCKET_SIZES[i] >= stack_size) {
             return i;
         }
@@ -1474,20 +1467,41 @@ static OL_NO_INLINE ol_gt_t* ol_gt_scheduler_select_next(void) {
  *       threads directly must call it explicitly.
  * @see ol_gt_scheduler_shutdown, ol_gt_spawn, ol_gt_run_to_completion
  */
-int ol_gt_scheduler_init(void) {
-    /* Initialize page size */
+/* v1.3.3 fix P2-18: initialize OL_PAGE_SIZE exactly once, before
+ * any threads are created.
+ *
+ * Before this fix, every caller of ol_gt_scheduler_init() wrote the
+ * global OL_PAGE_SIZE. With the v1.3.3 actor scheduler, multiple
+ * driver threads call ol_gt_scheduler_init() concurrently (one per
+ * actor), producing a TSan-visible data race between the write here
+ * and the reads in ol_stack_pool_allocate() / _free() / _destroy().
+ *
+ * The constructor runs once at library load, before main() and
+ * before any pthread_create(). After that, OL_PAGE_SIZE is
+ * read-only, and no race is possible.
+ *
+ * Compilers without __attribute__((constructor)) fall back to the
+ * hardcoded 4096, which is correct on x86_64 Linux, Windows, and
+ * BSD (all 4 KB pages). macOS ARM64 uses 16 KB pages; use GCC or
+ * Clang to build for that target. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((constructor)) static void ol_init_page_size_ctor(void) {
 #if OL_PLATFORM_POSIX
-    OL_PAGE_SIZE = (size_t)sysconf(_SC_PAGESIZE);
-    if (OL_PAGE_SIZE == 0) {
-        OL_PAGE_SIZE = 4096;
-    }
+    long ps = sysconf(_SC_PAGESIZE);
+    if (ps > 0)
+        OL_PAGE_SIZE = (size_t)ps;
 #elif OL_PLATFORM_WINDOWS
-    SYSTEM_INFO sys_info;
-    GetSystemInfo(&sys_info);
-    OL_PAGE_SIZE = sys_info.dwPageSize;
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    if (si.dwPageSize > 0)
+        OL_PAGE_SIZE = (size_t)si.dwPageSize;
+#endif
+}
 #endif
 
-    /* Initialize thread-local scheduler */
+int ol_gt_scheduler_init(void) {
+    /* v1.3.3: OL_PAGE_SIZE initialized once by ol_init_page_size_ctor.
+     * No write here. */
     return ol_gt_scheduler_init_thread_local();
 }
 

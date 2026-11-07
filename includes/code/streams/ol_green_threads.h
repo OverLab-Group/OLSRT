@@ -479,8 +479,11 @@ typedef struct ol_stack_bucket {
  * The previous padding formula (64 - (8*sizeof(bucket) + 4*sizeof(u64)))
  * evaluates negative on 64-bit hosts; use a fixed positive size and rely
  * on the struct's cache-line alignment for false-sharing avoidance. */
+/* v1.3.3: 10 buckets so the default 256 KB stack fits in the pool.
+ * Previously the max bucket was 128 KB, so every default green thread
+ * allocated from the OS instead of the pool. */
 struct ol_stack_pool {
-    ol_stack_bucket_t buckets[8];
+    ol_stack_bucket_t buckets[10];
     atomic_uint_fast64_t hits;
     atomic_uint_fast64_t misses;
     atomic_uint_fast64_t allocations;
