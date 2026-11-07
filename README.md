@@ -2,6 +2,11 @@
 
 # ⚡ OLSRT — OverLab Streams Runtime
 
+
+
+> **v1.3.3 released.** 46 bugs fixed. All 23 CI tools PASS.
+> See [`V1.3.3-REPORT.md`](V1.3.3-REPORT.md) for the full analysis
+> and [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for the release notes.
 [![Made with C](https://img.shields.io/badge/Made%20with-C-blue.svg)](https://en.wikipedia.org/wiki/C_(programming_language))
 [![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20BSD-8A2BE2.svg)](#build-status)
 [![License](https://img.shields.io/badge/License-Apache%202.0-black.svg)](#license)
