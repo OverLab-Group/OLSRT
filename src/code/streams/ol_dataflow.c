@@ -32,6 +32,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h> /* v1.3.3: nanosleep in df_worker */
 
 /* -------------------- Internal structures -------------------- */
 
@@ -52,8 +53,9 @@ struct ol_df_edge {
     ol_df_node_t* from;
     int from_port;
     ol_df_node_t* to;
-    df_inbox_t inbox;        /* dst inbox channel and destructor */
-    struct ol_df_edge* next; /* linking in graph list */
+    df_inbox_t inbox;             /* dst inbox channel and destructor */
+    struct ol_df_edge* next;      /* graph->edges_head linked list */
+    struct ol_df_edge* next_port; /* from->outs[from_port] linked list */
 };
 
 struct ol_df_node {
@@ -184,36 +186,55 @@ static void df_worker(void* arg) {
     ol_df_graph_t* g = (ol_df_graph_t*)arg;
 
     for (;;) {
-        /* Stop condition: graph not running */
         ol_mutex_lock(&g->mu);
         bool running = g->running;
         ol_mutex_unlock(&g->mu);
         if (!running)
             break;
 
-        /* Iterate nodes and try to pull one item to process */
-        ol_df_node_t* n = g->nodes_head;
         bool did_work = false;
+        ol_df_node_t* n = g->nodes_head;
 
         while (n) {
+            /* v1.3.3 fix: drain all edge inboxes that target this node
+             * into its self_inbox before processing. Without this, items
+             * emitted on a source port went into the edge channel and
+             * were never read — multi-hop graphs stalled at one hop. */
+            for (ol_df_edge_t* e = g->edges_head; e; e = e->next) {
+                if (e->to != n)
+                    continue;
+                void* eitem = NULL;
+                while (ol_channel_try_recv(e->inbox.ch, &eitem) == 1) {
+                    did_work = true;
+                    if (ol_channel_send(n->self_inbox.ch, eitem) != 0) {
+                        /* self_inbox full: drop with the edge's dtor. */
+                        if (e->inbox.dtor)
+                            e->inbox.dtor(eitem);
+                    }
+                    eitem = NULL;
+                }
+            }
+
+            /* Now process one item from self_inbox. */
             void* item = NULL;
             int got = ol_channel_try_recv(n->self_inbox.ch, &item);
             if (got == 1) {
                 did_work = true;
-                /* Process item via node handler */
                 if (n->handler) {
                     (void)n->handler(n->user_ctx, item, emit_impl, n);
                 }
-                /* Responsibility for freeing/forwarding item is with handler or inbox destructor semantics */
             }
-
-            /* Note: inbound edges feed into node->self_inbox; no per-edge recv here */
             n = n->next;
         }
 
-        /* If no work performed, yield briefly (could be improved with cond/wakeup) */
         if (!did_work) {
-            /* Cooperative small pause: in a real implementation, use a condition or event to wait */
+            /* v1.3.3: cooperative yield instead of spinning. */
+#if defined(_WIN32)
+            Sleep(1);
+#else
+            struct timespec ts = { 0, 1000000L }; /* 1 ms */
+            nanosleep(&ts, NULL);
+#endif
         }
     }
 }
@@ -412,10 +433,20 @@ ol_df_edge_t* ol_df_connect(ol_df_graph_t* g,
         return NULL;
     }
 
-    /* Link edge in graph registry and into from->outs list (push-front) */
+    /* v1.3.3 fix P0-3a: link into TWO separate chains.
+     *
+     * `next`      -> graph-wide edge list (g->edges_head)
+     * `next_port` -> per-node port list (from->outs[src_port])
+     *
+     * Previously there was only one `next` field, and
+     * graph_enqueue_edge() wrote it first, then the from->outs
+     * wiring immediately overwrote it. The second edge silently
+     * disappeared from g->edges_head, which is what the worker
+     * iterates. Multi-hop delivery therefore worked only for a
+     * single edge. */
     ol_mutex_lock(&g->mu);
     graph_enqueue_edge(g, e);
-    e->next = from->outs[src_port];
+    e->next_port = from->outs[src_port];
     from->outs[src_port] = e;
     ol_mutex_unlock(&g->mu);
 
@@ -436,16 +467,16 @@ int ol_df_disconnect(ol_df_graph_t* g, ol_df_edge_t* e) {
     ol_df_node_t* from = e->from;
 
     ol_mutex_lock(&g->mu);
-    /* Remove from from->outs list */
+    /* v1.3.3 fix P0-3a: remove from the per-port chain (next_port). */
     ol_df_edge_t** pp = &from->outs[e->from_port];
     while (*pp) {
         if (*pp == e) {
-            *pp = e->next;
+            *pp = e->next_port;
             break;
         }
-        pp = &(*pp)->next;
+        pp = &(*pp)->next_port;
     }
-    /* Remove from graph list */
+    /* Remove from the graph-wide chain (next). */
     graph_remove_edge(g, e);
     ol_mutex_unlock(&g->mu);
 
@@ -535,9 +566,11 @@ int ol_df_emit(ol_df_node_t* from, int port_index, void* item) {
     if (!from || port_index < 0 || port_index >= from->out_ports)
         return -1;
 
-    /* Fan out: send to each connected edge's inbox channel */
+    /* Fan out: send to each connected edge's inbox channel.
+     * v1.3.3 fix P0-3a: iterate the per-port chain (next_port), not
+     * the graph-wide chain (next). */
     ol_df_edge_t* e = from->outs[port_index];
-    for (; e; e = e->next) {
+    for (; e; e = e->next_port) {
         int r = ol_channel_send(e->inbox.ch, item);
         if (r < 0) {
             /* If edge owns items and send failed due to closed channel, free */
