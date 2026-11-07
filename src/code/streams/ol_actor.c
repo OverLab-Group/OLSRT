@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdatomic.h> /* v1.3.3: C11 atomics for actor state */
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -182,6 +183,11 @@ struct ol_actor {
     /* Ask/Reply tracking */
     ol_hashmap_t* pending_asks; /**< Hashmap of pending ask requests */
     ol_mutex_t ask_mutex;       /**< Mutex for synchronizing ask map access */
+
+    /* v1.3.3: condition variable for state transitions. Replaces the
+     * 1 ms usleep busy-poll in the actor startup handshake. */
+    ol_mutex_t state_mutex;
+    ol_cond_t state_cond;
 
     /* Batched processing */
     void* batch_buffer
@@ -478,21 +484,23 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
     /* Set thread-local current actor for ol_actor_self(). */
     g_current_actor = actor;
 
-    /* v1.3.2: the actor loop must NOT start until the caller has
-     * invoked ol_actor_start(), which sets ACTOR_STATE_RUNNING.
-     * Waiting here preserves the v1.3.1 contract that an actor which
-     * has not been started does not consume messages, and it makes
-     * the ol_actor_create / ol_actor_start split meaningful. */
+    /* v1.3.3: wait for ol_actor_start() via a condition variable
+     * instead of a 1 ms usleep poll. Prevents N waiting actors from
+     * producing N CPU-waking threads. */
+    ol_mutex_lock(&actor->state_mutex);
+    uint32_t s;
     for (;;) {
-        uint32_t s =
-            __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
-        if (s & ACTOR_STATE_CLOSED) {
-            g_current_actor = NULL;
-            return;
-        }
-        if (s & ACTOR_STATE_RUNNING)
+        s = atomic_load_explicit(&actor->state, memory_order_acquire);
+        if (s & (ACTOR_STATE_CLOSED | ACTOR_STATE_RUNNING))
             break;
-        usleep(1000); /* 1 ms */
+        (void)ol_cond_wait_until(
+            &actor->state_cond, &actor->state_mutex, 0 /* infinite */);
+    }
+    ol_mutex_unlock(&actor->state_mutex);
+
+    if (s & ACTOR_STATE_CLOSED) {
+        g_current_actor = NULL;
+        return;
     }
 
     /* Main actor processing loop. State is re-read atomically each
@@ -501,8 +509,7 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
     void* batch[ACTOR_BATCH_SIZE];
 
     for (;;) {
-        uint32_t s =
-            __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
+        uint32_t s = atomic_load_explicit(&actor->state, memory_order_acquire);
         if (!(s & ACTOR_STATE_RUNNING) || (s & ACTOR_STATE_CLOSED)) {
             break;
         }
@@ -532,14 +539,14 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
                 int result = actor->behavior(actor, batch[i]);
 
                 if (result > 0) {
-                    __atomic_or_fetch((uint32_t*)&actor->state,
-                                      ACTOR_STATE_STOPPING,
-                                      __ATOMIC_ACQ_REL);
+                    atomic_fetch_or_explicit(&actor->state,
+                                             ACTOR_STATE_STOPPING,
+                                             memory_order_acq_rel);
                     break;
                 } else if (result < 0) {
-                    __atomic_or_fetch((uint32_t*)&actor->state,
-                                      ACTOR_STATE_CRASHED,
-                                      __ATOMIC_ACQ_REL);
+                    atomic_fetch_or_explicit(&actor->state,
+                                             ACTOR_STATE_CRASHED,
+                                             memory_order_acq_rel);
                     actor->exit_code = result;
                     break;
                 }
@@ -559,15 +566,15 @@ static void ol_actor_process_entry(ol_process_t* process, void* arg) {
                                     8;
         }
 
-        s = __atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE);
+        s = atomic_load_explicit(&actor->state, memory_order_acquire);
         if ((s & ACTOR_STATE_STOPPING) || (s & ACTOR_STATE_CRASHED) ||
             (s & ACTOR_STATE_CLOSED)) {
             break;
         }
     }
 
-    __atomic_or_fetch(
-        (uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_ACQ_REL);
+    atomic_fetch_or_explicit(
+        &actor->state, ACTOR_STATE_CLOSED, memory_order_acq_rel);
     g_current_actor = NULL;
 }
 
@@ -657,6 +664,17 @@ ol_actor_t* ol_actor_create(ol_parallel_pool_t* pool,
         return NULL;
     }
 
+    /* v1.3.3: state-transition synchronization. */
+    if (ol_mutex_init(&actor->state_mutex) != OL_SUCCESS ||
+        ol_cond_init(&actor->state_cond) != OL_SUCCESS) {
+        ol_mutex_destroy(&actor->ask_mutex);
+        ol_hashmap_destroy(actor->pending_asks);
+        actor_mailbox_destroy(actor->mailbox);
+        ol_arena_destroy(actor->private_arena);
+        free(actor);
+        return NULL;
+    }
+
     /* Create isolated process for actor execution */
     actor->process = ol_process_create(
         ol_actor_process_entry, actor, NULL, 0, ACTOR_DEFAULT_ARENA_SIZE);
@@ -689,19 +707,22 @@ int ol_actor_start(ol_actor_t* actor) {
         return -1;
     }
 
-    /* Check if already running */
-    if (actor->state & ACTOR_STATE_RUNNING) {
+    ol_mutex_lock(&actor->state_mutex);
+
+    uint32_t current =
+        atomic_load_explicit(&actor->state, memory_order_acquire);
+    if (current & ACTOR_STATE_RUNNING) {
+        ol_mutex_unlock(&actor->state_mutex);
         return 0;
     }
 
-    /* Start the process if not already alive */
-    if (!ol_process_is_alive(actor->process)) {
-        /* Note: In new architecture, processes auto-start on creation */
-        /* This check is for future compatibility */
-    }
+    atomic_store_explicit(
+        &actor->state, current | ACTOR_STATE_RUNNING, memory_order_release);
 
-    __atomic_store_n(
-        (uint32_t*)&actor->state, ACTOR_STATE_RUNNING, __ATOMIC_RELEASE);
+    /* v1.3.3: wake the process driver thread, which may be sleeping in
+     * the startup handshake. */
+    ol_cond_broadcast(&actor->state_cond);
+    ol_mutex_unlock(&actor->state_mutex);
     return 0;
 }
 
@@ -723,11 +744,15 @@ int ol_actor_stop(ol_actor_t* actor) {
         return -1;
     }
 
-    /* Set stopping flag to request graceful shutdown */
-    __atomic_or_fetch(
-        (uint32_t*)&actor->state, ACTOR_STATE_STOPPING, __ATOMIC_ACQ_REL);
+    atomic_fetch_or_explicit(
+        &actor->state, ACTOR_STATE_STOPPING, memory_order_acq_rel);
 
-    /* Wake up mailbox waiters so they can see the stop request */
+    /* v1.3.3: wake the startup handshake (in case actor_start was never
+     * called) and the mailbox waiter. */
+    ol_mutex_lock(&actor->state_mutex);
+    ol_cond_broadcast(&actor->state_cond);
+    ol_mutex_unlock(&actor->state_mutex);
+
     if (actor->mailbox) {
         ol_cond_signal(&actor->mailbox->not_empty);
     }
@@ -752,22 +777,16 @@ int ol_actor_close(ol_actor_t* actor) {
         return -1;
     }
 
-    /* v1.3.2: assign CLOSED directly rather than OR-ing it in.
-     * OR-ing leaves ACTOR_STATE_RUNNING set, so the actor main loop
-     * (while (actor->state & ACTOR_STATE_RUNNING)) never exits and
-     * the driver thread never returns. Assignment clears RUNNING as
-     * a side effect. The loop notices within at most one mailbox
-     * timeout (100 ms). */
-    __atomic_store_n(
-        (uint32_t*)&actor->state, ACTOR_STATE_CLOSED, __ATOMIC_RELEASE);
+    ol_mutex_lock(&actor->state_mutex);
+    atomic_store_explicit(
+        &actor->state, ACTOR_STATE_CLOSED, memory_order_release);
 
-    /* v1.3.2: wake the actor loop immediately. Without this, the loop
-     * would keep blocking in actor_mailbox_batch_recv() until its
-     * timeout expires (up to one second), delaying driver-thread
-     * shutdown. */
+    /* v1.3.3: wake the startup handshake so the driver thread does not
+     * wait for RUNNING after close has been called. */
+    ol_cond_broadcast(&actor->state_cond);
+    ol_mutex_unlock(&actor->state_mutex);
+
     if (actor->mailbox) {
-        /* Set the flag before broadcasting so that any waiter that
-         * wakes up sees it. */
         atomic_store_explicit(
             &actor->mailbox->closed, true, memory_order_release);
         ol_mutex_lock(&actor->mailbox->mutex);
@@ -775,7 +794,6 @@ int ol_actor_close(ol_actor_t* actor) {
         ol_mutex_unlock(&actor->mailbox->mutex);
     }
 
-    /* Destroy the isolated process */
     if (actor->process) {
         ol_process_destroy(actor->process, OL_EXIT_NORMAL);
         actor->process = NULL;
@@ -820,12 +838,14 @@ void ol_actor_destroy(ol_actor_t* actor) {
         actor->process = NULL;
     }
 
-    /* Wait for graceful shutdown with timeout */
+    /* Wait for graceful shutdown with timeout (v1.3.3: atomic read) */
     ol_deadline_t deadline = ol_deadline_from_ms(ACTOR_TIMEOUT_MS);
-    while (actor->state != ACTOR_STATE_CLOSED) {
-        if (ol_deadline_expired(deadline)) {
+    for (;;) {
+        uint32_t s = atomic_load_explicit(&actor->state, memory_order_acquire);
+        if (s == ACTOR_STATE_CLOSED)
             break;
-        }
+        if (ol_deadline_expired(deadline))
+            break;
 #if defined(_WIN32)
         Sleep(10);
 #else
@@ -834,6 +854,8 @@ void ol_actor_destroy(ol_actor_t* actor) {
     }
 
     /* Clean up resources in reverse creation order */
+    ol_cond_destroy(&actor->state_cond);
+    ol_mutex_destroy(&actor->state_mutex);
     ol_mutex_destroy(&actor->ask_mutex);
 
     if (actor->pending_asks) {
@@ -871,7 +893,7 @@ int ol_actor_send(ol_actor_t* actor, void* msg) {
     }
 
     /* Check if actor can receive messages */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+    if (atomic_load_explicit(&actor->state, memory_order_acquire) &
         (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
@@ -947,7 +969,7 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
     }
 
     /* Fast-path state check */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+    if (atomic_load_explicit(&actor->state, memory_order_acquire) &
         (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor)
             actor->msg_dtor(msg);
@@ -972,7 +994,7 @@ int ol_actor_send_timeout(ol_actor_t* actor, void* msg, uint32_t timeout_ms) {
         ol_mutex_lock(&actor->mailbox->mutex);
 
         /* Re-check state under lock (actor may have been closed) */
-        if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+        if (atomic_load_explicit(&actor->state, memory_order_acquire) &
             (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
             ol_mutex_unlock(&actor->mailbox->mutex);
             if (actor->msg_dtor)
@@ -1034,7 +1056,7 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
     }
 
     /* Check actor state */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+    if (atomic_load_explicit(&actor->state, memory_order_acquire) &
         (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         if (actor->msg_dtor) {
             actor->msg_dtor(msg);
@@ -1054,7 +1076,7 @@ int ol_actor_try_send(ol_actor_t* actor, void* msg) {
 
     /* Re-check state under the lock: the actor may have been closed
      * between the fast-path attempt and now. */
-    if (__atomic_load_n((uint32_t*)&actor->state, __ATOMIC_ACQUIRE) &
+    if (atomic_load_explicit(&actor->state, memory_order_acquire) &
         (ACTOR_STATE_CLOSED | ACTOR_STATE_CRASHED)) {
         ol_mutex_unlock(&actor->mailbox->mutex);
         if (actor->msg_dtor) {
@@ -1267,10 +1289,9 @@ void ol_actor_reply_error(ol_ask_envelope_t* envelope, int error_code) {
 
     ol_promise_reject(envelope->reply, error_code);
 
-    /* v1.3.2: release our reference after rejection. */
-    ol_promise_destroy(envelope->reply);
-
-    /* v1.3.2: release the promise after rejection (see reply_ok). */
+    /* v1.3.3 fix: the previous version called ol_promise_destroy
+     * twice, which is a double free. The first call already released
+     * the promise; the caller's future holds the other reference. */
     ol_promise_destroy(envelope->reply);
 
     /* Clean up envelope */
@@ -1306,7 +1327,9 @@ bool ol_actor_is_running(const ol_actor_t* actor) {
         return false;
     }
 
-    return (actor->state & ACTOR_STATE_RUNNING) != 0;
+    uint32_t s = atomic_load_explicit((_Atomic uint32_t*)&actor->state,
+                                      memory_order_acquire);
+    return (s & ACTOR_STATE_RUNNING) != 0;
 }
 
 /**
@@ -1484,9 +1507,9 @@ size_t ol_actor_process_batch(ol_actor_t* actor, size_t max_batch_size) {
         return 0;
     }
 
-    /* Enable batch mode flag */
-    uint32_t old_state = actor->state;
-    actor->state |= ACTOR_STATE_BATCH_MODE;
+    /* Enable batch mode flag (v1.3.3: atomic OR). */
+    uint32_t old_state = atomic_fetch_or_explicit(
+        &actor->state, ACTOR_STATE_BATCH_MODE, memory_order_acq_rel);
 
     /* Process batch with timing */
     uint64_t start_time = ol_monotonic_now_ns();
@@ -1501,8 +1524,12 @@ size_t ol_actor_process_batch(ol_actor_t* actor, size_t max_batch_size) {
     uint64_t end_time = ol_monotonic_now_ns();
     actor->processing_time_ns += (end_time - start_time);
 
-    /* Restore original state */
-    actor->state = old_state;
+    /* Restore original state (v1.3.3: atomic AND; preserves a
+     * concurrent CLOSED bit). */
+    if (!(old_state & ACTOR_STATE_BATCH_MODE)) {
+        atomic_fetch_and_explicit(
+            &actor->state, ~ACTOR_STATE_BATCH_MODE, memory_order_acq_rel);
+    }
 
     return batch_size;
 }
