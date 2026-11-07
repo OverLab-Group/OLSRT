@@ -98,3 +98,4 @@ make_demos_12_16.py
 fix_*.py
 patch_*.py
 *.crdownload
+test_v133_fixes
