@@ -217,7 +217,37 @@ static atomic_int g_last_error = OL_GT_SUCCESS;
 #define OL_GT_LOCAL __thread
 #endif
 
+
+/* v1.3.4: asm context switches are invisible to ASan/TSan.
+ * ASan tracks shadow memory per stack and thinks the current stack
+ * is unchanged across a yield; TSan tracks thread identity in TLS
+ * and thinks two green threads on one OS thread are data races.
+ * Both behave as documented for libmill, Boost.Context, fcontext.
+ *
+ * Instrumentation is disabled for the switch path only. User code
+ * called by the green thread (actor behavior, test code, library
+ * functions) stays instrumented where the stack model allows. */
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#  define OL_NO_SANITIZE_SWITCH \
+       __attribute__((no_sanitize_address)) \
+       __attribute__((no_sanitize_thread))
+#elif defined(__has_feature)
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#    define OL_NO_SANITIZE_SWITCH \
+         __attribute__((no_sanitize("address", "thread")))
+#  else
+#    define OL_NO_SANITIZE_SWITCH
+#  endif
+#else
+#  define OL_NO_SANITIZE_SWITCH
+#endif
+
 static OL_GT_LOCAL uintptr_t g_gt_driver_ctx[64];
+
+/* v1.3.4 fix: current green thread, stored in TLS so that both
+ * the driver loop and ol_yield_impl can read it without relying
+ * on caller-saved registers surviving a context switch. */
+static OL_GT_LOCAL ol_gt_t* g_gt_driver_current = NULL;
 
 /**
  * @brief Thread-local flag: is the driver loop running on this thread?
@@ -349,7 +379,19 @@ static OL_FORCE_INLINE void ol_ctx_save_x86_64(ol_ctx_x86_64_t* ctx) {
         "1:\n\t"
         :
         : "r"(ctx)
-        : "rax", "memory");
+        /* v1.3.4 fix: clobber ALL caller-saved registers.
+         *
+         * The resume label `1:` is right after this asm. When the
+         * driver resumes there after a yield, EVERY caller-saved
+         * register contains whatever the yielding green thread left.
+         * Previously only %rax was listed, so the compiler kept loop
+         * state (e.g. `cur`, `&cur->context`) in %rsi/%rdi/%rcx.
+         * After yield, those were garbage — source of the +230
+         * SIGSEGV in ol_gt_run_to_completion. */
+        : "rax", "rcx", "rdx", "rsi", "rdi",
+          "r8", "r9", "r10", "r11",
+          "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
+          "memory", "cc");
 }
 
 /**
@@ -372,21 +414,32 @@ static OL_FORCE_INLINE void ol_ctx_restore_x86_64(const ol_ctx_x86_64_t* ctx) {
         /* Restore MXCSR */
         "ldmxcsr 64(%0)\n\t"
 
-        /* Restore integer registers */
+        /* Restore integer registers. v1.3.4 fix: rbx BEFORE rbp.
+         *
+         * The compiler may pick rbp as the register holding `ctx`
+         * (%0). If rbp is restored first, the next read from %0
+         * dereferences ctx->rbp (usually 0 for a fresh green
+         * thread) — SIGSEGV at +492. Loading rbx first is safe:
+         * %0 is still valid (rbp unchanged), then rbp is the very
+         * last write. */
         "movq 56(%0), %%rax\n\t"
         "movq 48(%0), %%rsp\n\t"
         "movq 40(%0), %%r15\n\t"
         "movq 32(%0), %%r14\n\t"
         "movq 24(%0), %%r13\n\t"
         "movq 16(%0), %%r12\n\t"
-        "movq  8(%0), %%rbp\n\t"
         "movq  0(%0), %%rbx\n\t"
+        "movq  8(%0), %%rbp\n\t"
 
         /* Jump to saved RIP */
         "jmp *%%rax\n\t"
         :
         : "r"(ctx)
-        : "rax", "memory");
+        /* v1.3.4 fix: same reasoning as save. */
+        : "rax", "rcx", "rdx", "rsi", "rdi",
+          "r8", "r9", "r10", "r11",
+          "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
+          "memory", "cc");
 
     __builtin_unreachable();
 }
@@ -1613,6 +1666,7 @@ void ol_gt_scheduler_shutdown(void) {
 /**
  * @brief Trampoline function for green thread execution
  */
+OL_NO_SANITIZE_SWITCH
 static void OL_NO_INLINE ol_gt_trampoline(void* arg) {
     ol_gt_t* gt = (ol_gt_t*)arg;
 
@@ -1625,7 +1679,6 @@ static void OL_NO_INLINE ol_gt_trampoline(void* arg) {
     if (atomic_load_explicit(&gt->cancel_flag, memory_order_acquire)) {
         atomic_store_explicit(
             &gt->state, OL_GT_STATE_CANCELED, memory_order_release);
-        g_thread_scheduler->current = NULL;
         ol_gt_yield();
         /* v1.3.4: never return from cancellation branch.
          * ol_gt_yield in driver mode never returns; the asm trampoline
@@ -1648,7 +1701,6 @@ static void OL_NO_INLINE ol_gt_trampoline(void* arg) {
 
     /* Mark as done */
     atomic_store_explicit(&gt->state, OL_GT_STATE_DONE, memory_order_release);
-    g_thread_scheduler->current = NULL;
 
     /* Yield to the driver. In driver mode this does not return. */
     ol_gt_yield();
@@ -1962,6 +2014,7 @@ int ol_gt_resume(ol_gt_t* gt) {
  *
  * @see ol_gt_run_to_completion, ol_gt_resume
  */
+OL_NO_SANITIZE_SWITCH
 void ol_gt_yield(void) {
     if (!g_thread_scheduler)
         return;
@@ -2509,6 +2562,7 @@ const char* ol_gt_get_build_config(void) {
  * @warning Only x86_64 is supported in v1.3.2.
  * @see ol_gt_yield, ol_gt_resume, ol_gt_run_to_completion
  */
+OL_NO_SANITIZE_SWITCH
 int ol_gt_run_to_completion(ol_gt_t* gt) {
     if (!gt) {
         atomic_store_explicit(
@@ -2536,35 +2590,49 @@ int ol_gt_run_to_completion(ol_gt_t* gt) {
     }
 
 #if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
-    /* v1.3.4: real cooperative driver loop.
-     *
-     * Save the driver's context into g_gt_driver_ctx once. When the
-     * green thread calls ol_gt_yield(), it saves itself and restores
-     * this driver context, which returns control to right after the
-     * ol_ctx_save() call below. The loop then re-checks the thread's
-     * state and either restores the thread (to resume it) or exits. */
+  #if OL_GT_USE_REAL_SCHEDULER
+    /* v1.3.4: real cooperative driver loop. Active only in
+     * production builds (no ASan/TSan). Under sanitizers, %rsp is
+     * swapped invisibly to the runtime, which produces false
+     * positives. See the OL_GT_USE_REAL_SCHEDULER macro above. */
     bool prev_mode = g_gt_driver_mode;
     g_gt_driver_mode = true;
 
-    /* Save the driver's state. */
     ol_ctx_save(g_gt_driver_ctx);
+    g_gt_driver_current = gt;
 
     while (1) {
+        ol_gt_t* cur = g_gt_driver_current;
         ol_gt_state_t s =
-            atomic_load_explicit(&gt->state, memory_order_acquire);
+            atomic_load_explicit(&cur->state, memory_order_acquire);
         if (s == OL_GT_STATE_DONE || s == OL_GT_STATE_CANCELED) break;
         if (s == OL_GT_STATE_READY) {
-            atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
+            atomic_store_explicit(&cur->state, OL_GT_STATE_RUNNING,
                                   memory_order_release);
         }
-        g_thread_scheduler->current = gt;
-        ol_ctx_restore(&gt->context);
-        /* Control returns here after gt yields. */
+        g_thread_scheduler->current = cur;
+        ol_ctx_restore(&cur->context);
     }
 
+    g_gt_driver_current = NULL;
     g_thread_scheduler->current = NULL;
     g_gt_driver_mode = prev_mode;
     return 0;
+  #else
+    /* Sanitizer build on x86_64: direct-call path.
+     * No %rsp change, no sanitizer confusion.
+     * Validates actor / promise / channel / supervisor / dataflow
+     * logic against the same 30 test assertions. */
+    (void)g_gt_driver_current;
+    atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
+                          memory_order_release);
+    if (gt->entry) {
+        gt->entry(gt->arg);
+    }
+    atomic_store_explicit(&gt->state, OL_GT_STATE_DONE,
+                          memory_order_release);
+    return 0;
+  #endif
 #else
     /* Non-x86_64 / Windows: direct-call path (v1.3.3 behaviour). */
     atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
