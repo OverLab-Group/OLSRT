@@ -93,7 +93,7 @@ Four demos compare a primitive **both** runtimes ship.
 
 | # | Ratio | Verdict |
 |---|---|---|
-| **03 parallel** | 0.38 (this run) / 0.94 (previous run) | **Unstable.** Needs hyperfine before quoting. |
+| **03 parallel** | hyperfine 10-run: **1.18 ± 0.49** | **Parity.** Confidence interval (0.69–1.67) includes 1.0. Report as parity, not as a win. |
 | **04 timers** | 1.00 | **Parity.** Timer fires at the same wall-clock cadence. |
 | **12 semaphores** | 1.00 | **Parity.** Both wrap the OS semaphore. |
 | **07 HTTP** | ~0.29 (throughput ratio, libuv/OLSRT) | **libuv wins**, ~3.5× more req/s. |
