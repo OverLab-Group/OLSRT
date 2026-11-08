@@ -391,6 +391,86 @@ static OL_FORCE_INLINE void ol_ctx_restore_x86_64(const ol_ctx_x86_64_t* ctx) {
     __builtin_unreachable();
 }
 
+/* v1.3.4: asm trampoline and yield, used by the new driver loop.
+ *
+ * Both symbols are only defined on x86_64 POSIX. On other platforms
+ * the existing (buggy but compiling) v1.3.3 code stays in place. */
+#if OL_ARCH_X86_64
+
+/* New-thread entry point. Reads arg and fn from the stack that
+ * ol_ctx_make_x86_64 prepared, calls fn(arg) with SysV-aligned stack.
+ * fn is ol_gt_trampoline; arg is the ol_gt_t*. */
+__asm__(
+    ".text\n\t"
+    ".globl ol_gt_trampoline_asm\n\t"
+    ".hidden ol_gt_trampoline_asm\n\t"
+    ".type ol_gt_trampoline_asm, @function\n\t"
+    "ol_gt_trampoline_asm:\n\t"
+    "    movq 0(%rsp), %rdi\n\t"
+    "    movq 8(%rsp), %rax\n\t"
+    "    call *%rax\n\t"
+    "    ud2\n\t"
+    ".size ol_gt_trampoline_asm, .-ol_gt_trampoline_asm\n\t"
+);
+extern void ol_gt_trampoline_asm(void);
+
+/* Cooperative yield. Saves the caller's callee-saved state into rdi,
+ * restores rsi (the driver), and jumps to the driver's rip. When the
+ * driver later restores rdi, control returns to the asm "resume"
+ * label, which just `ret`s. */
+__asm__(
+    ".text\n\t"
+    ".globl ol_yield_impl\n\t"
+    ".hidden ol_yield_impl\n\t"
+    ".type ol_yield_impl, @function\n\t"
+    "ol_yield_impl:\n\t"
+    "    movq %rbx,   0(%rdi)\n\t"
+    "    movq %rbp,   8(%rdi)\n\t"
+    "    movq %r12,  16(%rdi)\n\t"
+    "    movq %r13,  24(%rdi)\n\t"
+    "    movq %r14,  32(%rdi)\n\t"
+    "    movq %r15,  40(%rdi)\n\t"
+    "    movq %rsp,  48(%rdi)\n\t"
+    "    leaq .Lol_yield_resume(%rip), %rax\n\t"
+    "    movq %rax,  56(%rdi)\n\t"
+    "    stmxcsr 64(%rdi)\n\t"
+    "    movdqu %xmm6,  72(%rdi)\n\t"
+    "    movdqu %xmm7,  88(%rdi)\n\t"
+    "    movdqu %xmm8, 104(%rdi)\n\t"
+    "    movdqu %xmm9, 120(%rdi)\n\t"
+    "    movdqu %xmm10, 136(%rdi)\n\t"
+    "    movdqu %xmm11, 152(%rdi)\n\t"
+    "    movdqu %xmm12, 168(%rdi)\n\t"
+    "    movdqu %xmm13, 184(%rdi)\n\t"
+    "    movdqu %xmm14, 200(%rdi)\n\t"
+    "    movdqu %xmm15, 216(%rdi)\n\t"
+    "    movdqu 216(%rsi), %xmm15\n\t"
+    "    movdqu 200(%rsi), %xmm14\n\t"
+    "    movdqu 184(%rsi), %xmm13\n\t"
+    "    movdqu 168(%rsi), %xmm12\n\t"
+    "    movdqu 152(%rsi), %xmm11\n\t"
+    "    movdqu 136(%rsi), %xmm10\n\t"
+    "    movdqu 120(%rsi), %xmm9\n\t"
+    "    movdqu 104(%rsi), %xmm8\n\t"
+    "    movdqu  88(%rsi), %xmm7\n\t"
+    "    movdqu  72(%rsi), %xmm6\n\t"
+    "    ldmxcsr 64(%rsi)\n\t"
+    "    movq 56(%rsi), %rax\n\t"
+    "    movq 48(%rsi), %rsp\n\t"
+    "    movq 40(%rsi), %r15\n\t"
+    "    movq 32(%rsi), %r14\n\t"
+    "    movq 24(%rsi), %r13\n\t"
+    "    movq 16(%rsi), %r12\n\t"
+    "    movq  8(%rsi), %rbp\n\t"
+    "    movq  0(%rsi), %rbx\n\t"
+    "    jmp *%rax\n\t"
+    ".Lol_yield_resume:\n\t"
+    "    ret\n\t"
+    ".size ol_yield_impl, .-ol_yield_impl\n\t"
+);
+extern void ol_yield_impl(void* save_to, void* restore_from);
+#endif /* OL_ARCH_X86_64 */
+
 /**
  * @brief Make new x86_64 context
  */
@@ -399,38 +479,24 @@ static OL_FORCE_INLINE void ol_ctx_make_x86_64(ol_ctx_x86_64_t* ctx,
                                                void* arg,
                                                void* stack_base,
                                                size_t stack_size) {
-    /* Clear context */
+    /* v1.3.4: proper SysV stack layout. When ol_ctx_restore jumps to
+     * ol_gt_trampoline_asm with rsp = top - 16 (16-aligned if top is),
+     * the asm reads:
+     *   [rsp + 0] = arg   (for fn's first argument)
+     *   [rsp + 8] = fn    (called via `call *%rax`)
+     * The call pushes a return address at top - 24, so fn enters with
+     * rsp = top - 24 (8 mod 16, standard SysV). */
     memset(ctx, 0, sizeof(*ctx));
-
-    /* Set MXCSR to default value */
     ctx->mxcsr = 0x1F80;
 
-    /* Calculate stack top (16-byte aligned) */
-    uintptr_t stack_top = (uintptr_t)stack_base + stack_size;
-    stack_top = (stack_top & ~0xF);
+    uintptr_t top = ((uintptr_t)stack_base + stack_size) & ~(uintptr_t)0xF;
+    uintptr_t* sp = (uintptr_t*)top;
+    sp[-1] = (uintptr_t)fn;
+    sp[-2] = (uintptr_t)arg;
 
-    /* Reserve space for return address */
-    stack_top -= sizeof(uintptr_t);
-
-    /* Set up stack for function call */
-    uintptr_t* stack = (uintptr_t*)stack_top;
-
-    /* Push argument */
-    stack -= 1;
-    *stack = (uintptr_t)arg;
-
-    /* Align stack to 16 bytes after pushing */
-    if (((uintptr_t)stack & 0xF) != 0) {
-        stack -= 1;
-        *stack = 0; /* Padding */
-    }
-
-    /* Set context registers */
-    ctx->rsp = (uintptr_t)stack;
-    ctx->rip = (uintptr_t)fn;
-
-    /* Save callee-saved registers */
-    ctx->rbx = (uintptr_t)arg;
+    ctx->rsp = top - 16;
+    ctx->rip = (uintptr_t)ol_gt_trampoline_asm;
+    ctx->rbx = 0;
     ctx->rbp = 0;
     ctx->r12 = 0;
     ctx->r13 = 0;
@@ -1561,7 +1627,11 @@ static void OL_NO_INLINE ol_gt_trampoline(void* arg) {
             &gt->state, OL_GT_STATE_CANCELED, memory_order_release);
         g_thread_scheduler->current = NULL;
         ol_gt_yield();
-        return;
+        /* v1.3.4: never return from cancellation branch.
+         * ol_gt_yield in driver mode never returns; the asm trampoline
+         * would `ud2` if we did, but __builtin_unreachable lets the
+         * compiler know this path terminates. */
+        __builtin_unreachable();
     }
 
     /* Update statistics */
@@ -1905,25 +1975,23 @@ void ol_gt_yield(void) {
         OL_STATS_ADD(&current->stats.voluntary_yields, 1);
     }
 
-    /* Save the current green thread's context. */
-    ol_ctx_save(&current->context);
-
-    if (g_gt_driver_mode) {
-        /* Return control to the driver loop. The driver will restore
-         * our context again when it decides to resume us. */
-        ol_ctx_restore(&g_gt_driver_ctx);
-    } else {
-        /* Legacy direct-switching path (no driver). */
-        ol_gt_t* next = ol_gt_scheduler_select_next();
-        if (next) {
-            g_thread_scheduler->current = next;
-            atomic_store_explicit(
-                &next->state, OL_GT_STATE_RUNNING, memory_order_release);
-            ol_ctx_restore(&next->context);
-        }
+    if (!g_gt_driver_mode) {
+        /* No driver: yield is a no-op (matches v1.3.3 semantics). */
+        return;
     }
 
-    g_thread_scheduler->current = current;
+#if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
+    /* v1.3.4: real cooperative yield via ol_yield_impl. Saves current
+     * into current->context, restores the driver, and returns cleanly
+     * when the driver later resumes us (via asm `ret` at
+     * .Lol_yield_resume). */
+    ol_yield_impl(&current->context, g_gt_driver_ctx);
+    /* Control returns here after the driver resumes us. */
+#else
+    /* Non-x86_64 POSIX / Windows: fall back to v1.3.3 behaviour. */
+    ol_ctx_save(&current->context);
+    ol_ctx_restore(&g_gt_driver_ctx);
+#endif
 }
 
 /**
@@ -2044,6 +2112,27 @@ int ol_gt_cancel(ol_gt_t* gt) {
     /* Set cancellation flag */
     atomic_store_explicit(&gt->cancel_requested, true, memory_order_release);
     atomic_store_explicit(&gt->cancel_flag, true, memory_order_release);
+
+    /* v1.3.3 fix P2-22: also transition to CANCELED.
+     *
+     * Before this fix, ol_gt_cancel only set the cancel flags. The
+     * state transition to CANCELED happened inside ol_gt_resume when
+     * it noticed the flag. But ol_gt_join does not call ol_gt_resume
+     * - it calls ol_gt_yield, which returns immediately on the main
+     * thread (g_thread_scheduler->current == NULL). So the join loop
+     * never observed a terminal state and hung.
+     *
+     * This is what froze demos/08_coroutines: the main thread cancels
+     * a coroutine that was queued but never run (no driver is draining
+     * the queue), then joins. With CANCELED set here, join returns. */
+    {
+        ol_gt_state_t prev = atomic_exchange_explicit(
+            &gt->state, OL_GT_STATE_CANCELED, memory_order_acq_rel);
+        if (prev == OL_GT_STATE_DONE) {
+            atomic_store_explicit(
+                &gt->state, OL_GT_STATE_DONE, memory_order_release);
+        }
+    }
 
     /* Update statistics */
     OL_STATS_ADD(&g_global_stats.cancellation_requests, 1);
@@ -2446,24 +2535,47 @@ int ol_gt_run_to_completion(ol_gt_t* gt) {
         }
     }
 
-    /* v1.3.2 workaround.
+#if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
+    /* v1.3.4: real cooperative driver loop.
      *
-     * The custom x86_64 context-switch assembly has an argument-passing
-     * bug: ol_ctx_make_x86_64 stores the entry argument in %rbx, but
-     * the SysV ABI passes it in %rdi. The trampoline therefore reads
-     * garbage as its `arg` and jumps to a random address. The bug was
-     * latent in v1.3.1 because no green thread was ever scheduled. For
-     * v1.3.2 we bypass the assembly entirely and run the entry function
-     * on the calling OS thread. A correct implementation of the context
-     * switch lands in v1.3.3. */
-    atomic_store_explicit(
-        &gt->state, OL_GT_STATE_RUNNING, memory_order_release);
+     * Save the driver's context into g_gt_driver_ctx once. When the
+     * green thread calls ol_gt_yield(), it saves itself and restores
+     * this driver context, which returns control to right after the
+     * ol_ctx_save() call below. The loop then re-checks the thread's
+     * state and either restores the thread (to resume it) or exits. */
+    bool prev_mode = g_gt_driver_mode;
+    g_gt_driver_mode = true;
+
+    /* Save the driver's state. */
+    ol_ctx_save(g_gt_driver_ctx);
+
+    while (1) {
+        ol_gt_state_t s =
+            atomic_load_explicit(&gt->state, memory_order_acquire);
+        if (s == OL_GT_STATE_DONE || s == OL_GT_STATE_CANCELED) break;
+        if (s == OL_GT_STATE_READY) {
+            atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
+                                  memory_order_release);
+        }
+        g_thread_scheduler->current = gt;
+        ol_ctx_restore(&gt->context);
+        /* Control returns here after gt yields. */
+    }
+
+    g_thread_scheduler->current = NULL;
+    g_gt_driver_mode = prev_mode;
+    return 0;
+#else
+    /* Non-x86_64 / Windows: direct-call path (v1.3.3 behaviour). */
+    atomic_store_explicit(&gt->state, OL_GT_STATE_RUNNING,
+                          memory_order_release);
     if (gt->entry) {
         gt->entry(gt->arg);
     }
-    atomic_store_explicit(&gt->state, OL_GT_STATE_DONE, memory_order_release);
-
+    atomic_store_explicit(&gt->state, OL_GT_STATE_DONE,
+                          memory_order_release);
     return 0;
+#endif
 }
 
 #ifdef OL_GT_DEBUG
