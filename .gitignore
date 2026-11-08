@@ -99,3 +99,8 @@ fix_*.py
 patch_*.py
 *.crdownload
 test_v133_fixes
+
+# Benchmark build artifacts
+demos/bench/olsrt/[0-9]*
+demos/bench/libuv/[0-9]*
+!*.c
