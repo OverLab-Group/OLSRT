@@ -108,3 +108,6 @@ demos/bench/libuv/[0-9]*
 # v1.3.4.1 artifacts
 demos/17_oroutines
 test_oroutines
+
+# Local version archives (use git tags instead)
+history/
