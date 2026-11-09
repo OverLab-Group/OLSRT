@@ -472,6 +472,9 @@ struct ol_gt {
     void* stack_base;
     void* stack_limit;
     size_t stack_size;
+    /* v1.3.5: sanitizer fiber tracking. Filled by
+     * __sanitizer_start_switch_fiber when this thread yields. */
+    void* sanitizer_fake_stack;
     atomic_size_t stack_watermark;
 
     /* Scheduling */

@@ -34,6 +34,28 @@
  */
 
 #include "ol_green_threads.h"
+
+/* v1.3.5: sanitizer fiber hooks. Weak symbols so non-sanitizer builds
+ * link without libasan/libtsan. When a sanitizer is active, the strong
+ * symbols in the runtime take precedence. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+void __sanitizer_start_switch_fiber(void** fake_stack_save,
+                                    const void* bottom, size_t size);
+__attribute__((weak))
+void __sanitizer_finish_switch_fiber(void* fake_stack_save,
+                                     const void** bottom_old,
+                                     size_t* size_old);
+#endif
+
+/* Per-OS-thread driver fiber tracking. The driver is the "main" fiber
+ * of a scheduler; its stack bounds and fake stack are captured on the
+ * first finish_switch_fiber call. */
+static OL_GT_LOCAL void*  g_driver_fake_stack    = NULL;
+static OL_GT_LOCAL void*  g_driver_stack_bottom  = NULL;
+static OL_GT_LOCAL size_t g_driver_stack_size    = 0;
+static OL_GT_LOCAL bool   g_driver_stack_known   = false;
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -249,7 +271,7 @@ static OL_GT_LOCAL uintptr_t g_gt_driver_ctx[64];
  * across the yield. TLS is addressed via %fs:offset, which the
  * kernel preserves per-thread across setjmp/longjmp/context switch.
  * Every read goes to memory, so no stale register can appear. */
-static OL_GT_LOCAL int      g_sched_completed = 0;
+static OL_GT_LOCAL volatile int      g_sched_completed = 0;
 static OL_GT_LOCAL ol_gt_t* g_sched_last      = NULL;
 
 
@@ -2034,7 +2056,19 @@ void ol_gt_yield(void) {
      * into current->context, restores the driver, and returns cleanly
      * when the driver later resumes us (via asm `ret` at
      * .Lol_yield_resume). */
-    ol_yield_impl(&current->context, g_gt_driver_ctx);
+    /* v1.3.5: tell sanitizer we are switching FROM current TO driver.
+         * Driver stack bounds are captured on first round; if not yet
+         * known, pass NULL/0 (sanitizer will fill them on return). */
+        __sanitizer_start_switch_fiber(
+            &current->sanitizer_fake_stack,
+            g_driver_stack_known ? g_driver_stack_bottom : NULL,
+            g_driver_stack_known ? g_driver_stack_size : 0);
+        ol_yield_impl(&current->context, g_gt_driver_ctx);
+        /* v1.3.5: we resumed. Finish the switch with our own fake
+         * stack (set by the driver's start_switch_fiber call when it
+         * restored us). */
+        __sanitizer_finish_switch_fiber(
+            current->sanitizer_fake_stack, NULL, NULL);
     /* Control returns here after the driver resumes us. */
 #else
     /* Non-x86_64 POSIX / Windows: fall back to v1.3.3 behaviour. */
@@ -2801,6 +2835,7 @@ void ol_gt_dump_thread_state(const ol_gt_t* gt) {
  * so their values survive the swap.
  */
 __attribute__((noinline))
+__attribute__((optimize("O1")))
 int ol_gt_scheduler_run(void) {
     if (!g_thread_scheduler && ol_gt_scheduler_init() != 0) {
         return -1;
@@ -2855,7 +2890,26 @@ int ol_gt_scheduler_run(void) {
                 &cur->state, OL_GT_STATE_RUNNING, memory_order_release);
         }
         g_thread_scheduler->current = cur;
+        /* v1.3.5: tell sanitizer about the upcoming stack switch.
+         * Target = green thread's stack. If we do not yet know the
+         * driver's stack bounds, NULL/0 lets the sanitizer record
+         * them on first finish. */
+        __sanitizer_start_switch_fiber(
+            &g_driver_fake_stack,
+            cur->stack_base, cur->stack_size);
         ol_ctx_restore(&cur->context);
+        /* v1.3.5: we resumed. Record driver stack bounds if not
+         * yet known (only the first call has g_driver_stack_known
+         * false; subsequent calls reuse the saved bounds). */
+        if (!g_driver_stack_known) {
+            __sanitizer_finish_switch_fiber(
+                g_driver_fake_stack,
+                (const void**)&g_driver_stack_bottom,
+                &g_driver_stack_size);
+            g_driver_stack_known = true;
+        } else {
+            __sanitizer_finish_switch_fiber(g_driver_fake_stack, NULL, NULL);
+        }
     }
 
     g_gt_driver_current = NULL;

@@ -47,10 +47,13 @@
 /**
  * @brief Child process tracking structure
  */
+struct ol_supervisor;
+
 typedef struct child_info {
     uint32_t id;           /**< Child ID */
     ol_process_t* process; /**< Child process */
     ol_child_spec_t spec;  /**< Child specification */
+    struct ol_supervisor* supervisor; /**< v1.3.5: back-pointer for exit signal */
 
     /* State tracking.
      * v1.3.3 P2-20: these fields are written by the child's own
@@ -186,6 +189,7 @@ static child_info_t* supervisor_create_child_info(const ol_child_spec_t* spec,
 
     child->id = child_id;
     child->spec = *spec;
+    child->supervisor = NULL;  /* set by supervisor_create_child_process */
     child->state = CHILD_STATE_INIT;
     child->exit_status = 0;
     child->restart_count = 0;
@@ -245,6 +249,18 @@ static void supervisor_child_process_entry(ol_process_t* process, void* arg) {
         child->crash_count++;
     }
 
+    /* v1.3.5: wake the supervisor. Thread-based SIGCHLD. The
+     * supervisor waits on event_cond with a 100 ms fallback timeout;
+     * this broadcast turns the poll into an event-driven wake. */
+    {
+        ol_supervisor_t* sup = (ol_supervisor_t*)child->supervisor;
+        if (sup) {
+            ol_mutex_lock(&sup->event_mutex);
+            ol_cond_broadcast(&sup->event_cond);
+            ol_mutex_unlock(&sup->event_mutex);
+        }
+    }
+
     /* Update uptime statistics */
     if (child->start_time > 0) {
         uint64_t uptime_ms =
@@ -260,6 +276,7 @@ supervisor_create_child_process(ol_supervisor_t* supervisor,
     if (!supervisor || !spec || !spec->fn || !child_info) {
         return NULL;
     }
+    child_info->supervisor = supervisor;
 
     /* Create child process with isolation.
      * NOTE: the process entry function has been hoisted to file scope
