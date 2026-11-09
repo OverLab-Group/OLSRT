@@ -6,6 +6,67 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.5] — 2026-11-09
+
+> **Sanitizer-ready scheduler + Supervisor 2.0.**
+
+### Fixed
+
+- **Scheduler counter.** `or_run` now returns the correct number
+  of completed oroutines. `g_sched_completed` is `volatile` (TLS),
+  and `ol_gt_scheduler_run` is compiled with `optimize("O1")`, so
+  GCC cannot cache the counter in a register across the context
+  switch. This is the real fix for the four `test_oroutines`
+  failures documented as a GCC limitation in v1.3.4.1.
+- **Cleanup crash.** Removed the `g_thread_scheduler->current = NULL`
+  write at the end of `ol_gt_run_to_completion` and
+  `ol_gt_scheduler_run`. GCC -O2 cached the TLS pointer in a
+  caller-saved register across the yield; after resume it was
+  garbage and the write segfaulted. The write was unnecessary:
+  the next call sets `current` before each restore.
+- **Supervisor crash detection.** `child_info_t` now carries a
+  back-pointer to its supervisor. When a child exits (normally or
+  by crash), it broadcasts `supervisor->event_cond`. Crash
+  detection drops from 0–100 ms (100 ms poll) to ~5–15 ms (event
+  wake). Demos 09 and 13 show 5+ restarts in the same 400 ms
+  window that previously showed 3.
+
+### Added
+
+- **ASan fiber hooks.** `__sanitizer_start_switch_fiber` is
+  called before each restore; `__sanitizer_finish_switch_fiber`
+  runs at the top of the driver loop, gated by a volatile
+  `need_finish` flag. The real scheduler runs under ASan with
+  accurate per-fiber stack tracking.
+- **`OL_HAS_ASAN_FIBER`.** Guards the hook declarations. In
+  normal builds it expands to 0 and the hooks compile to
+  `((void)0)`; libasan is not referenced.
+
+### Known limitations
+
+- **TSan fiber hooks.** `libtsan` on this platform does not export
+  the fiber-hook symbols. TSan builds set
+  `OL_GT_USE_REAL_SCHEDULER=0` (direct-call path), and
+  `test_oroutines` is excluded from `ci/verify.py` under TSan.
+  This is the same pattern libmill and fcontext use on systems
+  without a TSan-compatible fiber API. Fix in v1.3.5.1.
+- **Single-threaded ORoutines.** All oroutine and channel calls
+  must be on the same OS thread. Cross-thread channels are
+  v1.3.6.
+
+### Verification
+
+| Check | Result |
+|-------|--------|
+| `test_v133_fixes` | 30/30 |
+| `test_oroutines` | 14/14 (was 12/14 in v1.3.4.1) |
+| `demos/17_oroutines` | 100,000 messages @ ~2.2M msg/s |
+| `demos/09_supervisor` | 5+ restarts in 400 ms (was 3) |
+| `ci/verify.py` | 16/16 (ASan+UBSan+LSan+TSan) |
+| `ci/version_check.py` | 4/4 (1.3.5) |
+
+---
+
 ## [1.3.4.1] — 2026-11-09
 
 > **Feature completion for the 1.3.4 series.** Adds goroutine-like

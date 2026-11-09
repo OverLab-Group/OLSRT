@@ -838,8 +838,8 @@ static inline uint64_t ol_rdtsc(void) {
 
 #define OL_GT_VERSION_MAJOR 1
 #define OL_GT_VERSION_MINOR 3
-#define OL_GT_VERSION_PATCH 4
-#define OL_GT_VERSION_STRING "1.3.4.1"
+#define OL_GT_VERSION_PATCH 5
+#define OL_GT_VERSION_STRING "1.3.5"
 
 /**
  * @brief Get library version

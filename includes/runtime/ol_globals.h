@@ -10,10 +10,10 @@
  * ----------------------------------------------------- */
 #define OL_VERSION_MAJOR 1
 #define OL_VERSION_MINOR 3
-#define OL_VERSION_PATCH 4
+#define OL_VERSION_PATCH 5
 
 
-#define OL_VERSION_TWEAK 1  /* v1.3.4.1: ORoutines */
+#define OL_VERSION_TWEAK 0  /* v1.3.5: no tweak */
 /* -----------------------------------------------------
  * Core runtime configuration
  * ----------------------------------------------------- */
