@@ -35,26 +35,67 @@
 
 #include "ol_green_threads.h"
 
-/* v1.3.5: sanitizer fiber hooks. Weak symbols so non-sanitizer builds
- * link without libasan/libtsan. When a sanitizer is active, the strong
- * symbols in the runtime take precedence. */
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((weak))
-void __sanitizer_start_switch_fiber(void** fake_stack_save,
-                                    const void* bottom, size_t size);
-__attribute__((weak))
-void __sanitizer_finish_switch_fiber(void* fake_stack_save,
-                                     const void** bottom_old,
-                                     size_t* size_old);
+/* v1.3.5: sanitizer fiber hooks (Boost.Context / libaco pattern).
+ *
+ * ASan tracks fake stacks per fiber; TSan tracks fiber identity per
+ * thread. A raw %rsp swap is invisible to both. Without hooks:
+ *   - ASan sees the green thread's writes through the driver's
+ *     shadow memory → false heap-overflow reports.
+ *   - TSan treats all fibers on one OS thread as one execution
+ *     context → either misses real races or reports false ones.
+ *
+ * The hooks tell the runtime: "I am switching stacks, here are the
+ * target's bounds." The runtime then tracks each fiber separately.
+ *
+ * Compiled only under a sanitizer. In normal builds, OL_SSF and
+ * OL_FSF expand to ((void)0) and no symbol is referenced, so
+ * libasan/libtsan are not required.
+ *
+ * References:
+ *   sanitizer/common_interface_defs.h
+ *   Boost.Context: libs/context/src/asm/jump_x86_64_sysv_elf_gas.S
+ *   libaco: src/aco_sched.c
+ */
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+extern void __sanitizer_start_switch_fiber(void** fake_stack_save,
+                                           const void* bottom, size_t size);
+extern void __sanitizer_finish_switch_fiber(void* fake_stack_save,
+                                            const void** bottom_old,
+                                            size_t* size_old);
+#  define OL_HAS_SANITIZER_FIBER 1
+#elif defined(__has_feature)
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+extern void __sanitizer_start_switch_fiber(void** fake_stack_save,
+                                           const void* bottom, size_t size);
+extern void __sanitizer_finish_switch_fiber(void* fake_stack_save,
+                                            const void** bottom_old,
+                                            size_t* size_old);
+#    define OL_HAS_SANITIZER_FIBER 1
+#  else
+#    define OL_HAS_SANITIZER_FIBER 0
+#  endif
+#else
+#  define OL_HAS_SANITIZER_FIBER 0
 #endif
 
-/* Per-OS-thread driver fiber tracking. The driver is the "main" fiber
- * of a scheduler; its stack bounds and fake stack are captured on the
- * first finish_switch_fiber call. */
-static OL_GT_LOCAL void*  g_driver_fake_stack    = NULL;
-static OL_GT_LOCAL void*  g_driver_stack_bottom  = NULL;
-static OL_GT_LOCAL size_t g_driver_stack_size    = 0;
-static OL_GT_LOCAL bool   g_driver_stack_known   = false;
+#if OL_HAS_SANITIZER_FIBER
+#  define OL_SSF(fake, b, s) __sanitizer_start_switch_fiber((fake), (b), (s))
+#  define OL_FSF(fake, b, s) __sanitizer_finish_switch_fiber((fake), (b), (s))
+#  if defined(_WIN32)
+static __declspec(thread) void*  g_driver_fake_stack   = NULL;
+static __declspec(thread) void*  g_driver_stack_bottom = NULL;
+static __declspec(thread) size_t g_driver_stack_size   = 0;
+static __declspec(thread) int    g_driver_stack_known  = 0;
+#  else
+static __thread void*  g_driver_fake_stack   = NULL;
+static __thread void*  g_driver_stack_bottom = NULL;
+static __thread size_t g_driver_stack_size   = 0;
+static __thread int    g_driver_stack_known  = 0;
+#  endif
+#else
+#  define OL_SSF(fake, b, s) ((void)0)
+#  define OL_FSF(fake, b, s) ((void)0)
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -2059,16 +2100,16 @@ void ol_gt_yield(void) {
     /* v1.3.5: tell sanitizer we are switching FROM current TO driver.
          * Driver stack bounds are captured on first round; if not yet
          * known, pass NULL/0 (sanitizer will fill them on return). */
-        __sanitizer_start_switch_fiber(
-            &current->sanitizer_fake_stack,
-            g_driver_stack_known ? g_driver_stack_bottom : NULL,
-            g_driver_stack_known ? g_driver_stack_size : 0);
+        #if OL_HAS_SANITIZER_FIBER
+        OL_SSF(&current->sanitizer_fake_stack, g_driver_stack_known ? g_driver_stack_bottom : NULL, g_driver_stack_known ? g_driver_stack_size : 0);
+#else
+        OL_SSF(&current->sanitizer_fake_stack, NULL, 0);
+#endif
         ol_yield_impl(&current->context, g_gt_driver_ctx);
         /* v1.3.5: we resumed. Finish the switch with our own fake
          * stack (set by the driver's start_switch_fiber call when it
          * restored us). */
-        __sanitizer_finish_switch_fiber(
-            current->sanitizer_fake_stack, NULL, NULL);
+        OL_FSF(current->sanitizer_fake_stack, NULL, NULL);
     /* Control returns here after the driver resumes us. */
 #else
     /* Non-x86_64 POSIX / Windows: fall back to v1.3.3 behaviour. */
@@ -2621,6 +2662,11 @@ int ol_gt_run_to_completion(ol_gt_t* gt) {
     }
 
 #if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
+/* v1.3.5: real scheduler in all builds. */
+#ifndef OL_GT_USE_REAL_SCHEDULER
+#  define OL_GT_USE_REAL_SCHEDULER 1
+#endif
+
   #if OL_GT_USE_REAL_SCHEDULER
     /* v1.3.4: real cooperative driver loop. Active only in
      * production builds (no ASan/TSan). Under sanitizers, %rsp is
@@ -2894,21 +2940,18 @@ int ol_gt_scheduler_run(void) {
          * Target = green thread's stack. If we do not yet know the
          * driver's stack bounds, NULL/0 lets the sanitizer record
          * them on first finish. */
-        __sanitizer_start_switch_fiber(
-            &g_driver_fake_stack,
-            cur->stack_base, cur->stack_size);
+        OL_SSF(&g_driver_fake_stack, cur->stack_base, cur->stack_size);
         ol_ctx_restore(&cur->context);
         /* v1.3.5: we resumed. Record driver stack bounds if not
          * yet known (only the first call has g_driver_stack_known
          * false; subsequent calls reuse the saved bounds). */
+        #if OL_HAS_SANITIZER_FIBER
         if (!g_driver_stack_known) {
-            __sanitizer_finish_switch_fiber(
-                g_driver_fake_stack,
-                (const void**)&g_driver_stack_bottom,
-                &g_driver_stack_size);
+            OL_FSF(g_driver_fake_stack, (const void**)&g_driver_stack_bottom, &g_driver_stack_size);
             g_driver_stack_known = true;
-        } else {
-            __sanitizer_finish_switch_fiber(g_driver_fake_stack, NULL, NULL);
+        }
+#endif else {
+            OL_FSF(g_driver_fake_stack, NULL, NULL);
         }
     }
 

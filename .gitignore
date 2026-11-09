@@ -111,3 +111,6 @@ test_oroutines
 
 # Local version archives (use git tags instead)
 history/
+
+# One-off patch scripts (not part of the project)
+v1.3.*-*.py

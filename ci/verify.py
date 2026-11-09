@@ -64,7 +64,7 @@ def collect_sources():
     # v1.3.4.1: test_oroutines needs the real cooperative scheduler.
     # Under ASan/TSan the scheduler is disabled (OL_GT_USE_REAL_SCHEDULER=0),
     # so those tests would either hang or assert-fail. Exclude them.
-    EXCLUDE_TESTS = {"tests/test_oroutines.c"}
+    EXCLUDE_TESTS = set()
     for pattern in TEST_GLOBS:
         for p in sorted(Path(".").glob(pattern)):
             if str(p) in EXCLUDE_TESTS:
