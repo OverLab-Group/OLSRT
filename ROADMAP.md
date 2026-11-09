@@ -331,6 +331,25 @@ and the first `verify.py`.
 - Clean git history.
 - `demos/gold_ws/` — production-shape HTTP/1.1 server.
 
+### v1.3.4.1 — ORoutines (feature completion in 1.3.4 series)
+
+**Goal:** Add goroutine-like oroutines and channels on top of the
+v1.3.4 real scheduler. This completes the original v1.3.4 scope;
+the scheduler fix shipped first because it was a prerequisite.
+
+**Deliverables:**
+
+1. `includes/code/streams/oroutines.h` — API
+2. `src/code/streams/oroutines.c` — multiplexed scheduler on ol_gt_*
+3. `demos/17_oroutines.c` — 100 oroutines, 10 channels, 100k messages
+4. `tests/test_oroutines.c` — 10+ assertions
+5. `demos/bench/{olsrt,libuv}/17_oroutines.c` — benchmark
+
+**Acceptance:** 100,000 messages through 10 channels with no loss;
+ASan · UBSan · LSan · TSan clean.
+
+---
+
 ### v1.3.3 — Dataflow Cleanup + Deferred Items 🔜 NEXT
 
 **Goal:** Close every remaining known issue in §4 (except the ones

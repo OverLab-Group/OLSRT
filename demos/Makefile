@@ -4,8 +4,8 @@
 CC      := cc
 ROOT    := ..
 
-CFLAGS  := -std=gnu11 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L \
-           -DOL_DISABLE_NUMA=1 -O2 -Wall -Wextra
+CFLAGS := -std=gnu11 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L \
+          -DOL_DISABLE_NUMA=1 -O2 -fomit-frame-pointer -Wall -Wextra
 LDFLAGS := -lpthread -lrt -ldl -lnuma
 
 INC     := -I$(ROOT)/includes \

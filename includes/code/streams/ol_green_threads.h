@@ -256,6 +256,56 @@ ol_gt_t* ol_gt_current(void);
  */
 int ol_gt_run_to_completion(ol_gt_t* gt);
 
+/**
+ * @brief Run the current thread's scheduler cooperatively.
+ *
+ * @details
+ * Multi-green-thread driver: pops READY threads from the work-
+ * stealing queues and runs each one until it yields, blocks, or
+ * finishes. This is the primitive that oroutines.c uses to
+ * multiplex N oroutines on one OS thread.
+ *
+ * A green thread yields by calling ol_gt_yield(), and blocks by
+ * calling ol_gt_block(). When a blocked thread is woken via
+ * ol_gt_wake(), it goes back in the ready queue and is scheduled
+ * by the next ol_gt_scheduler_run() call (or by the current one
+ * if it is still running).
+ *
+ * @return Number of threads that reached DONE/CANCELED in this
+ *         run, or -1 on failure.
+ *
+ * @note Must be called from the main thread (not from inside a
+ *       green thread). Returns when the ready queue is empty.
+ */
+int ol_gt_scheduler_run(void);
+
+/**
+ * @brief Block the current green thread.
+ *
+ * @param gt Thread to block (usually ol_gt_current()).
+ *
+ * @details Sets state to WAITING, then yields. The driver loop
+ * will not reschedule this thread until another thread calls
+ * ol_gt_wake(gt). Typical use: channel send on a full channel,
+ * channel recv on an empty channel.
+ *
+ * @note Safe to call from inside a green thread only. A no-op if
+ *       called from the main thread.
+ */
+void ol_gt_block(ol_gt_t* gt);
+
+/**
+ * @brief Wake a blocked green thread.
+ *
+ * @param gt Thread to wake.
+ *
+ * @details CAS state from WAITING to READY and pushes the thread
+ * back onto its priority queue. If the thread is not in WAITING
+ * state (already READY, RUNNING, DONE, CANCELED), this is a no-op.
+ */
+void ol_gt_wake(ol_gt_t* gt);
+
+
 /* ==================== Enhanced Internal API ==================== */
 
 /**
@@ -785,8 +835,8 @@ static inline uint64_t ol_rdtsc(void) {
 
 #define OL_GT_VERSION_MAJOR 1
 #define OL_GT_VERSION_MINOR 3
-#define OL_GT_VERSION_PATCH 3
-#define OL_GT_VERSION_STRING "1.3.3"
+#define OL_GT_VERSION_PATCH 4
+#define OL_GT_VERSION_STRING "1.3.4.1"
 
 /**
  * @brief Get library version

@@ -1,12 +1,8 @@
-# Makefile.v133 — build and run the v1.3.3 regression suite.
-#
-# Separate from the project's main Makefile so that `make linux`,
-# `make all-platforms`, etc. keep working unchanged.
+# Makefile.v133 — build and run the v1.3.3/v1.3.4.1 regression suites.
 #
 # Usage (from project root):
-#   make -C demos                 # build libolsrt.so once
-#   make -f Makefile.v133 run     # build and run the test
-#   make -f Makefile.v133 clean
+#   make -C demos
+#   make -f Makefile.v133 run
 
 CC      ?= cc
 CFLAGS  := -std=gnu11 -O1 -g -Wall -Wextra \
@@ -21,14 +17,16 @@ INCLUDES := -Iincludes \
 LDLIBS  := -Ldemos -lolsrt "-Wl,-rpath,$(CURDIR)/demos" \
            -lpthread -lrt -ldl -lnuma
 
-BIN  := test_v133_fixes
-SRC  := tests/test_v133_fixes.c
+BINS := test_v133_fixes test_oroutines
 
 .PHONY: all run clean
 
-all: $(BIN)
+all: $(BINS)
 
-$(BIN): $(SRC) demos/libolsrt.so
+test_v133_fixes: tests/test_v133_fixes.c demos/libolsrt.so
+	$(CC) $(CFLAGS) $(INCLUDES) $< $(LDLIBS) -o $@
+
+test_oroutines: tests/test_oroutines.c demos/libolsrt.so
 	$(CC) $(CFLAGS) $(INCLUDES) $< $(LDLIBS) -o $@
 
 demos/libolsrt.so:
@@ -36,10 +34,12 @@ demos/libolsrt.so:
 	@echo "       Run: make -C demos" >&2
 	@exit 1
 
-run: $(BIN)
-	./$(BIN)
+run: $(BINS)
+	@echo "=== test_v133_fixes ==="
+	./test_v133_fixes
+	@echo
+	@echo "=== test_oroutines ==="
+	./test_oroutines
 
 clean:
-	rm -f $(BIN)
-
-# END OF FILE Makefile.v133
+	rm -f $(BINS)

@@ -61,8 +61,14 @@ def collect_sources():
     list of test programs (files with a `main` symbol)."""
     lib_sources = sorted(str(p) for p in Path(".").glob(LIB_SRC_GLOB))
     test_sources = []
+    # v1.3.4.1: test_oroutines needs the real cooperative scheduler.
+    # Under ASan/TSan the scheduler is disabled (OL_GT_USE_REAL_SCHEDULER=0),
+    # so those tests would either hang or assert-fail. Exclude them.
+    EXCLUDE_TESTS = {"tests/test_oroutines.c"}
     for pattern in TEST_GLOBS:
         for p in sorted(Path(".").glob(pattern)):
+            if str(p) in EXCLUDE_TESTS:
+                continue
             test_sources.append(str(p))
     return lib_sources, test_sources
 

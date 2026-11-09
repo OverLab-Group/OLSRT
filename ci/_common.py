@@ -92,9 +92,13 @@ def read_version():
     major = re.search(r"#define\s+OL_VERSION_MAJOR\s+(\d+)", text)
     minor = re.search(r"#define\s+OL_VERSION_MINOR\s+(\d+)", text)
     patch = re.search(r"#define\s+OL_VERSION_PATCH\s+(\d+)", text)
+    tweak = re.search(r"#define\s+OL_VERSION_TWEAK\s+(\d+)", text)
     if not (major and minor and patch):
         return None
-    return "%s.%s.%s" % (major.group(1), minor.group(1), patch.group(1))
+    base = "%s.%s.%s" % (major.group(1), minor.group(1), patch.group(1))
+    if tweak and tweak.group(1) != "0":
+        return "%s.%s" % (base, tweak.group(1))
+    return base
 
 
 # ---------------------------------------------------------------------

@@ -244,6 +244,15 @@ static atomic_int g_last_error = OL_GT_SUCCESS;
 
 static OL_GT_LOCAL uintptr_t g_gt_driver_ctx[64];
 
+/* v1.3.4.1: scheduler loop state, in TLS.
+ * Volatile locals were not enough — GCC -O2 kept register copies
+ * across the yield. TLS is addressed via %fs:offset, which the
+ * kernel preserves per-thread across setjmp/longjmp/context switch.
+ * Every read goes to memory, so no stale register can appear. */
+static OL_GT_LOCAL int      g_sched_completed = 0;
+static OL_GT_LOCAL ol_gt_t* g_sched_last      = NULL;
+
+
 /* v1.3.4 fix: current green thread, stored in TLS so that both
  * the driver loop and ol_yield_impl can read it without relying
  * on caller-saved registers surviving a context switch. */
@@ -350,96 +359,83 @@ typedef struct {
  */
 static OL_FORCE_INLINE void ol_ctx_save_x86_64(ol_ctx_x86_64_t* ctx) {
     asm volatile(
-        /* Save integer registers */
-        "movq %%rbx,  0(%0)\n\t"
-        "movq %%rbp,  8(%0)\n\t"
-        "movq %%r12, 16(%0)\n\t"
-        "movq %%r13, 24(%0)\n\t"
-        "movq %%r14, 32(%0)\n\t"
-        "movq %%r15, 40(%0)\n\t"
-        "movq %%rsp, 48(%0)\n\t"
+        /* v1.3.4.1: copy ctx into %r10 (scratch; in clobber list). */
+        "movq %0, %%r10\n\t"
+
+        "movq %%rbx,   0(%%r10)\n\t"
+        "movq %%rbp,   8(%%r10)\n\t"
+        "movq %%r12,  16(%%r10)\n\t"
+        "movq %%r13,  24(%%r10)\n\t"
+        "movq %%r14,  32(%%r10)\n\t"
+        "movq %%r15,  40(%%r10)\n\t"
+        "movq %%rsp,  48(%%r10)\n\t"
         "leaq 1f(%%rip), %%rax\n\t"
-        "movq %%rax, 56(%0)\n\t"
-
-        /* Save MXCSR */
-        "stmxcsr 64(%0)\n\t"
-
-        /* Save XMM registers */
-        "movdqu %%xmm6,  72(%0)\n\t"
-        "movdqu %%xmm7,  88(%0)\n\t"
-        "movdqu %%xmm8, 104(%0)\n\t"
-        "movdqu %%xmm9, 120(%0)\n\t"
-        "movdqu %%xmm10, 136(%0)\n\t"
-        "movdqu %%xmm11, 152(%0)\n\t"
-        "movdqu %%xmm12, 168(%0)\n\t"
-        "movdqu %%xmm13, 184(%0)\n\t"
-        "movdqu %%xmm14, 200(%0)\n\t"
-        "movdqu %%xmm15, 216(%0)\n\t"
-
+        "movq %%rax,  56(%%r10)\n\t"
+        "stmxcsr 64(%%r10)\n\t"
+        "movdqu %%xmm6,  72(%%r10)\n\t"
+        "movdqu %%xmm7,  88(%%r10)\n\t"
+        "movdqu %%xmm8, 104(%%r10)\n\t"
+        "movdqu %%xmm9, 120(%%r10)\n\t"
+        "movdqu %%xmm10, 136(%%r10)\n\t"
+        "movdqu %%xmm11, 152(%%r10)\n\t"
+        "movdqu %%xmm12, 168(%%r10)\n\t"
+        "movdqu %%xmm13, 184(%%r10)\n\t"
+        "movdqu %%xmm14, 200(%%r10)\n\t"
+        "movdqu %%xmm15, 216(%%r10)\n\t"
         "1:\n\t"
         :
         : "r"(ctx)
-        /* v1.3.4 fix: clobber ALL caller-saved registers.
-         *
-         * The resume label `1:` is right after this asm. When the
-         * driver resumes there after a yield, EVERY caller-saved
-         * register contains whatever the yielding green thread left.
-         * Previously only %rax was listed, so the compiler kept loop
-         * state (e.g. `cur`, `&cur->context`) in %rsi/%rdi/%rcx.
-         * After yield, those were garbage — source of the +230
-         * SIGSEGV in ol_gt_run_to_completion. */
-        : "rax", "rcx", "rdx", "rsi", "rdi",
-          "r8", "r9", "r10", "r11",
-          "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
-          "memory", "cc");
+        : "rax", "r10", "memory", "cc");
 }
 
 /**
  * @brief Restore x86_64 context (assembly)
+ *
+ * v1.3.4.1 fix: copy ctx into %r10 (which is in the clobber list,
+ * so GCC never picks it for the input operand) at the very start.
+ * From then on, read all fields from %r10. Without this, GCC could
+ * pick %rbx as the input register and reorder `movq 0(%rbx), %rbx`
+ * before `movq 8(%rbx), %rbp`. rbx would then hold ctx->rbx (= 0
+ * for a fresh thread) and the next read would SIGSEGV. This is the
+ * standard pattern used by libaco, libmill, and Boost.Context: one
+ * fixed scratch register that GCC is forbidden to reuse.
  */
 static OL_FORCE_INLINE void ol_ctx_restore_x86_64(const ol_ctx_x86_64_t* ctx) {
     asm volatile(
+        /* Copy ctx into r10 (scratch; in clobber list below). */
+        "movq %0, %%r10\n\t"
+
         /* Restore XMM registers */
-        "movdqu 216(%0), %%xmm15\n\t"
-        "movdqu 200(%0), %%xmm14\n\t"
-        "movdqu 184(%0), %%xmm13\n\t"
-        "movdqu 168(%0), %%xmm12\n\t"
-        "movdqu 152(%0), %%xmm11\n\t"
-        "movdqu 136(%0), %%xmm10\n\t"
-        "movdqu 120(%0), %%xmm9\n\t"
-        "movdqu 104(%0), %%xmm8\n\t"
-        "movdqu  88(%0), %%xmm7\n\t"
-        "movdqu  72(%0), %%xmm6\n\t"
+        "movdqu 216(%%r10), %%xmm15\n\t"
+        "movdqu 200(%%r10), %%xmm14\n\t"
+        "movdqu 184(%%r10), %%xmm13\n\t"
+        "movdqu 168(%%r10), %%xmm12\n\t"
+        "movdqu 152(%%r10), %%xmm11\n\t"
+        "movdqu 136(%%r10), %%xmm10\n\t"
+        "movdqu 120(%%r10), %%xmm9\n\t"
+        "movdqu 104(%%r10), %%xmm8\n\t"
+        "movdqu  88(%%r10), %%xmm7\n\t"
+        "movdqu  72(%%r10), %%xmm6\n\t"
 
         /* Restore MXCSR */
-        "ldmxcsr 64(%0)\n\t"
+        "ldmxcsr 64(%%r10)\n\t"
 
-        /* Restore integer registers. v1.3.4 fix: rbx BEFORE rbp.
-         *
-         * The compiler may pick rbp as the register holding `ctx`
-         * (%0). If rbp is restored first, the next read from %0
-         * dereferences ctx->rbp (usually 0 for a fresh green
-         * thread) — SIGSEGV at +492. Loading rbx first is safe:
-         * %0 is still valid (rbp unchanged), then rbp is the very
-         * last write. */
-        "movq 56(%0), %%rax\n\t"
-        "movq 48(%0), %%rsp\n\t"
-        "movq 40(%0), %%r15\n\t"
-        "movq 32(%0), %%r14\n\t"
-        "movq 24(%0), %%r13\n\t"
-        "movq 16(%0), %%r12\n\t"
-        "movq  0(%0), %%rbx\n\t"
-        "movq  8(%0), %%rbp\n\t"
+        /* Restore integer registers from r10 (safe). */
+        "movq 56(%%r10), %%rax\n\t"
+        "movq 48(%%r10), %%rsp\n\t"
+        "movq 40(%%r10), %%r15\n\t"
+        "movq 32(%%r10), %%r14\n\t"
+        "movq 24(%%r10), %%r13\n\t"
+        "movq 16(%%r10), %%r12\n\t"
+        "movq  8(%%r10), %%rbp\n\t"
+        "movq  0(%%r10), %%rbx\n\t"
 
         /* Jump to saved RIP */
         "jmp *%%rax\n\t"
         :
         : "r"(ctx)
-        /* v1.3.4 fix: same reasoning as save. */
-        : "rax", "rcx", "rdx", "rsi", "rdi",
-          "r8", "r9", "r10", "r11",
-          "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
-          "memory", "cc");
+        : "rax", "r10", "memory", "cc");
+        /* v1.3.4.1: callee-saved not in clobber (Boost.Context). */
 
     __builtin_unreachable();
 }
@@ -2563,6 +2559,7 @@ const char* ol_gt_get_build_config(void) {
  * @see ol_gt_yield, ol_gt_resume, ol_gt_run_to_completion
  */
 OL_NO_SANITIZE_SWITCH
+__attribute__((noinline))
 int ol_gt_run_to_completion(ol_gt_t* gt) {
     if (!gt) {
         atomic_store_explicit(
@@ -2784,3 +2781,113 @@ void ol_gt_dump_thread_state(const ol_gt_t* gt) {
 }
 
 #endif /* OL_GT_DEBUG */
+
+
+/* ==================== v1.3.4.1 Scheduler ==================== */
+
+/**
+ * @brief Multi-green-thread cooperative driver.
+ *
+ * @details
+ * Design note: the resume point is the top of the loop, because
+ * ol_ctx_save() saves rip pointing right after its own asm block.
+ * After a yield, execution resumes at that point; the loop then
+ * checks the state of the just-yielded thread (requeue if READY,
+ * count if DONE, skip if WAITING) and pops the next ready one.
+ *
+ * `last` and `completed` are volatile so they land on the stack.
+ * The stack is preserved across yield (yield swaps rip/rsp to the
+ * driver context we saved, which is this function's own stack),
+ * so their values survive the swap.
+ */
+__attribute__((noinline))
+int ol_gt_scheduler_run(void) {
+    if (!g_thread_scheduler && ol_gt_scheduler_init() != 0) {
+        return -1;
+    }
+
+    bool prev_mode = g_gt_driver_mode;
+    g_gt_driver_mode = true;
+
+    g_sched_completed = 0;
+    g_sched_last = NULL;
+
+    while (1) {
+        ol_ctx_save(g_gt_driver_ctx);
+
+        /* If we just resumed from a yield, handle the yielded thread.
+         * g_sched_last and g_sched_completed are TLS (see above), so
+         * their values survive the context switch. */
+        if (g_sched_last) {
+            ol_gt_t* p = g_sched_last;
+            ol_gt_state_t ps =
+                atomic_load_explicit(&p->state, memory_order_acquire);
+            if (ps == OL_GT_STATE_DONE || ps == OL_GT_STATE_CANCELED) {
+                g_sched_completed++;
+            } else if (ps == OL_GT_STATE_READY) {
+                ol_work_stealing_queue_push(
+                    &g_thread_scheduler->queues[p->priority], p);
+            } else if (ps == OL_GT_STATE_RUNNING) {
+                atomic_store_explicit(
+                    &p->state, OL_GT_STATE_READY, memory_order_release);
+                ol_work_stealing_queue_push(
+                    &g_thread_scheduler->queues[p->priority], p);
+            }
+            g_sched_last = NULL;
+        }
+
+        /* Pop next ready thread. */
+        ol_gt_t* cur = NULL;
+        for (int pri = OL_GT_PRIORITY_REALTIME;
+             pri >= OL_GT_PRIORITY_IDLE; pri--) {
+            cur = (ol_gt_t*)ol_work_stealing_queue_pop(
+                &g_thread_scheduler->queues[pri]);
+            if (cur) break;
+        }
+        if (!cur) break;
+
+        g_sched_last = cur;
+        g_gt_driver_current = cur;
+        ol_gt_state_t s =
+            atomic_load_explicit(&cur->state, memory_order_acquire);
+        if (s == OL_GT_STATE_READY) {
+            atomic_store_explicit(
+                &cur->state, OL_GT_STATE_RUNNING, memory_order_release);
+        }
+        g_thread_scheduler->current = cur;
+        ol_ctx_restore(&cur->context);
+    }
+
+    g_gt_driver_current = NULL;
+    g_thread_scheduler->current = NULL;
+    g_gt_driver_mode = prev_mode;
+    return g_sched_completed;
+}
+
+/**
+ * @brief Block the current green thread.
+ */
+void ol_gt_block(ol_gt_t* gt) {
+    if (!gt || !g_gt_driver_mode) return;
+    atomic_store_explicit(
+        &gt->state, OL_GT_STATE_WAITING, memory_order_release);
+    ol_gt_yield();
+}
+
+/**
+ * @brief Wake a blocked green thread.
+ */
+void ol_gt_wake(ol_gt_t* gt) {
+    if (!gt) return;
+    if (!g_thread_scheduler) return;
+    /* v1.3.4.1: state is atomic_uint_fast32_t (8 bytes on x86_64),
+     * not ol_gt_state_t (4 bytes). CAS needs a pointer to the exact
+     * storage type. Use uint_fast32_t, not the enum. */
+    uint_fast32_t expected = (uint_fast32_t)OL_GT_STATE_WAITING;
+    if (atomic_compare_exchange_strong_explicit(
+            &gt->state, &expected, (uint_fast32_t)OL_GT_STATE_READY,
+            memory_order_acq_rel, memory_order_acquire)) {
+        ol_work_stealing_queue_push(
+            &g_thread_scheduler->queues[gt->priority], gt);
+    }
+}

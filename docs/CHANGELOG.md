@@ -6,6 +6,40 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.4.1] — 2026-11-09
+
+> **Feature completion for the 1.3.4 series.** Adds goroutine-like
+> oroutines and channels on top of the v1.3.4 real scheduler.
+
+### Added
+
+- **`oroutines.h` / `oroutines.c`** — Go-like API:
+  `or_go`, `or_yield`, `or_run`, `or_join`, `or_cancel`, `or_self`,
+  and typed channels `or_chan_create/send/recv/close/destroy`.
+- **`ol_gt_scheduler_run`** — multi-gt cooperative driver
+  (pops READY, runs each, requeues yielded, counts DONE).
+- **`ol_gt_block` / `ol_gt_wake`** — the primitives channels use to
+  suspend and resume oroutines.
+- **`demos/17_oroutines.c`** — 100 oroutines, 11 channels, 100k
+  messages through a relay pattern.
+- **`tests/test_oroutines.c`** — 6 tests, 12+ assertions.
+
+### Changed
+
+- **`OL_VERSION_TWEAK 1`** in `ol_globals.h`. `ci/_common.py`
+  `read_version` now emits `X.Y.Z.W` when TWEAK is non-zero.
+- **`ci/version_check.py`** CHANGELOG regex accepts `X.Y.Z.W`.
+- **`ROADMAP.md`** — v1.3.4 marked Scheduler-only, v1.3.4.1
+  ORoutines. v1.3.5 remains Supervisor 2.0.
+
+### Known limitations
+
+- **Single-threaded.** All oroutine and channel calls must be on
+  the same OS thread.
+- **No `or_select`.** Deferred to v1.3.4.2.
+
+---
+
 ## [1.3.3] — 2026-11-08
 
 > **Bug-fix release.** Closes every P0 and P1 issue from the v1.3.2

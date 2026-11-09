@@ -50,10 +50,10 @@ def main(argv=None):
         ("includes/code/streams/ol_green_threads.h", re.compile(
             r'#define\s+OL_GT_VERSION_STRING\s+"([^"]+)"')),
         ("CMakeLists.txt", re.compile(
-            r"project\([^)]*VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)",
+            r"project\([^)]*VERSION\s+([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)",
             re.DOTALL)),
         ("docs/CHANGELOG.md", re.compile(
-            r"^##\s+\[([0-9]+\.[0-9]+\.[0-9]+)\]",
+            r"^##\s+\[([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)\]",
             re.MULTILINE)),
     ]
 
