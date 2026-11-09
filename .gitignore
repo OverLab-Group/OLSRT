@@ -104,3 +104,7 @@ test_v133_fixes
 demos/bench/olsrt/[0-9]*
 demos/bench/libuv/[0-9]*
 !*.c
+
+# v1.3.4.1 artifacts
+demos/17_oroutines
+test_oroutines
