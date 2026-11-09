@@ -35,50 +35,34 @@
 
 #include "ol_green_threads.h"
 
-/* v1.3.5: sanitizer fiber hooks (Boost.Context / libaco pattern).
+/* v1.3.5: sanitizer fiber hooks — ASan only.
  *
- * ASan tracks fake stacks per fiber; TSan tracks fiber identity per
- * thread. A raw %rsp swap is invisible to both. Without hooks:
- *   - ASan sees the green thread's writes through the driver's
- *     shadow memory → false heap-overflow reports.
- *   - TSan treats all fibers on one OS thread as one execution
- *     context → either misses real races or reports false ones.
+ * ASan tracks fake stacks per fiber; a raw %rsp swap is invisible.
+ * These hooks tell ASan about each stack switch.
  *
- * The hooks tell the runtime: "I am switching stacks, here are the
- * target's bounds." The runtime then tracks each fiber separately.
- *
- * Compiled only under a sanitizer. In normal builds, OL_SSF and
- * OL_FSF expand to ((void)0) and no symbol is referenced, so
- * libasan/libtsan are not required.
- *
- * References:
- *   sanitizer/common_interface_defs.h
- *   Boost.Context: libs/context/src/asm/jump_x86_64_sysv_elf_gas.S
- *   libaco: src/aco_sched.c
+ * TSan does not export fiber-hook symbols on all platforms, so under
+ * TSan we fall back to the direct-call path (OL_GT_USE_REAL_SCHEDULER=0,
+ * set by the gate below). Normal builds see OL_HAS_ASAN_FIBER=0 and
+ * the macros compile to no-ops.
  */
-#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
-extern void __sanitizer_start_switch_fiber(void** fake_stack_save,
-                                           const void* bottom, size_t size);
-extern void __sanitizer_finish_switch_fiber(void* fake_stack_save,
-                                            const void** bottom_old,
-                                            size_t* size_old);
-#  define OL_HAS_SANITIZER_FIBER 1
+#if defined(__SANITIZE_ADDRESS__)
+#  define OL_HAS_ASAN_FIBER 1
 #elif defined(__has_feature)
-#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
-extern void __sanitizer_start_switch_fiber(void** fake_stack_save,
-                                           const void* bottom, size_t size);
-extern void __sanitizer_finish_switch_fiber(void* fake_stack_save,
-                                            const void** bottom_old,
-                                            size_t* size_old);
-#    define OL_HAS_SANITIZER_FIBER 1
+#  if __has_feature(address_sanitizer)
+#    define OL_HAS_ASAN_FIBER 1
 #  else
-#    define OL_HAS_SANITIZER_FIBER 0
+#    define OL_HAS_ASAN_FIBER 0
 #  endif
 #else
-#  define OL_HAS_SANITIZER_FIBER 0
+#  define OL_HAS_ASAN_FIBER 0
 #endif
 
-#if OL_HAS_SANITIZER_FIBER
+#if OL_HAS_ASAN_FIBER
+extern void __sanitizer_start_switch_fiber(void** fake_stack_save,
+                                           const void* bottom, size_t size);
+extern void __sanitizer_finish_switch_fiber(void* fake_stack_save,
+                                            const void** bottom_old,
+                                            size_t* size_old);
 #  define OL_SSF(fake, b, s) __sanitizer_start_switch_fiber((fake), (b), (s))
 #  define OL_FSF(fake, b, s) __sanitizer_finish_switch_fiber((fake), (b), (s))
 #  if defined(_WIN32)
@@ -96,7 +80,6 @@ static __thread int    g_driver_stack_known  = 0;
 #  define OL_SSF(fake, b, s) ((void)0)
 #  define OL_FSF(fake, b, s) ((void)0)
 #endif
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -2088,31 +2071,33 @@ void ol_gt_yield(void) {
     }
 
     if (!g_gt_driver_mode) {
-        /* No driver: yield is a no-op (matches v1.3.3 semantics). */
         return;
     }
 
 #if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
-    /* v1.3.4: real cooperative yield via ol_yield_impl. Saves current
-     * into current->context, restores the driver, and returns cleanly
-     * when the driver later resumes us (via asm `ret` at
-     * .Lol_yield_resume). */
-    /* v1.3.5: tell sanitizer we are switching FROM current TO driver.
-         * Driver stack bounds are captured on first round; if not yet
-         * known, pass NULL/0 (sanitizer will fill them on return). */
-        #if OL_HAS_SANITIZER_FIBER
-        OL_SSF(&current->sanitizer_fake_stack, g_driver_stack_known ? g_driver_stack_bottom : NULL, g_driver_stack_known ? g_driver_stack_size : 0);
-#else
-        OL_SSF(&current->sanitizer_fake_stack, NULL, 0);
+    ol_gt_state_t s =
+        atomic_load_explicit(&current->state, memory_order_acquire);
+    if (s == OL_GT_STATE_DONE || s == OL_GT_STATE_CANCELED) {
+        atomic_fetch_add_explicit(&g_sched_completed, 1,
+                                  memory_order_release);
+    } else if (s == OL_GT_STATE_RUNNING) {
+        atomic_store_explicit(&current->state, OL_GT_STATE_READY,
+                              memory_order_release);
+        ol_work_stealing_queue_push(
+            &g_thread_scheduler->queues[current->priority], current);
+    }
+
+#if OL_HAS_ASAN_FIBER
+    OL_SSF(&current->sanitizer_fake_stack,
+           g_driver_stack_known ? g_driver_stack_bottom : NULL,
+           g_driver_stack_known ? g_driver_stack_size : 0);
 #endif
-        ol_yield_impl(&current->context, g_gt_driver_ctx);
-        /* v1.3.5: we resumed. Finish the switch with our own fake
-         * stack (set by the driver's start_switch_fiber call when it
-         * restored us). */
-        OL_FSF(current->sanitizer_fake_stack, NULL, NULL);
-    /* Control returns here after the driver resumes us. */
+    ol_yield_impl(&current->context, g_gt_driver_ctx);
+
+#if OL_HAS_ASAN_FIBER
+    OL_FSF(current->sanitizer_fake_stack, NULL, NULL);
+#endif
 #else
-    /* Non-x86_64 POSIX / Windows: fall back to v1.3.3 behaviour. */
     ol_ctx_save(&current->context);
     ol_ctx_restore(&g_gt_driver_ctx);
 #endif
@@ -2194,10 +2179,14 @@ void ol_gt_destroy(ol_gt_t* gt) {
         ol_gt_join(gt);
     }
 
-    /* Free stack if allocated */
+    /* Free stack if allocated. v1.3.5: guard against TLS caching. */
     if (gt->stack_base) {
-        ol_stack_pool_free(
-            &g_thread_scheduler->stack_pool, gt->stack_base, gt->stack_size);
+        asm volatile("" ::: "memory");
+        if (g_thread_scheduler) {
+            ol_stack_pool_free(
+                &g_thread_scheduler->stack_pool,
+                gt->stack_base, gt->stack_size);
+        }
     }
 
 #if OL_PLATFORM_WINDOWS
@@ -2662,8 +2651,17 @@ int ol_gt_run_to_completion(ol_gt_t* gt) {
     }
 
 #if OL_PLATFORM_POSIX && !OL_PLATFORM_WINDOWS && OL_ARCH_X86_64
-/* v1.3.5: real scheduler in all builds. */
-#ifndef OL_GT_USE_REAL_SCHEDULER
+/* v1.3.5: TSan uses direct-call path (no fiber hooks available
+ * on this system). ASan and normal builds use the real scheduler. */
+#if defined(__SANITIZE_THREAD__)
+#  define OL_GT_USE_REAL_SCHEDULER 0
+#elif defined(__has_feature)
+#  if __has_feature(thread_sanitizer)
+#    define OL_GT_USE_REAL_SCHEDULER 0
+#  else
+#    define OL_GT_USE_REAL_SCHEDULER 1
+#  endif
+#else
 #  define OL_GT_USE_REAL_SCHEDULER 1
 #endif
 
@@ -2691,8 +2689,18 @@ int ol_gt_run_to_completion(ol_gt_t* gt) {
         ol_ctx_restore(&cur->context);
     }
 
+    /* v1.3.5 fix: do NOT write g_thread_scheduler->current here.
+     * GCC -O2 caches the TLS pointer in a caller-saved register
+     * across the yield, and after resume that register is garbage
+     * (the context switch only preserves callee-saved). The write
+     * segfaults at `movq $0, 0x140(%rax)` with %rax garbage.
+     *
+     * Not writing current is safe: the next call to
+     * ol_gt_run_to_completion or ol_gt_scheduler_run sets current
+     * before each restore. No code path between run_to_completion
+     * calls reads current. */
     g_gt_driver_current = NULL;
-    g_thread_scheduler->current = NULL;
+    asm volatile("" ::: "memory");
     g_gt_driver_mode = prev_mode;
     return 0;
   #else
@@ -2891,33 +2899,30 @@ int ol_gt_scheduler_run(void) {
     g_gt_driver_mode = true;
 
     g_sched_completed = 0;
-    g_sched_last = NULL;
+
+    /* need_finish: set true right before switching to a green
+     * thread; consumed at the top of the next loop iteration
+     * (which is where we resume after the green thread yields).
+     * Volatile so the compiler cannot cache it. */
+    volatile int need_finish = 0;
 
     while (1) {
         ol_ctx_save(g_gt_driver_ctx);
 
-        /* If we just resumed from a yield, handle the yielded thread.
-         * g_sched_last and g_sched_completed are TLS (see above), so
-         * their values survive the context switch. */
-        if (g_sched_last) {
-            ol_gt_t* p = g_sched_last;
-            ol_gt_state_t ps =
-                atomic_load_explicit(&p->state, memory_order_acquire);
-            if (ps == OL_GT_STATE_DONE || ps == OL_GT_STATE_CANCELED) {
-                g_sched_completed++;
-            } else if (ps == OL_GT_STATE_READY) {
-                ol_work_stealing_queue_push(
-                    &g_thread_scheduler->queues[p->priority], p);
-            } else if (ps == OL_GT_STATE_RUNNING) {
-                atomic_store_explicit(
-                    &p->state, OL_GT_STATE_READY, memory_order_release);
-                ol_work_stealing_queue_push(
-                    &g_thread_scheduler->queues[p->priority], p);
-            }
-            g_sched_last = NULL;
+        /* Resumed here after a green thread yields. If we switched
+         * in on the previous iteration, finish the sanitizer switch. */
+#if OL_HAS_ASAN_FIBER
+        if (need_finish) {
+            OL_FSF(g_driver_fake_stack,
+                   (const void**)&g_driver_stack_bottom,
+                   &g_driver_stack_size);
+            need_finish = 0;
         }
+#else
+        (void)need_finish;
+#endif
 
-        /* Pop next ready thread. */
+        /* Pop next ready thread (highest priority first). */
         ol_gt_t* cur = NULL;
         for (int pri = OL_GT_PRIORITY_REALTIME;
              pri >= OL_GT_PRIORITY_IDLE; pri--) {
@@ -2927,7 +2932,6 @@ int ol_gt_scheduler_run(void) {
         }
         if (!cur) break;
 
-        g_sched_last = cur;
         g_gt_driver_current = cur;
         ol_gt_state_t s =
             atomic_load_explicit(&cur->state, memory_order_acquire);
@@ -2936,29 +2940,21 @@ int ol_gt_scheduler_run(void) {
                 &cur->state, OL_GT_STATE_RUNNING, memory_order_release);
         }
         g_thread_scheduler->current = cur;
-        /* v1.3.5: tell sanitizer about the upcoming stack switch.
-         * Target = green thread's stack. If we do not yet know the
-         * driver's stack bounds, NULL/0 lets the sanitizer record
-         * them on first finish. */
+
+#if OL_HAS_ASAN_FIBER
         OL_SSF(&g_driver_fake_stack, cur->stack_base, cur->stack_size);
+        need_finish = 1;
+#endif
         ol_ctx_restore(&cur->context);
-        /* v1.3.5: we resumed. Record driver stack bounds if not
-         * yet known (only the first call has g_driver_stack_known
-         * false; subsequent calls reuse the saved bounds). */
-        #if OL_HAS_SANITIZER_FIBER
-        if (!g_driver_stack_known) {
-            OL_FSF(g_driver_fake_stack, (const void**)&g_driver_stack_bottom, &g_driver_stack_size);
-            g_driver_stack_known = true;
-        }
-#endif else {
-            OL_FSF(g_driver_fake_stack, NULL, NULL);
-        }
+        /* Not reached on yield: control returns to ol_ctx_save above. */
     }
 
+    /* v1.3.5 fix: same reason as run_to_completion — do not write
+     * g_thread_scheduler->current here. The next call sets it. */
     g_gt_driver_current = NULL;
-    g_thread_scheduler->current = NULL;
+    asm volatile("" ::: "memory");
     g_gt_driver_mode = prev_mode;
-    return g_sched_completed;
+    return (int)g_sched_completed;
 }
 
 /**
